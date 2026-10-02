@@ -1,14 +1,6 @@
 import gsap from 'gsap'
 import victoryBandUrl from '../assets/GENERAL/lose-win/victory-band.webp'
 import defeatBandUrl from '../assets/GENERAL/lose-win/defeat-band.webp'
-import victoryFigureUrl from '../assets/GENERAL/lose-win/victory-figure.webp'
-import defeatFigureUrl from '../assets/GENERAL/lose-win/defeat-figure.webp'
-import ricklowVictoryFigureUrl from '../assets/GENERAL/lose-win/ricklow-victory.webp'
-import ricklowDefeatFigureUrl from '../assets/GENERAL/lose-win/ricklow-defeat.webp'
-import ardellVictoryFigureUrl from '../assets/GENERAL/lose-win/ardell-victory.webp'
-import ardellDefeatFigureUrl from '../assets/GENERAL/lose-win/ardell-defeat.webp'
-import confarVictoryFigureUrl from '../assets/GENERAL/lose-win/confar-victory.webp'
-import confarDefeatFigureUrl from '../assets/GENERAL/lose-win/confar-defeat.webp'
 import playNowUrl from '../assets/GENERAL/BUTTONS/play-now.webp'
 import retryPlateUrl from '../assets/GENERAL/BUTTONS/retry-plate.webp'
 
@@ -33,8 +25,6 @@ const SIDE = {
     bloom: '245, 198, 90',
     lamp: 0.42,
     idle: 0.36,
-    bury: 0.21,
-    rise: { portrait: 0.035, landscape: 0.03 },
     drop: { portrait: 0.82, landscape: 0.62 },
   },
   defeat: {
@@ -44,41 +34,13 @@ const SIDE = {
     bloom: '201, 80, 42',
     lamp: 0.3,
     idle: 0.26,
-    bury: 0.14,
-    rise: { portrait: 0.045, landscape: 0.04 },
     drop: { portrait: 0.12, landscape: 0.12 },
-  },
-}
-
-const DEFAULT_FIGURES = {
-  victory: { figure: victoryFigureUrl },
-  defeat: { figure: defeatFigureUrl },
-}
-
-const HERO_FIGURES = {
-  ricklow: {
-    victory: { figure: ricklowVictoryFigureUrl, wide: 576 / 512 },
-    defeat: { figure: ricklowDefeatFigureUrl, wide: 576 / 512 },
-  },
-  confar: {
-    victory: { figure: confarVictoryFigureUrl, wide: 1120 / 512 },
-    defeat: { figure: confarDefeatFigureUrl, wide: 832 / 512 },
-  },
-  ardell: {
-    victory: { figure: ardellVictoryFigureUrl, wide: 1088 / 512 },
-    defeat: { figure: ardellDefeatFigureUrl, wide: 912 / 512 },
   },
 }
 
 const VERDICT_W = { portrait: 1.0, landscape: 0.52 }
 const VERDICT_H = { portrait: 0.2, landscape: 0.2 }
-const VERDICT_MIN = { portrait: 0.12, landscape: 0.15 }
 const PLATE_Y = { portrait: 0.47, landscape: 0.42 }
-const FIGURE_H = { portrait: 0.48, landscape: 0.37 }
-const FIGURE_W = { portrait: 0.92, landscape: 0.46 }
-const FIGURE_WANT = { portrait: 0, landscape: 0.26 }
-const PLATE_GIVE = 3
-const FIGURE_AIR = 10
 
 const RETRY_W = { portrait: 0.68, landscape: 0.34 }
 const RETRY_MAX = { portrait: 0.26, landscape: 0.3 }
@@ -126,26 +88,17 @@ function place(node, x, y, w, h) {
   node.style.height = `${h}px`
 }
 
-function spread(node, wide = 1) {
-  node.style.left = `${((1 - wide) / 2) * 100}%`
-  node.style.width = `${wide * 100}%`
-}
-
 export class Outcome {
   constructor(root) {
     this.root = root
     this.scrim = root.querySelector('.scrim')
     this.bloom = root.querySelector('.bloom')
-    this.figure = root.querySelector('.figure')
-    this.still = root.querySelector('.still')
     this.band = root.querySelector('.band')
     this.verdict = root.querySelector('.verdict')
     this.control = root.querySelector('.control')
     this.plate = root.querySelector('.plate')
     this.label = root.querySelector('.label')
     this.flash = root.querySelector('.flash')
-    this.why = root.querySelector('.why')
-    this.reason = false
     this.side = SIDE.victory
     this.defeat = false
     this.armed = false
@@ -155,8 +108,6 @@ export class Outcome {
     this.onCta = null
     this.warm = Object.values(SIDE).flatMap(s => [s.band, s.plate]).map(warmImage)
     document.fonts?.load('500 20px Hitzone').catch(() => {})
-    this.figures = null
-    this.useFigures(DEFAULT_FIGURES)
     this.tick = this.tick.bind(this)
     this.control.addEventListener('click', e => {
       e.stopPropagation()
@@ -169,29 +120,12 @@ export class Outcome {
     })
   }
 
-  setHero(id) {
-    this.useFigures(HERO_FIGURES[id] || DEFAULT_FIGURES)
-  }
-
-  setReason(title, text) {
-    this.reason = !!title
-    this.why.querySelector('b').textContent = title || ''
-    this.why.querySelector('span').textContent = text || ''
-  }
-
-  useFigures(figures) {
-    if (figures === this.figures) return
-    this.figures = figures
-    for (const f of Object.values(figures)) this.warm.push(warmImage(f.figure))
-  }
-
   layout() {
     const w = this.root.clientWidth
     const h = this.root.clientHeight
     const portrait = h >= w
     const key = portrait ? 'portrait' : 'landscape'
     const ui = clamp(Math.min(w, h) / 375, 0.72, 3.2)
-    const side = this.side
     const cx = w / 2
     const cy = h * PLATE_Y[key]
 
@@ -205,26 +139,7 @@ export class Outcome {
       pw = (ph * VERDICT_ART.w) / VERDICT_ART.h
     }
 
-    const ceiling = FIGURE_AIR * ui - h * side.rise[key]
-    const capH = h * FIGURE_H[key]
-    const capW = w * FIGURE_W[key]
-    const standing = top => Math.min(capH, capW, Math.max(0, top - ceiling) / (1 - side.bury))
-
-    const want = h * FIGURE_WANT[key]
-    let span = standing(cy - ph / 2)
-    for (let pass = 0; pass < PLATE_GIVE && span < want; pass++) {
-      const give = 2 * (cy - ceiling - want * (1 - side.bury))
-      const next = clamp(give, h * VERDICT_MIN[key], ph)
-      if (next >= ph - 0.5) break
-      ph = next
-      pw = (ph * VERDICT_ART.w) / VERDICT_ART.h
-      span = standing(cy - ph / 2)
-    }
-
     place(this.band, cx - pw / 2, cy - ph / 2, pw, ph)
-
-    const foot = cy - ph / 2 + span * side.bury
-    place(this.figure, cx - span / 2, foot - span, span, span)
 
     const bw = Math.max(80, pw * 0.62)
     const bh = Math.max(80, ph * 3.4)
@@ -243,27 +158,13 @@ export class Outcome {
     const maxH = Math.min(clamp(h * RETRY_MAX[key], 40 * ui, 340 * ui), room)
     const box = fitArt(this.defeat ? RETRY_ART : PLAY_ART, offered, maxH)
     const y = clamp(
-      roof + (sill - roof) * side.drop[key],
+      roof + (sill - roof) * this.side.drop[key],
       roof + box.h / 2,
       Math.max(roof + box.h / 2, sill - box.h / 2),
     )
     place(this.control, cx - box.w / 2, y - box.h / 2, box.w, box.h)
-    this.placeWhy(w, h, ui, cx, y + box.h / 2, cy - ph / 2)
 
     if (this.defeat) this.fitLabel(box)
-  }
-
-  placeWhy(w, h, ui, cx, below, above) {
-    const shown = this.defeat && this.reason
-    this.why.style.display = shown ? '' : 'none'
-    if (!shown) return
-    const ww = Math.min(w * 0.92, 460 * ui)
-    this.why.style.width = `${ww}px`
-    this.why.style.left = `${cx - ww / 2}px`
-    this.why.style.setProperty('--wu', `${ui}px`)
-    const tall = 44 * ui
-    const gap = 10 * ui
-    this.why.style.top = `${h - below - gap >= tall ? below + gap : Math.max(gap, above - gap - tall)}px`
   }
 
   fitLabel(box) {
@@ -280,8 +181,6 @@ export class Outcome {
     this.side = side
     this.defeat = kind === 'defeat'
     this.root.classList.toggle('defeat', this.defeat)
-    this.still.src = this.figures[kind].figure
-    spread(this.still, this.figures[kind].wide)
     this.verdict.src = side.band
     this.plate.src = side.plate
     this.bloom.style.setProperty('--tint', side.bloom)
@@ -289,10 +188,8 @@ export class Outcome {
     this.root.classList.add('on')
     this.layout()
 
-    const parts = [this.flash, this.band, this.bloom, this.figure, this.control, this.why]
+    const parts = [this.flash, this.band, this.bloom, this.control]
     gsap.killTweensOf(parts)
-    gsap.set(this.why, { opacity: 0 })
-    gsap.to(this.why, { opacity: 1, duration: 0.35, delay: CONTROL_AT + 0.2, ease: 'power1.out' })
     this.t = 0
     this.armed = false
     this.introducing = true
@@ -300,7 +197,7 @@ export class Outcome {
 
     gsap.set(this.flash, { opacity: 1 })
     gsap.set(this.band, { opacity: 0, scaleX: UNFURL.slitW, scaleY: UNFURL.slitH })
-    gsap.set([this.bloom, this.figure, this.control], { opacity: 0 })
+    gsap.set([this.bloom, this.control], { opacity: 0 })
 
     gsap.delayedCall(ARM_AFTER, () => { this.armed = true })
     gsap.to(this.flash, { opacity: 0, duration: FLASH_FADE, delay: FLASH_HOLD, ease: 'power2.out' })
@@ -310,7 +207,6 @@ export class Outcome {
     gsap.timeline()
       .to(this.bloom, { opacity: side.lamp * BLOOM_FLARE, duration: 0.18, ease: 'expo.out' })
       .to(this.bloom, { opacity: side.lamp, duration: 0.42, ease: 'power2.out' })
-    gsap.to(this.figure, { opacity: 1, duration: 0.4, delay: 0.1, ease: 'power1.out' })
     gsap.to(this.control, {
       opacity: 1, duration: 0.3, delay: CONTROL_AT, ease: 'power1.out',
       onComplete: () => { this.introducing = false },

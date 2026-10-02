@@ -17,7 +17,7 @@ import { Loot } from '../world/loot.js'
 import { audio, STEPS } from './audio.js'
 import { Input } from './input.js'
 import { Gear } from './gear.js'
-import { BUILDS, POWER_GOAL, SET_NAME } from '../data/builds.js'
+import { BUILDS, POWER_GOAL } from '../data/builds.js'
 import { UI, ELEMENT_ART } from '../ui/ui.js'
 
 const SKILL_SLOT = { s1: 0, s2: 1, s3: 2 }
@@ -571,11 +571,6 @@ export class Game {
     this.ui.setPower(this.gear.power(), POWER_GOAL, this.gear.bestPower() >= POWER_GOAL && this.underpowered())
   }
 
-  buildHint() {
-    const build = this.gear && this.gear.build
-    return build ? `equip 4 ${SET_NAME[build.set]} pieces` : 'tap your hero to equip'
-  }
-
   raiseShield() {
     if (!this.underpowered()) return
     this.shieldUp = true
@@ -1044,7 +1039,6 @@ export class Game {
     this.titanDef = TITANS[hero.titan]
     this.titanLoad = this.loadTitan(this.titanDef)
     this.ui.setHud(hero)
-    this.ui.outcome.setHero(hero.id)
     this.ui.setAnima(this.titanDef, hero)
     this.ui.setTitan(this.titan, this.titanReady, this.titanSecondsLeft())
     this.ui.setUlt(this.ult, this.ultReady)
@@ -1990,7 +1984,6 @@ export class Game {
     this.ui.show('hud', false)
     const short = this.underpowered()
     const score = short ? `${this.gear.power().toLocaleString('en-US')} / ${POWER_GOAL.toLocaleString('en-US')} power` : ''
-    this.ui.outcome.setReason(short ? 'NOT ENOUGH POWER' : '', `${score} · ${this.buildHint()}`)
     if (short) this.ui.showBanner('TOO WEAK', score, DEFEAT_REASON_DELAY)
     setTimeout(() => this.showOutcome('defeat'), short ? DEFEAT_REASON_DELAY * 1000 : 1200)
   }

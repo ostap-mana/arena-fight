@@ -903,10 +903,6 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   background: radial-gradient(closest-side, rgba(var(--tint), 1) 0%, rgba(var(--tint), .55) 25%, rgba(var(--tint), .16) 55%, rgba(var(--tint), 0) 100%);
   mix-blend-mode: screen; mix-blend-mode: plus-lighter; pointer-events: none;
 }
-#outcome .figure { pointer-events: none; user-select: none; }
-#outcome .figure > * { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-#outcome .figure > [hidden] { display: none; }
-#outcome .still { object-fit: contain; user-select: none; }
 #outcome .band { pointer-events: none; }
 #outcome .verdict { display: block; width: 100%; height: 100%; user-select: none; }
 #outcome .control {
@@ -1078,13 +1074,6 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 
 .dmg.immune { font-family: var(--display); font-weight: 500; font-size: 22px; letter-spacing: .12em; color: #fff; text-shadow: 0 0 8px rgba(140, 110, 255, .95), 0 2px 5px rgba(0, 0, 0, .9); }
 #waveinfo.shielded .wavebar { filter: hue-rotate(220deg) saturate(1.4); }
-
-#outcome .why {
-  z-index: 3; text-align: center; pointer-events: none;
-  display: flex; flex-direction: column; align-items: center; gap: calc(5 * var(--wu, 1px));
-}
-#outcome .why b { font-family: var(--display); font-size: calc(17 * var(--wu, 1px)); line-height: 1; color: #fff; letter-spacing: .08em; text-shadow: 0 0 calc(6 * var(--wu, 1px)) #000, 0 calc(2 * var(--wu, 1px)) calc(5 * var(--wu, 1px)) #000; }
-#outcome .why span { font-size: calc(12.5 * var(--wu, 1px)); line-height: 1.25; color: #fff; text-shadow: 0 0 calc(5 * var(--wu, 1px)) #000, 0 calc(1 * var(--wu, 1px)) calc(3 * var(--wu, 1px)) #000; }
 
 #hud.gearmode #skills, #hud.gearmode #stick, #hud.gearmode #animacard, #hud.gearmode #autoplay, #hud.gearmode #gesturehint, #hud.gearmode #titanmeter {
   opacity: .14; pointer-events: none; transition: opacity .25s;

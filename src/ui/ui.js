@@ -328,10 +328,8 @@ export class UI {
         <div class="dim"></div>
         <div class="scrim"></div>
         <div class="bloom"></div>
-        <div class="figure"><img class="still" alt="" draggable="false"></div>
         <div class="band"><img class="verdict" alt="" draggable="false"></div>
         <button class="control"><img class="plate" alt="" draggable="false"><span class="label">RETRY</span></button>
-        <div class="why"><b></b><span></span></div>
         <div class="flash"></div>
       </div>
     `
