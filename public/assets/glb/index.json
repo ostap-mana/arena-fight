@@ -1,0 +1,2934 @@
+[
+ {
+  "id": "OGR013",
+  "file": "ogr013.glb",
+  "bones": 135,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Weapon_R",
+   "MESH_Weapon_ADD1",
+   "MESH_Body_ADD2",
+   "MESH_Body_ADD1",
+   "MESH_Weapon_L"
+  ],
+  "textures": [
+   "T_ING_OGR013_Archer_Albedo",
+   "T_ING_OGR013_Archer_NM",
+   "T_ING_OGR013_Warrior_Albedo",
+   "T_ING_OGR013_Warrior_NM",
+   "T_ING_UNI122_Wolf_Albedo",
+   "T_ING_UNI122_Wolf_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.0,
+    "bones": 348,
+    "channels": 132
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 2.6333,
+    "bones": 348,
+    "channels": 132
+   },
+   {
+    "name": "Death",
+    "duration": 1.8667,
+    "bones": 348,
+    "channels": 124
+   },
+   {
+    "name": "Death_2",
+    "duration": 2.0667,
+    "bones": 348,
+    "channels": 166
+   },
+   {
+    "name": "Death_3",
+    "duration": 2.5667,
+    "bones": 348,
+    "channels": 170
+   },
+   {
+    "name": "Death_4",
+    "duration": 2.2333,
+    "bones": 348,
+    "channels": 176
+   },
+   {
+    "name": "Death_5",
+    "duration": 3.2,
+    "bones": 348,
+    "channels": 168
+   },
+   {
+    "name": "Flinch",
+    "duration": 0.7667,
+    "bones": 357,
+    "channels": 123
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 348,
+    "channels": 94
+   },
+   {
+    "name": "Idle",
+    "duration": 2.0,
+    "bones": 348,
+    "channels": 109
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9333,
+    "bones": 348,
+    "channels": 128
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 348,
+    "channels": 110
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.6,
+    "bones": 348,
+    "channels": 138
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 348,
+    "channels": 115
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 348,
+    "channels": 118
+   },
+   {
+    "name": "Run",
+    "duration": 1.2,
+    "bones": 348,
+    "channels": 120
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 0.8333,
+    "bones": 348,
+    "channels": 113
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.5,
+    "bones": 348,
+    "channels": 130
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 0.9,
+    "bones": 348,
+    "channels": 116
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.6,
+    "bones": 348,
+    "channels": 132
+   },
+   {
+    "name": "Sleep",
+    "duration": 3.0,
+    "bones": 348,
+    "channels": 105
+   },
+   {
+    "name": "Stun",
+    "duration": 2.0,
+    "bones": 348,
+    "channels": 103
+   },
+   {
+    "name": "Walk",
+    "duration": 2.3333,
+    "bones": 357,
+    "channels": 127
+   }
+  ],
+  "size": 2793616,
+  "root": "MDL_ING_OGR013",
+  "name": "OGR013"
+ },
+ {
+  "id": "DEM013",
+  "file": "dem013.glb",
+  "bones": 53,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Axe",
+   "MESH_Shield"
+  ],
+  "textures": [
+   "T_ING_DEM013_Body_HiRes_Albedo",
+   "T_ING_DEM013_Body_HiRes_NM",
+   "T_ING_DEM013_Weapon_Albedo",
+   "T_ING_DEM013_Weapon_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.0667,
+    "bones": 132,
+    "channels": 46
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.3,
+    "bones": 132,
+    "channels": 46
+   },
+   {
+    "name": "Death",
+    "duration": 3.0,
+    "bones": 132,
+    "channels": 49
+   },
+   {
+    "name": "Death_2",
+    "duration": 2.2333,
+    "bones": 138,
+    "channels": 64
+   },
+   {
+    "name": "Death_3",
+    "duration": 1.8333,
+    "bones": 138,
+    "channels": 68
+   },
+   {
+    "name": "Death_4",
+    "duration": 1.7,
+    "bones": 138,
+    "channels": 67
+   },
+   {
+    "name": "Death_5",
+    "duration": 1.5667,
+    "bones": 138,
+    "channels": 68
+   },
+   {
+    "name": "Flinch",
+    "duration": 1.0,
+    "bones": 144,
+    "channels": 52
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.2667,
+    "bones": 132,
+    "channels": 44
+   },
+   {
+    "name": "Idle",
+    "duration": 2.3333,
+    "bones": 132,
+    "channels": 44
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9333,
+    "bones": 132,
+    "channels": 44
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 132,
+    "channels": 33
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.1,
+    "bones": 132,
+    "channels": 49
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 132,
+    "channels": 42
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 132,
+    "channels": 33
+   },
+   {
+    "name": "Run",
+    "duration": 1.1333,
+    "bones": 132,
+    "channels": 55
+   },
+   {
+    "name": "Shock",
+    "duration": 0.2667,
+    "bones": 132,
+    "channels": 44
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.1667,
+    "bones": 132,
+    "channels": 52
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.6667,
+    "bones": 132,
+    "channels": 53
+   },
+   {
+    "name": "Sleep",
+    "duration": 1.6667,
+    "bones": 132,
+    "channels": 40
+   },
+   {
+    "name": "Stun",
+    "duration": 1.6667,
+    "bones": 132,
+    "channels": 43
+   }
+  ],
+  "size": 1902748,
+  "root": "MDL_ING_DEM013",
+  "name": "DEM013"
+ },
+ {
+  "id": "DEM019",
+  "file": "dem019.glb",
+  "bones": 18,
+  "meshes": [
+   "MESH_Body"
+  ],
+  "textures": [
+   "T_ING_DEM019_Body_Albedo",
+   "T_ING_DEM019_Body_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_1",
+    "duration": 0.7667,
+    "bones": 45,
+    "channels": 16
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.0667,
+    "bones": 45,
+    "channels": 27
+   },
+   {
+    "name": "Death",
+    "duration": 2.1,
+    "bones": 45,
+    "channels": 15
+   },
+   {
+    "name": "Death_2",
+    "duration": 2.0667,
+    "bones": 45,
+    "channels": 19
+   },
+   {
+    "name": "Death_3",
+    "duration": 2.1333,
+    "bones": 45,
+    "channels": 20
+   },
+   {
+    "name": "Death_4",
+    "duration": 2.1667,
+    "bones": 45,
+    "channels": 22
+   },
+   {
+    "name": "Death_5",
+    "duration": 2.7667,
+    "bones": 45,
+    "channels": 23
+   },
+   {
+    "name": "Flinch",
+    "duration": 0.8667,
+    "bones": 45,
+    "channels": 13
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 45,
+    "channels": 13
+   },
+   {
+    "name": "Idle",
+    "duration": 4.0,
+    "bones": 45,
+    "channels": 18
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.8333,
+    "bones": 45,
+    "channels": 18
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.6667,
+    "bones": 45,
+    "channels": 16
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 0.8,
+    "bones": 45,
+    "channels": 18
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 45,
+    "channels": 18
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 45,
+    "channels": 16
+   },
+   {
+    "name": "Run",
+    "duration": 0.8333,
+    "bones": 45,
+    "channels": 15
+   },
+   {
+    "name": "Shock",
+    "duration": 0.2667,
+    "bones": 45,
+    "channels": 15
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 0.2667,
+    "bones": 45,
+    "channels": 17
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.2333,
+    "bones": 45,
+    "channels": 35
+   },
+   {
+    "name": "Sleep",
+    "duration": 2.0,
+    "bones": 45,
+    "channels": 15
+   },
+   {
+    "name": "Stun",
+    "duration": 2.0,
+    "bones": 45,
+    "channels": 15
+   }
+  ],
+  "size": 617620,
+  "root": "MDL_ING_DEM019",
+  "name": "DEM019"
+ },
+ {
+  "id": "DEM025",
+  "file": "dem025.glb",
+  "bones": 61,
+  "meshes": [
+   "MESH_Weapon",
+   "MESH_Body"
+  ],
+  "textures": [
+   "T_ING_DEM025_Body_Albedo",
+   "T_ING_DEM025_Body_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_1",
+    "duration": 0.9,
+    "bones": 162,
+    "channels": 73
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.3333,
+    "bones": 162,
+    "channels": 79
+   },
+   {
+    "name": "Death",
+    "duration": 1.8333,
+    "bones": 162,
+    "channels": 65
+   },
+   {
+    "name": "Death_2",
+    "duration": 2.4667,
+    "bones": 162,
+    "channels": 88
+   },
+   {
+    "name": "Death_3",
+    "duration": 2.4667,
+    "bones": 162,
+    "channels": 93
+   },
+   {
+    "name": "Death_4",
+    "duration": 2.2333,
+    "bones": 162,
+    "channels": 97
+   },
+   {
+    "name": "Death_5",
+    "duration": 2.1,
+    "bones": 162,
+    "channels": 96
+   },
+   {
+    "name": "Flinch",
+    "duration": 0.8667,
+    "bones": 165,
+    "channels": 58
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 162,
+    "channels": 51
+   },
+   {
+    "name": "Idle",
+    "duration": 2.1333,
+    "bones": 162,
+    "channels": 55
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9333,
+    "bones": 162,
+    "channels": 52
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 162,
+    "channels": 51
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.1,
+    "bones": 162,
+    "channels": 66
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 162,
+    "channels": 46
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 162,
+    "channels": 51
+   },
+   {
+    "name": "Run",
+    "duration": 1.0,
+    "bones": 162,
+    "channels": 57
+   },
+   {
+    "name": "Shock",
+    "duration": 0.2667,
+    "bones": 162,
+    "channels": 52
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 0.3333,
+    "bones": 162,
+    "channels": 57
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.5333,
+    "bones": 162,
+    "channels": 60
+   },
+   {
+    "name": "Sleep",
+    "duration": 1.6667,
+    "bones": 162,
+    "channels": 60
+   },
+   {
+    "name": "Stun",
+    "duration": 1.6667,
+    "bones": 162,
+    "channels": 54
+   },
+   {
+    "name": "Walk",
+    "duration": 6.0,
+    "bones": 162,
+    "channels": 57
+   }
+  ],
+  "size": 1256952,
+  "root": "MDL_ING_DEM025",
+  "name": "DEM025"
+ },
+ {
+  "id": "DEM103",
+  "file": "dem103.glb",
+  "bones": 51,
+  "meshes": [
+   "MESH_Weapon_R",
+   "MESH_Body",
+   "MESH_Weapon_L"
+  ],
+  "textures": [
+   "T_ING_DEM103_Weapon_Albedo",
+   "T_ING_DEM103_Weapon_NM",
+   "T_ING_DEM103_Body_Albedo",
+   "T_ING_DEM103_Body_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_1",
+    "duration": 0.9,
+    "bones": 132,
+    "channels": 50
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.4667,
+    "bones": 132,
+    "channels": 53
+   },
+   {
+    "name": "Death",
+    "duration": 1.5333,
+    "bones": 132,
+    "channels": 55
+   },
+   {
+    "name": "Death_2",
+    "duration": 3.0667,
+    "bones": 132,
+    "channels": 38
+   },
+   {
+    "name": "Death_3",
+    "duration": 2.3,
+    "bones": 132,
+    "channels": 68
+   },
+   {
+    "name": "Death_4",
+    "duration": 2.5667,
+    "bones": 132,
+    "channels": 75
+   },
+   {
+    "name": "Death_5",
+    "duration": 2.2,
+    "bones": 132,
+    "channels": 68
+   },
+   {
+    "name": "Flinch",
+    "duration": 0.7333,
+    "bones": 138,
+    "channels": 47
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.2667,
+    "bones": 132,
+    "channels": 43
+   },
+   {
+    "name": "Idle",
+    "duration": 2.1333,
+    "bones": 132,
+    "channels": 42
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9333,
+    "bones": 132,
+    "channels": 40
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 132,
+    "channels": 24
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.1,
+    "bones": 132,
+    "channels": 50
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 132,
+    "channels": 36
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 132,
+    "channels": 24
+   },
+   {
+    "name": "Run",
+    "duration": 1.0667,
+    "bones": 132,
+    "channels": 48
+   },
+   {
+    "name": "Shock",
+    "duration": 0.2667,
+    "bones": 132,
+    "channels": 43
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 0.8333,
+    "bones": 132,
+    "channels": 44
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.6667,
+    "bones": 132,
+    "channels": 47
+   },
+   {
+    "name": "Sleep",
+    "duration": 2.1667,
+    "bones": 132,
+    "channels": 36
+   },
+   {
+    "name": "Stun",
+    "duration": 2.0,
+    "bones": 132,
+    "channels": 46
+   },
+   {
+    "name": "Summon",
+    "duration": 1.0,
+    "bones": 114,
+    "channels": 1
+   }
+  ],
+  "size": 1215996,
+  "root": "MDL_ING_DEM103",
+  "name": "DEM103"
+ },
+ {
+  "id": "DEM127",
+  "file": "dem127.glb",
+  "bones": 61,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Weapon"
+  ],
+  "textures": [
+   "T_ING_DEM127_HiRes_Albedo",
+   "T_ING_DEM127_HiRes_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.2,
+    "bones": 168,
+    "channels": 47
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.2333,
+    "bones": 168,
+    "channels": 44
+   },
+   {
+    "name": "Death",
+    "duration": 1.6667,
+    "bones": 168,
+    "channels": 55
+   },
+   {
+    "name": "Death_2",
+    "duration": 3.6,
+    "bones": 168,
+    "channels": 71
+   },
+   {
+    "name": "Death_3",
+    "duration": 2.5667,
+    "bones": 168,
+    "channels": 72
+   },
+   {
+    "name": "Death_4",
+    "duration": 2.4667,
+    "bones": 168,
+    "channels": 69
+   },
+   {
+    "name": "Death_5",
+    "duration": 2.2,
+    "bones": 168,
+    "channels": 66
+   },
+   {
+    "name": "Flinch",
+    "duration": 0.8333,
+    "bones": 171,
+    "channels": 50
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 168,
+    "channels": 40
+   },
+   {
+    "name": "Idle",
+    "duration": 2.3333,
+    "bones": 168,
+    "channels": 47
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9667,
+    "bones": 168,
+    "channels": 52
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.8333,
+    "bones": 168,
+    "channels": 45
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.1667,
+    "bones": 168,
+    "channels": 53
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 168,
+    "channels": 50
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 168,
+    "channels": 49
+   },
+   {
+    "name": "New Animation",
+    "duration": 1.0,
+    "bones": 0,
+    "channels": 1,
+    "static": true
+   },
+   {
+    "name": "Run",
+    "duration": 1.1,
+    "bones": 168,
+    "channels": 47
+   },
+   {
+    "name": "Shock",
+    "duration": 1.2,
+    "bones": 168,
+    "channels": 40
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 0.1667,
+    "bones": 168,
+    "channels": 47
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.1333,
+    "bones": 168,
+    "channels": 54
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 0.5,
+    "bones": 168,
+    "channels": 44
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 0.7,
+    "bones": 168,
+    "channels": 44
+   },
+   {
+    "name": "Sleep",
+    "duration": 1.6667,
+    "bones": 168,
+    "channels": 39
+   },
+   {
+    "name": "Stun",
+    "duration": 1.6667,
+    "bones": 168,
+    "channels": 38
+   }
+  ],
+  "size": 2077192,
+  "root": "MDL_ING_DEM127",
+  "name": "DEM127"
+ },
+ {
+  "id": "OGR037",
+  "file": "ogr037.glb",
+  "bones": 77,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Weapon"
+  ],
+  "textures": [
+   "T_ING_OGR037_Body_Albedo",
+   "T_ING_OGR037_Body_NM",
+   "T_ING_OGR037_Weapon_Albedo",
+   "T_ING_OGR037_Weapon_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 1.0,
+    "bones": 216,
+    "channels": 88
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6667,
+    "bones": 216,
+    "channels": 89
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 2.5667,
+    "bones": 216,
+    "channels": 98
+   },
+   {
+    "name": "ComboAttack_3",
+    "duration": 1.0,
+    "bones": 216,
+    "channels": 88
+   },
+   {
+    "name": "ComboAttack_4",
+    "duration": 1.0,
+    "bones": 216,
+    "channels": 88
+   },
+   {
+    "name": "ComboAttack_5",
+    "duration": 1.0,
+    "bones": 216,
+    "channels": 88
+   },
+   {
+    "name": "Death",
+    "duration": 4.0,
+    "bones": 216,
+    "channels": 149
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 216,
+    "channels": 62
+   },
+   {
+    "name": "Idle",
+    "duration": 2.3333,
+    "bones": 216,
+    "channels": 66
+   },
+   {
+    "name": "IdleBreak",
+    "duration": 4.0,
+    "bones": 216,
+    "channels": 68
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 1.5333,
+    "bones": 216,
+    "channels": 84
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 1.3,
+    "bones": 216,
+    "channels": 65
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.2667,
+    "bones": 216,
+    "channels": 89
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 216,
+    "channels": 72
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 216,
+    "channels": 69
+   },
+   {
+    "name": "Run",
+    "duration": 1.1333,
+    "bones": 216,
+    "channels": 80
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.1667,
+    "bones": 216,
+    "channels": 82
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 2.0,
+    "bones": 216,
+    "channels": 82
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 1.2333,
+    "bones": 216,
+    "channels": 82
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 2.6667,
+    "bones": 216,
+    "channels": 83
+   },
+   {
+    "name": "Skill_3_EndCast",
+    "duration": 1.0,
+    "bones": 201,
+    "channels": 4
+   },
+   {
+    "name": "Skill_3_PreCast",
+    "duration": 1.0,
+    "bones": 201,
+    "channels": 4
+   },
+   {
+    "name": "Sleep",
+    "duration": 2.0,
+    "bones": 216,
+    "channels": 67
+   },
+   {
+    "name": "Stun",
+    "duration": 2.0,
+    "bones": 216,
+    "channels": 56
+   }
+  ],
+  "size": 1634132,
+  "root": "MDL_ING_OGR037",
+  "name": "OGR037"
+ },
+ {
+  "id": "MAG018",
+  "file": "mag018.glb",
+  "bones": 91,
+  "meshes": [
+   "MESH_Book",
+   "MESH_Cape",
+   "MESH_Body"
+  ],
+  "textures": [
+   "T_ING_MAG018_Body_Cape_Albedo",
+   "T_ING_MAG018_Body_Cape_NM",
+   "T_ING_MAG018_Body_Albedo",
+   "T_ING_MAG018_Body_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 1.5333,
+    "bones": 258,
+    "channels": 119
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6333,
+    "bones": 258,
+    "channels": 119
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6333,
+    "bones": 258,
+    "channels": 119
+   },
+   {
+    "name": "ComboAttack_3",
+    "duration": 1.6333,
+    "bones": 258,
+    "channels": 102
+   },
+   {
+    "name": "ComboAttack_4",
+    "duration": 1.6333,
+    "bones": 258,
+    "channels": 111
+   },
+   {
+    "name": "ComboAttack_5",
+    "duration": 1.6667,
+    "bones": 258,
+    "channels": 103
+   },
+   {
+    "name": "Dash",
+    "duration": 0.625,
+    "bones": 258,
+    "channels": 82
+   },
+   {
+    "name": "Death",
+    "duration": 6.0417,
+    "bones": 258,
+    "channels": 100
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 258,
+    "channels": 62
+   },
+   {
+    "name": "Idle",
+    "duration": 2.0,
+    "bones": 258,
+    "channels": 89
+   },
+   {
+    "name": "IdleBreak",
+    "duration": 4.2667,
+    "bones": 258,
+    "channels": 89
+   },
+   {
+    "name": "IdleIn",
+    "duration": 1.8,
+    "bones": 258,
+    "channels": 106
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 2.0,
+    "bones": 225,
+    "channels": 84
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 6.3333,
+    "bones": 225,
+    "channels": 101
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9,
+    "bones": 258,
+    "channels": 80
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 258,
+    "channels": 68
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.0333,
+    "bones": 258,
+    "channels": 112
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 258,
+    "channels": 72
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 258,
+    "channels": 68
+   },
+   {
+    "name": "Morph",
+    "duration": 1.0,
+    "bones": 258,
+    "channels": 73
+   },
+   {
+    "name": "Morph_EndCast",
+    "duration": 0.5333,
+    "bones": 258,
+    "channels": 71
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 10.1333,
+    "bones": 225,
+    "channels": 98
+   },
+   {
+    "name": "Run",
+    "duration": 0.8333,
+    "bones": 258,
+    "channels": 80
+   },
+   {
+    "name": "Shock",
+    "duration": 0.5333,
+    "bones": 258,
+    "channels": 68
+   },
+   {
+    "name": "SkillUlt_EndCast",
+    "duration": 2.0333,
+    "bones": 258,
+    "channels": 115
+   },
+   {
+    "name": "SkillUlt_PreCast",
+    "duration": 1.2667,
+    "bones": 258,
+    "channels": 99
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.1,
+    "bones": 258,
+    "channels": 110
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.2333,
+    "bones": 258,
+    "channels": 126
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 1.1333,
+    "bones": 258,
+    "channels": 100
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 0.7333,
+    "bones": 258,
+    "channels": 86
+   },
+   {
+    "name": "Skill_3_EndCast",
+    "duration": 2.1,
+    "bones": 258,
+    "channels": 118
+   },
+   {
+    "name": "Skill_3_PreCast",
+    "duration": 0.9,
+    "bones": 258,
+    "channels": 100
+   },
+   {
+    "name": "Sleep",
+    "duration": 1.6667,
+    "bones": 258,
+    "channels": 67
+   },
+   {
+    "name": "Stun",
+    "duration": 2.0,
+    "bones": 258,
+    "channels": 69
+   },
+   {
+    "name": "UnMorph",
+    "duration": 0.4,
+    "bones": 258,
+    "channels": 97
+   },
+   {
+    "name": "UnMorph_EndCast",
+    "duration": 1.2333,
+    "bones": 258,
+    "channels": 109
+   },
+   {
+    "name": "Walk",
+    "duration": 0.9333,
+    "bones": 258,
+    "channels": 84
+   }
+  ],
+  "size": 2942844,
+  "root": "MDL_ING_MAG018",
+  "name": "Sunspot Ricklow"
+ },
+ {
+  "id": "ELD037",
+  "file": "eld037.glb",
+  "bones": 168,
+  "meshes": [
+   "MESH_Weapon",
+   "MESH_Body"
+  ],
+  "textures": [
+   "T_ING_ELD037_Weapon_Albedo",
+   "T_ING_ELD037_Weapon_NM",
+   "T_ING_ELD037_Body_HiRes_Albedo",
+   "T_ING_ELD037_Body_HiRes_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 1.5333,
+    "bones": 324,
+    "channels": 100
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 101
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 97
+   },
+   {
+    "name": "ComboAttack_3",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 91
+   },
+   {
+    "name": "ComboAttack_4",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 117
+   },
+   {
+    "name": "ComboAttack_5",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 110
+   },
+   {
+    "name": "Dash",
+    "duration": 0.4,
+    "bones": 324,
+    "channels": 107
+   },
+   {
+    "name": "Death",
+    "duration": 3.7333,
+    "bones": 324,
+    "channels": 119
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 324,
+    "channels": 49
+   },
+   {
+    "name": "Idle",
+    "duration": 2.1333,
+    "bones": 324,
+    "channels": 89
+   },
+   {
+    "name": "IdleBreak",
+    "duration": 4.2667,
+    "bones": 324,
+    "channels": 93
+   },
+   {
+    "name": "IdleBreakLOB_1",
+    "duration": 4.0,
+    "bones": 324,
+    "channels": 153
+   },
+   {
+    "name": "IdleIn",
+    "duration": 2.6667,
+    "bones": 324,
+    "channels": 136
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 2.6667,
+    "bones": 324,
+    "channels": 128
+   },
+   {
+    "name": "IdleTeamLOB",
+    "duration": 2.6667,
+    "bones": 324,
+    "channels": 130
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 10.8667,
+    "bones": 324,
+    "channels": 178
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 1.125,
+    "bones": 324,
+    "channels": 75
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.875,
+    "bones": 324,
+    "channels": 57
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.0833,
+    "bones": 324,
+    "channels": 101
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0833,
+    "bones": 324,
+    "channels": 69
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3333,
+    "bones": 324,
+    "channels": 55
+   },
+   {
+    "name": "Morph",
+    "duration": 1.25,
+    "bones": 324,
+    "channels": 65
+   },
+   {
+    "name": "Morph_EndCast",
+    "duration": 1.25,
+    "bones": 324,
+    "channels": 62
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 10.0,
+    "bones": 324,
+    "channels": 175
+   },
+   {
+    "name": "Run",
+    "duration": 0.8,
+    "bones": 324,
+    "channels": 99
+   },
+   {
+    "name": "Shock",
+    "duration": 0.5333,
+    "bones": 324,
+    "channels": 44
+   },
+   {
+    "name": "SkillUlt_EndCast",
+    "duration": 1.7333,
+    "bones": 159,
+    "channels": 105
+   },
+   {
+    "name": "SkillUlt_PreCast",
+    "duration": 1.4333,
+    "bones": 324,
+    "channels": 131
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 2.4333,
+    "bones": 324,
+    "channels": 117
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 0.6667,
+    "bones": 324,
+    "channels": 117
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 2.0,
+    "bones": 324,
+    "channels": 117
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.1667,
+    "bones": 324,
+    "channels": 109
+   },
+   {
+    "name": "Skill_3_EndCast",
+    "duration": 2.1,
+    "bones": 324,
+    "channels": 119
+   },
+   {
+    "name": "Skill_3_PreCast",
+    "duration": 1.0,
+    "bones": 324,
+    "channels": 115
+   },
+   {
+    "name": "Sleep",
+    "duration": 1.6667,
+    "bones": 324,
+    "channels": 53
+   },
+   {
+    "name": "Stun",
+    "duration": 1.6,
+    "bones": 324,
+    "channels": 57
+   },
+   {
+    "name": "UnMorph",
+    "duration": 0.5,
+    "bones": 195,
+    "channels": 85
+   },
+   {
+    "name": "UnMorph_EndCast",
+    "duration": 0.5833,
+    "bones": 195,
+    "channels": 76
+   },
+   {
+    "name": "Walk",
+    "duration": 1.0,
+    "bones": 324,
+    "channels": 102
+   }
+  ],
+  "size": 3888372,
+  "root": "MDL_ING_ELD037",
+  "name": "Ardell The Torrent"
+ },
+ {
+  "id": "ELD025",
+  "file": "eld025.glb",
+  "bones": 74,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Weapon"
+  ],
+  "textures": [
+   "T_ING_ELD025_Body_Albedo",
+   "T_ING_ELD025_Body_NM",
+   "T_ING_ELD025_Body_Feather_Albedo",
+   "T_ING_ELD025_Body_Feather_NM",
+   "T_ING_ELD025_Weapon_Albedo",
+   "T_ING_ELD025_Weapon_NM",
+   "T_FX_Noise_16_1_R_270"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 1.5333,
+    "bones": 207,
+    "channels": 81
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 81
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 87
+   },
+   {
+    "name": "ComboAttack_3",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 89
+   },
+   {
+    "name": "ComboAttack_4",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 85
+   },
+   {
+    "name": "ComboAttack_5",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 81
+   },
+   {
+    "name": "Dash",
+    "duration": 0.5333,
+    "bones": 210,
+    "channels": 79
+   },
+   {
+    "name": "Death",
+    "duration": 3.0667,
+    "bones": 207,
+    "channels": 89
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 207,
+    "channels": 78
+   },
+   {
+    "name": "Idle",
+    "duration": 2.1333,
+    "bones": 207,
+    "channels": 82
+   },
+   {
+    "name": "IdleBreak",
+    "duration": 2.1333,
+    "bones": 207,
+    "channels": 82
+   },
+   {
+    "name": "IdleIn",
+    "duration": 1.4,
+    "bones": 210,
+    "channels": 94
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 3.0,
+    "bones": 207,
+    "channels": 88
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 5.1667,
+    "bones": 210,
+    "channels": 98
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9333,
+    "bones": 207,
+    "channels": 56
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 207,
+    "channels": 56
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.6,
+    "bones": 207,
+    "channels": 65
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 207,
+    "channels": 48
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 207,
+    "channels": 56
+   },
+   {
+    "name": "Morph",
+    "duration": 1.6667,
+    "bones": 207,
+    "channels": 58
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 10.1,
+    "bones": 207,
+    "channels": 100
+   },
+   {
+    "name": "Run",
+    "duration": 0.9333,
+    "bones": 210,
+    "channels": 76
+   },
+   {
+    "name": "Shock",
+    "duration": 0.5333,
+    "bones": 207,
+    "channels": 59
+   },
+   {
+    "name": "SkillUlt_EndCast",
+    "duration": 0.6333,
+    "bones": 207,
+    "channels": 98
+   },
+   {
+    "name": "SkillUlt_PreCast",
+    "duration": 1.6667,
+    "bones": 207,
+    "channels": 95
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 0.8333,
+    "bones": 207,
+    "channels": 95
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.0667,
+    "bones": 207,
+    "channels": 91
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 0.8667,
+    "bones": 207,
+    "channels": 98
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.0333,
+    "bones": 207,
+    "channels": 88
+   },
+   {
+    "name": "Skill_3_EndCast",
+    "duration": 0.5667,
+    "bones": 210,
+    "channels": 96
+   },
+   {
+    "name": "Skill_3_PreCast",
+    "duration": 1.2333,
+    "bones": 210,
+    "channels": 83
+   },
+   {
+    "name": "Sleep",
+    "duration": 2.0,
+    "bones": 207,
+    "channels": 49
+   },
+   {
+    "name": "Stun",
+    "duration": 2.0,
+    "bones": 207,
+    "channels": 67
+   },
+   {
+    "name": "UnMorph",
+    "duration": 1.1667,
+    "bones": 207,
+    "channels": 55
+   },
+   {
+    "name": "Walk",
+    "duration": 1.0667,
+    "bones": 207,
+    "channels": 71
+   }
+  ],
+  "size": 2429556,
+  "root": "MDL_ING_ELD025",
+  "name": "Confar the Burnished"
+ },
+ {
+  "id": "ANIMMAG003",
+  "file": "animmag003.glb",
+  "bones": 138,
+  "meshes": [
+   "MESH_Pants_ADD2",
+   "MESH_Body",
+   "MESH_Pants_ADD1",
+   "MESH_Body_ADD2",
+   "MESH_Body_ADD1",
+   "MESH_Pants"
+  ],
+  "textures": [
+   "T_ING_ANIMMAGI003_Body_Pants_Albedo",
+   "T_ING_ANIMMAGI003_Body_Pants_NM",
+   "T_ING_ANIMMAGI003_Body_Albedo",
+   "T_ING_ANIMMAGI003_Body_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 0.5,
+    "bones": 378,
+    "channels": 152
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 0.7,
+    "bones": 378,
+    "channels": 152
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.9333,
+    "bones": 378,
+    "channels": 154
+   },
+   {
+    "name": "Idle",
+    "duration": 2.6667,
+    "bones": 378,
+    "channels": 144
+   },
+   {
+    "name": "IdleHomeLOB",
+    "duration": 2.6667,
+    "bones": 252,
+    "channels": 92
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 3.0,
+    "bones": 249,
+    "channels": 95
+   },
+   {
+    "name": "IdleTeamLOB",
+    "duration": 2.6667,
+    "bones": 252,
+    "channels": 92
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 5.6667,
+    "bones": 249,
+    "channels": 79
+   },
+   {
+    "name": "Morph",
+    "duration": 1.6,
+    "bones": 378,
+    "channels": 146
+   },
+   {
+    "name": "Morph_EndCast",
+    "duration": 0.4667,
+    "bones": 378,
+    "channels": 135
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 7.7667,
+    "bones": 249,
+    "channels": 101
+   },
+   {
+    "name": "Run",
+    "duration": 1.0,
+    "bones": 378,
+    "channels": 138
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.1667,
+    "bones": 378,
+    "channels": 145
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.6,
+    "bones": 378,
+    "channels": 171
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 1.3,
+    "bones": 378,
+    "channels": 142
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.0333,
+    "bones": 378,
+    "channels": 133
+   },
+   {
+    "name": "UnMorph",
+    "duration": 0.4,
+    "bones": 378,
+    "channels": 143
+   },
+   {
+    "name": "UnMorph_EndCast",
+    "duration": 0.9333,
+    "bones": 378,
+    "channels": 109
+   }
+  ],
+  "size": 2275112,
+  "root": "MDL_ING_ANIMMAG003",
+  "name": "ANIMMAG003"
+ },
+ {
+  "id": "ANIMELD005",
+  "file": "animeld005.glb",
+  "bones": 180,
+  "meshes": [
+   "MESH_Arrow",
+   "MESH_Weapon",
+   "MESH_Body"
+  ],
+  "textures": [
+   "T_ING_ANIMELD005_Weapon_Albedo",
+   "T_ING_ANIMELD005_Weapon_NM",
+   "T_ING_ANIMELD005_Body_Bottom_Albedo",
+   "T_ING_ANIMELD005_Body_Bottom_NM",
+   "T_ING_ANIMELD005_Body_Top_Albedo",
+   "T_ING_ANIMELD005_Body_Top_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 1.3333,
+    "bones": 381,
+    "channels": 109
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6333,
+    "bones": 381,
+    "channels": 109
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6667,
+    "bones": 381,
+    "channels": 123
+   },
+   {
+    "name": "Idle",
+    "duration": 2.1333,
+    "bones": 381,
+    "channels": 74
+   },
+   {
+    "name": "IdleBreakLOB_1",
+    "duration": 5.0,
+    "bones": 381,
+    "channels": 111
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 3.2,
+    "bones": 381,
+    "channels": 96
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 7.8667,
+    "bones": 381,
+    "channels": 162
+   },
+   {
+    "name": "Morph",
+    "duration": 1.5,
+    "bones": 381,
+    "channels": 114
+   },
+   {
+    "name": "Morph_EndCast",
+    "duration": 1.0667,
+    "bones": 381,
+    "channels": 89
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 8.9,
+    "bones": 381,
+    "channels": 162
+   },
+   {
+    "name": "Run",
+    "duration": 0.6,
+    "bones": 381,
+    "channels": 103
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.3,
+    "bones": 381,
+    "channels": 123
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.0,
+    "bones": 381,
+    "channels": 123
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 0.7667,
+    "bones": 381,
+    "channels": 81
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.7667,
+    "bones": 381,
+    "channels": 127
+   },
+   {
+    "name": "UnMorph",
+    "duration": 0.4,
+    "bones": 381,
+    "channels": 81
+   },
+   {
+    "name": "UnMorph_EndCast",
+    "duration": 0.9333,
+    "bones": 381,
+    "channels": 78
+   }
+  ],
+  "size": 2259304,
+  "root": "MDL_ING_ANIMELD005",
+  "name": "ANIMELD005"
+ },
+ {
+  "id": "ANIMELD001",
+  "file": "animeld001.glb",
+  "bones": 109,
+  "meshes": [
+   "MESH_Weapon",
+   "MESH_Body"
+  ],
+  "textures": [
+   "T_ING_ANIMAELD001_Weapon_Albedo",
+   "T_ING_ANIMAELD001_Weapon_NM",
+   "T_ING_ANIMAELD001_Body_Albedo",
+   "T_ING_ANIMAELD001_Body_NM",
+   "T_ING_ANIMAELD001_Hair_Albedo",
+   "T_ING_ANIMAELD001_Hair_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 0.8,
+    "bones": 315,
+    "channels": 102
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.0,
+    "bones": 315,
+    "channels": 102
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6667,
+    "bones": 315,
+    "channels": 107
+   },
+   {
+    "name": "Idle",
+    "duration": 3.3333,
+    "bones": 315,
+    "channels": 90
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 4.0,
+    "bones": 246,
+    "channels": 89
+   },
+   {
+    "name": "IdleTeamLOB",
+    "duration": 4.0,
+    "bones": 249,
+    "channels": 98
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 5.1667,
+    "bones": 246,
+    "channels": 121
+   },
+   {
+    "name": "Morph",
+    "duration": 1.7,
+    "bones": 315,
+    "channels": 105
+   },
+   {
+    "name": "Morph_EndCast",
+    "duration": 0.3667,
+    "bones": 315,
+    "channels": 100
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 9.0,
+    "bones": 249,
+    "channels": 110
+   },
+   {
+    "name": "Run",
+    "duration": 0.7,
+    "bones": 312,
+    "channels": 91
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.1667,
+    "bones": 315,
+    "channels": 93
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 0.8,
+    "bones": 315,
+    "channels": 112
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 0.6333,
+    "bones": 315,
+    "channels": 98
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.1667,
+    "bones": 315,
+    "channels": 97
+   },
+   {
+    "name": "UnMorph",
+    "duration": 0.4,
+    "bones": 315,
+    "channels": 158
+   },
+   {
+    "name": "UnMorph_EndCast",
+    "duration": 0.9333,
+    "bones": 315,
+    "channels": 158
+   }
+  ],
+  "size": 2115444,
+  "root": "MDL_ING_ANIMELD001",
+  "name": "ANIMELD001"
+ },
+ {
+  "id": "MAG018_LOB",
+  "file": "mag018_lob.glb",
+  "bones": 117,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Book",
+   "MESH_Hair",
+   "MESH_Cape",
+   "MESH_Head"
+  ],
+  "textures": [
+   "T_LOB_MAG018_Body_AlbedoAO",
+   "T_LOB_MAG018_Weapon_AlbedoAO",
+   "T_LOB_MAG018_Hair_Albedo",
+   "T_LOB_MAG018_Hair_NM",
+   "T_LOB_MAG018_Cape_AlbedoAO",
+   "T_LOB_MAG018_Head_AlbedoAO"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 1.5333,
+    "bones": 225,
+    "channels": 117
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6333,
+    "bones": 225,
+    "channels": 117
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6333,
+    "bones": 225,
+    "channels": 117
+   },
+   {
+    "name": "ComboAttack_3",
+    "duration": 1.6333,
+    "bones": 225,
+    "channels": 100
+   },
+   {
+    "name": "ComboAttack_4",
+    "duration": 1.6333,
+    "bones": 225,
+    "channels": 109
+   },
+   {
+    "name": "ComboAttack_5",
+    "duration": 1.6667,
+    "bones": 225,
+    "channels": 101
+   },
+   {
+    "name": "Dash",
+    "duration": 0.625,
+    "bones": 225,
+    "channels": 80
+   },
+   {
+    "name": "Death",
+    "duration": 6.0417,
+    "bones": 225,
+    "channels": 98
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 225,
+    "channels": 58
+   },
+   {
+    "name": "Idle",
+    "duration": 2.0,
+    "bones": 225,
+    "channels": 79
+   },
+   {
+    "name": "IdleBreak",
+    "duration": 4.2667,
+    "bones": 225,
+    "channels": 79
+   },
+   {
+    "name": "IdleIn",
+    "duration": 1.8,
+    "bones": 225,
+    "channels": 96
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 2.0,
+    "bones": 324,
+    "channels": 99
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 6.3333,
+    "bones": 324,
+    "channels": 122
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9,
+    "bones": 225,
+    "channels": 80
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 225,
+    "channels": 68
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.0333,
+    "bones": 225,
+    "channels": 102
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 225,
+    "channels": 72
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 225,
+    "channels": 68
+   },
+   {
+    "name": "Morph",
+    "duration": 1.0,
+    "bones": 225,
+    "channels": 71
+   },
+   {
+    "name": "Morph_EndCast",
+    "duration": 0.5333,
+    "bones": 225,
+    "channels": 69
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 10.1333,
+    "bones": 324,
+    "channels": 119
+   },
+   {
+    "name": "Run",
+    "duration": 0.8333,
+    "bones": 225,
+    "channels": 77
+   },
+   {
+    "name": "Shock",
+    "duration": 0.5333,
+    "bones": 225,
+    "channels": 67
+   },
+   {
+    "name": "SkillUlt_EndCast",
+    "duration": 2.0333,
+    "bones": 225,
+    "channels": 104
+   },
+   {
+    "name": "SkillUlt_PreCast",
+    "duration": 1.2667,
+    "bones": 225,
+    "channels": 90
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.1,
+    "bones": 225,
+    "channels": 101
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.2333,
+    "bones": 225,
+    "channels": 117
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 1.1333,
+    "bones": 225,
+    "channels": 90
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 0.7333,
+    "bones": 225,
+    "channels": 84
+   },
+   {
+    "name": "Skill_3_EndCast",
+    "duration": 2.1,
+    "bones": 225,
+    "channels": 108
+   },
+   {
+    "name": "Skill_3_PreCast",
+    "duration": 0.9,
+    "bones": 225,
+    "channels": 88
+   },
+   {
+    "name": "Sleep",
+    "duration": 1.6667,
+    "bones": 225,
+    "channels": 67
+   },
+   {
+    "name": "Stun",
+    "duration": 2.0,
+    "bones": 225,
+    "channels": 69
+   },
+   {
+    "name": "UnMorph",
+    "duration": 0.4,
+    "bones": 225,
+    "channels": 95
+   },
+   {
+    "name": "UnMorph_EndCast",
+    "duration": 1.2333,
+    "bones": 225,
+    "channels": 99
+   },
+   {
+    "name": "Walk",
+    "duration": 0.9333,
+    "bones": 225,
+    "channels": 81
+   }
+  ],
+  "size": 3204988,
+  "root": "MDL_LOB_MAG018",
+  "name": "Sunspot Ricklow (lobby)"
+ },
+ {
+  "id": "ELD037_LOB",
+  "file": "eld037_lob.glb",
+  "bones": 152,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Weapon"
+  ],
+  "textures": [
+   "T_LOB_ELD037_Body_HiRes_AlbedoAO",
+   "T_LOB_ELD037_Body_Cape_AlbedoAO",
+   "T_LOB_ELD037_Weapon_AlbedoAO",
+   "T_LOB_ELD037_Hair_Albedo",
+   "T_LOB_ELD037_Hair_NM",
+   "T_LOB_ELD037_Head_AlbedoAO",
+   "T_Teeth_AlbedoAO"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 1.5333,
+    "bones": 324,
+    "channels": 100
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 101
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 97
+   },
+   {
+    "name": "ComboAttack_3",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 91
+   },
+   {
+    "name": "ComboAttack_4",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 117
+   },
+   {
+    "name": "ComboAttack_5",
+    "duration": 1.6333,
+    "bones": 324,
+    "channels": 110
+   },
+   {
+    "name": "Dash",
+    "duration": 0.4,
+    "bones": 324,
+    "channels": 107
+   },
+   {
+    "name": "Death",
+    "duration": 3.7333,
+    "bones": 324,
+    "channels": 119
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 324,
+    "channels": 49
+   },
+   {
+    "name": "Idle",
+    "duration": 2.1333,
+    "bones": 324,
+    "channels": 89
+   },
+   {
+    "name": "IdleBreak",
+    "duration": 4.2667,
+    "bones": 324,
+    "channels": 93
+   },
+   {
+    "name": "IdleBreakLOB_1",
+    "duration": 4.0,
+    "bones": 438,
+    "channels": 210
+   },
+   {
+    "name": "IdleIn",
+    "duration": 2.6667,
+    "bones": 324,
+    "channels": 136
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 2.6667,
+    "bones": 438,
+    "channels": 142
+   },
+   {
+    "name": "IdleTeamLOB",
+    "duration": 2.6667,
+    "bones": 438,
+    "channels": 144
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 10.8667,
+    "bones": 438,
+    "channels": 242
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 1.125,
+    "bones": 324,
+    "channels": 75
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.875,
+    "bones": 324,
+    "channels": 57
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.0833,
+    "bones": 324,
+    "channels": 101
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0833,
+    "bones": 324,
+    "channels": 69
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3333,
+    "bones": 324,
+    "channels": 55
+   },
+   {
+    "name": "Morph",
+    "duration": 1.25,
+    "bones": 324,
+    "channels": 65
+   },
+   {
+    "name": "Morph_EndCast",
+    "duration": 1.25,
+    "bones": 324,
+    "channels": 62
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 10.0,
+    "bones": 438,
+    "channels": 238
+   },
+   {
+    "name": "Run",
+    "duration": 0.8,
+    "bones": 324,
+    "channels": 99
+   },
+   {
+    "name": "Shock",
+    "duration": 0.5333,
+    "bones": 324,
+    "channels": 44
+   },
+   {
+    "name": "SkillUlt_EndCast",
+    "duration": 1.7333,
+    "bones": 159,
+    "channels": 105
+   },
+   {
+    "name": "SkillUlt_PreCast",
+    "duration": 1.4333,
+    "bones": 324,
+    "channels": 131
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 2.4333,
+    "bones": 324,
+    "channels": 117
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 0.6667,
+    "bones": 324,
+    "channels": 117
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 2.0,
+    "bones": 324,
+    "channels": 117
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.1667,
+    "bones": 324,
+    "channels": 109
+   },
+   {
+    "name": "Skill_3_EndCast",
+    "duration": 2.1,
+    "bones": 324,
+    "channels": 119
+   },
+   {
+    "name": "Skill_3_PreCast",
+    "duration": 1.0,
+    "bones": 324,
+    "channels": 115
+   },
+   {
+    "name": "Sleep",
+    "duration": 1.6667,
+    "bones": 324,
+    "channels": 53
+   },
+   {
+    "name": "Stun",
+    "duration": 1.6,
+    "bones": 324,
+    "channels": 57
+   },
+   {
+    "name": "UnMorph",
+    "duration": 0.5,
+    "bones": 195,
+    "channels": 85
+   },
+   {
+    "name": "UnMorph_EndCast",
+    "duration": 0.5833,
+    "bones": 195,
+    "channels": 76
+   },
+   {
+    "name": "Walk",
+    "duration": 1.0,
+    "bones": 324,
+    "channels": 102
+   }
+  ],
+  "size": 5309864,
+  "root": "MDL_LOB_ELD037",
+  "name": "Ardell The Torrent (lobby)"
+ },
+ {
+  "id": "ELD025_LOB",
+  "file": "eld025_lob.glb",
+  "bones": 89,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Body_Cape",
+   "MESH_Weapon"
+  ],
+  "textures": [
+   "T_LOB_ELD025_Body_Leg_AlbedoAO",
+   "T_LOB_ELD025_Body_Feather_AlbedoAO",
+   "T_LOB_ELD025_Body_AlbedoAO",
+   "T_LOB_ELD025_Head_AlbedoAO",
+   "T_LOB_ELD025_Weapon_AlbedoAO",
+   "T_FX_Noise_16_1_R_270"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 1.5333,
+    "bones": 207,
+    "channels": 84
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 84
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 90
+   },
+   {
+    "name": "ComboAttack_3",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 92
+   },
+   {
+    "name": "ComboAttack_4",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 88
+   },
+   {
+    "name": "ComboAttack_5",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 84
+   },
+   {
+    "name": "Dash",
+    "duration": 0.5333,
+    "bones": 210,
+    "channels": 81
+   },
+   {
+    "name": "Death",
+    "duration": 3.0667,
+    "bones": 207,
+    "channels": 92
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 207,
+    "channels": 81
+   },
+   {
+    "name": "Idle",
+    "duration": 2.1333,
+    "bones": 207,
+    "channels": 85
+   },
+   {
+    "name": "IdleBreak",
+    "duration": 2.1333,
+    "bones": 207,
+    "channels": 85
+   },
+   {
+    "name": "IdleIn",
+    "duration": 1.4,
+    "bones": 210,
+    "channels": 98
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 3.0,
+    "bones": 243,
+    "channels": 93
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 5.1667,
+    "bones": 246,
+    "channels": 109
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9333,
+    "bones": 207,
+    "channels": 59
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 207,
+    "channels": 59
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 1.6,
+    "bones": 207,
+    "channels": 68
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 207,
+    "channels": 51
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 207,
+    "channels": 59
+   },
+   {
+    "name": "Morph",
+    "duration": 1.6667,
+    "bones": 207,
+    "channels": 62
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 10.1,
+    "bones": 243,
+    "channels": 111
+   },
+   {
+    "name": "Run",
+    "duration": 0.9333,
+    "bones": 210,
+    "channels": 80
+   },
+   {
+    "name": "Shock",
+    "duration": 0.5333,
+    "bones": 207,
+    "channels": 62
+   },
+   {
+    "name": "SkillUlt_EndCast",
+    "duration": 0.6333,
+    "bones": 207,
+    "channels": 101
+   },
+   {
+    "name": "SkillUlt_PreCast",
+    "duration": 1.6667,
+    "bones": 207,
+    "channels": 98
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 0.8333,
+    "bones": 207,
+    "channels": 98
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.0667,
+    "bones": 207,
+    "channels": 94
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 0.8667,
+    "bones": 207,
+    "channels": 101
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.0333,
+    "bones": 207,
+    "channels": 91
+   },
+   {
+    "name": "Skill_3_EndCast",
+    "duration": 0.5667,
+    "bones": 210,
+    "channels": 100
+   },
+   {
+    "name": "Skill_3_PreCast",
+    "duration": 1.2333,
+    "bones": 210,
+    "channels": 87
+   },
+   {
+    "name": "Sleep",
+    "duration": 2.0,
+    "bones": 207,
+    "channels": 52
+   },
+   {
+    "name": "Stun",
+    "duration": 2.0,
+    "bones": 207,
+    "channels": 70
+   },
+   {
+    "name": "UnMorph",
+    "duration": 1.1667,
+    "bones": 207,
+    "channels": 60
+   },
+   {
+    "name": "Walk",
+    "duration": 1.0667,
+    "bones": 207,
+    "channels": 74
+   }
+  ],
+  "size": 4215976,
+  "root": "MDL_LOB_ELD025",
+  "name": "Confar the Burnished (lobby)"
+ }
+]

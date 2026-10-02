@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Відео без фону</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #111; color: #fff; font: 14px/1.4 system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; background: #000; }
+  button { font: inherit; color: #000; background: #fff; border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+  button[aria-pressed="false"] { color: #fff; background: #333; }
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 16px; padding: 16px; }
+  figure { margin: 0; min-width: 0; }
+  .stage { border-radius: 8px; overflow: hidden; }
+  body[data-bg="checker"] .stage { background: repeating-conic-gradient(#9a9a9a 0 25%, #e6e6e6 0 50%) 0 0 / 24px 24px; }
+  body[data-bg="black"] .stage { background: #000; }
+  body[data-bg="white"] .stage { background: #fff; }
+  body[data-bg="red"] .stage { background: #8e0f24; }
+  video { display: block; width: 100%; height: auto; }
+  figcaption { margin-top: 6px; color: #fff; overflow-wrap: anywhere; }
+</style>
+</head>
+<body data-bg="checker">
+<header>
+  <button data-bg="checker" aria-pressed="true">Шахівниця</button>
+  <button data-bg="black" aria-pressed="false">Чорний</button>
+  <button data-bg="white" aria-pressed="false">Білий</button>
+  <button data-bg="red" aria-pressed="false">Червоний</button>
+</header>
+<main></main>
+<script>
+  const stamps = ['12-55-41', '13-02-56', '13-31-04', '13-31-14', '13-31-28', '13-31-44', '13-53-23', '13-53-31', '14-00-40', '14-00-59', '15-05-38']
+  const main = document.querySelector('main')
+  for (const stamp of stamps) {
+    const file = `win_Seedance 2.5 Reference_2026-09-29_${stamp}.webm`
+    const figure = document.createElement('figure')
+    const stage = document.createElement('div')
+    stage.className = 'stage'
+    const video = document.createElement('video')
+    video.muted = true
+    video.loop = true
+    video.autoplay = true
+    video.playsInline = true
+    video.src = encodeURI(file)
+    stage.append(video)
+    const caption = document.createElement('figcaption')
+    caption.textContent = file
+    figure.append(stage, caption)
+    main.append(figure)
+  }
+  const buttons = document.querySelectorAll('header button')
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      document.body.dataset.bg = button.dataset.bg
+      for (const other of buttons) other.setAttribute('aria-pressed', String(other === button))
+    })
+  }
+</script>
+</body>
+</html>

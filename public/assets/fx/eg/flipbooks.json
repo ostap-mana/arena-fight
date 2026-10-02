@@ -1,0 +1,29 @@
+{
+ "test_burst": {
+  "file": "test_burst",
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 40,
+  "loop": false,
+  "color": "premul",
+  "size": 3,
+  "billboard": "face"
+ },
+ "test_heat": {
+  "file": "test_heat",
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 40,
+  "loop": false,
+  "color": "heat",
+  "size": 3,
+  "billboard": "face",
+  "palette": "arcane"
+ }
+}

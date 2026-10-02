@@ -1,0 +1,2497 @@
+{
+ "groups": {
+  "ui": {
+   "src": "assets/audio/sfx/ui.m4a",
+   "stereo": true,
+   "sprite": {
+    "ui_button_locked#0": [
+     250.0,
+     140.5
+    ],
+    "settings_environment#0": [
+     610.5,
+     3276.4
+    ],
+    "ui_click_tab#0": [
+     4106.9,
+     192.8
+    ],
+    "settings_menu_ui#0": [
+     4519.6,
+     160.6
+    ],
+    "settings_battle_skills#0": [
+     4900.3,
+     1955.6
+    ],
+    "ui_expand_out#0": [
+     7075.9,
+     452.9
+    ],
+    "ui_bottle#0": [
+     7748.8,
+     345.1
+    ],
+    "ui_click_back#0": [
+     8313.9,
+     1848.5
+    ],
+    "ui_click_battle#0": [
+     10382.5,
+     4184.6
+    ],
+    "ui_expand_in#0": [
+     14787.1,
+     417.0
+    ],
+    "ui_click_main#0": [
+     15424.0,
+     206.5
+    ],
+    "ui_click_leave#0": [
+     15850.5,
+     3863.8
+    ],
+    "ui_click_add#0": [
+     19934.3,
+     235.8
+    ],
+    "ingame_defeat#0": [
+     20390.1,
+     3674.8
+    ],
+    "vo_titan_charge#0": [
+     24284.9,
+     1619.3
+    ],
+    "ingame_victory#0": [
+     26124.2,
+     3376.6
+    ],
+    "loot_drop_equip#0": [
+     29720.7,
+     714.9
+    ],
+    "loot_take#0": [
+     30655.6,
+     657.3
+    ],
+    "loot_drop_gold#0": [
+     31532.9,
+     887.2
+    ],
+    "loot_drop_artifact#0": [
+     32640.1,
+     977.8
+    ],
+    "loot_take_mana#0": [
+     33837.9,
+     1178.9
+    ],
+    "loot_notification#0": [
+     35236.8,
+     1516.4
+    ],
+    "loot_drop_mana#0": [
+     36973.2,
+     1411.7
+    ]
+   }
+  },
+  "lobby": {
+   "src": "assets/audio/sfx/lobby.m4a",
+   "stereo": true,
+   "sprite": {
+    "mag018_intro#0": [
+     250.0,
+     5511.8
+    ],
+    "eld037_intro#0": [
+     5981.8,
+     7672.0
+    ],
+    "eld037_break_1#0": [
+     13873.8,
+     876.7
+    ],
+    "eld037_break_2#0": [
+     14970.5,
+     885.5
+    ],
+    "eld025_intro#0": [
+     16075.9,
+     4480.0
+    ],
+    "animeld001_intro#0": [
+     20775.9,
+     4374.0
+    ],
+    "animeld001_summon_vo#0": [
+     25369.9,
+     3179.0
+    ],
+    "animeld005_break_2#0": [
+     28768.8,
+     1371.8
+    ],
+    "animeld005_intro#0": [
+     30360.6,
+     4450.5
+    ],
+    "animeld005_summon_vo#0": [
+     35031.1,
+     3014.9
+    ],
+    "animeld005_summon_vo#1": [
+     38266.1,
+     3009.6
+    ],
+    "animeld005_break_1#0": [
+     41495.7,
+     1424.5
+    ],
+    "animmag003_intro#0": [
+     43140.1,
+     5277.2
+    ],
+    "animmag003_summon_vo#0": [
+     48637.3,
+     2015.0
+    ]
+   }
+  },
+  "common": {
+   "src": "assets/audio/sfx/common.m4a",
+   "stereo": false,
+   "sprite": {
+    "freeze#0": [
+     250.0,
+     2106.1
+    ],
+    "dash#0": [
+     2576.1,
+     823.2
+    ],
+    "mob_spawn#0": [
+     3619.2,
+     1544.2
+    ],
+    "step_wings_small#0": [
+     5383.4,
+     473.5
+    ],
+    "step_big_anima_bosses#0": [
+     6076.9,
+     1277.0
+    ],
+    "step_big_middle_bosses#0": [
+     7574.0,
+     541.4
+    ],
+    "step_ground#0": [
+     8335.4,
+     573.7
+    ],
+    "explosion_vfx_11#0": [
+     9129.1,
+     1363.6
+    ],
+    "explosion_vfx_8#0": [
+     10712.8,
+     1424.5
+    ],
+    "explosion_vfx_3#0": [
+     12357.3,
+     1024.1
+    ],
+    "explosion_vfx_15#0": [
+     13601.4,
+     1350.8
+    ],
+    "explosion_vfx_4#0": [
+     15172.1,
+     1192.9
+    ],
+    "explosion_vfx_5#0": [
+     16585.0,
+     1798.6
+    ],
+    "explosion_vfx_1#0": [
+     18603.6,
+     2369.3
+    ],
+    "explosion_vfx_9#0": [
+     21192.9,
+     1573.9
+    ],
+    "explosion_vfx_6#0": [
+     22986.7,
+     1921.0
+    ],
+    "explosion_vfx_13#0": [
+     25127.7,
+     1597.0
+    ],
+    "explosion_vfx_2#0": [
+     26944.7,
+     2816.7
+    ],
+    "explosion_vfx_12#0": [
+     29981.4,
+     2279.1
+    ],
+    "explosion_vfx_10#0": [
+     32480.5,
+     2009.3
+    ],
+    "explosion_vfx_14#0": [
+     34709.8,
+     1430.2
+    ],
+    "explosion_vfx_7#0": [
+     36360.0,
+     1440.5
+    ]
+   }
+  },
+  "mag018": {
+   "src": "assets/audio/sfx/mag018.m4a",
+   "stereo": false,
+   "sprite": {
+    "mag018_death#0": [
+     250.0,
+     4723.3
+    ],
+    "mag018_skill_3#0": [
+     5193.3,
+     1969.8
+    ],
+    "mag018_skill_1#0": [
+     7383.1,
+     2189.1
+    ],
+    "mag018_attack_1#0": [
+     9792.3,
+     1598.8
+    ],
+    "mag018_damage#0": [
+     11611.1,
+     541.6
+    ],
+    "mag018_skill_2#0": [
+     12372.7,
+     1682.6
+    ],
+    "mag018_attack_2#0": [
+     14275.4,
+     1342.1
+    ],
+    "mag018_attack_4#0": [
+     15837.5,
+     1420.7
+    ],
+    "mag018_attack_3#0": [
+     17478.2,
+     1593.1
+    ],
+    "mag018_ult#0": [
+     19291.3,
+     2428.0
+    ],
+    "mag018_attack_0#0": [
+     21939.3,
+     1410.4
+    ]
+   }
+  },
+  "eld037": {
+   "src": "assets/audio/sfx/eld037.m4a",
+   "stereo": false,
+   "sprite": {
+    "eld037_hit_combo#0": [
+     250.0,
+     1020.5
+    ],
+    "eld037_skill_3#0": [
+     1490.5,
+     1952.2
+    ],
+    "eld037_attack_0#0": [
+     3662.7,
+     948.9
+    ],
+    "eld037_attack_3#0": [
+     4831.5,
+     1046.5
+    ],
+    "eld037_attack_1#0": [
+     6098.0,
+     820.2
+    ],
+    "eld037_damage#0": [
+     7138.3,
+     553.9
+    ],
+    "eld037_damage#1": [
+     7912.1,
+     559.2
+    ],
+    "eld037_death#0": [
+     8691.3,
+     3511.2
+    ],
+    "eld037_attack_2#0": [
+     12422.5,
+     1042.4
+    ],
+    "eld037_attack_5#0": [
+     13685.0,
+     1174.0
+    ],
+    "eld037_attack_4#0": [
+     15079.0,
+     1505.9
+    ],
+    "eld037_skill_2#0": [
+     16804.9,
+     1903.9
+    ],
+    "eld037_skill_1#0": [
+     18928.8,
+     1522.5
+    ],
+    "eld037_ult#0": [
+     20671.2,
+     2187.9
+    ]
+   }
+  },
+  "eld025": {
+   "src": "assets/audio/sfx/eld025.m4a",
+   "stereo": false,
+   "sprite": {
+    "eld025_attack_1#0": [
+     250.0,
+     1059.4
+    ],
+    "eld025_skill_1#0": [
+     1529.4,
+     1382.8
+    ],
+    "eld025_ult#0": [
+     3132.2,
+     2338.7
+    ],
+    "eld025_skill_3#0": [
+     5690.9,
+     2113.6
+    ],
+    "eld025_attack_3#0": [
+     8024.6,
+     1098.6
+    ],
+    "eld025_attack_2#0": [
+     9343.1,
+     1114.0
+    ],
+    "eld025_attack_5#0": [
+     10677.1,
+     1453.4
+    ],
+    "eld025_death#0": [
+     12350.5,
+     2231.9
+    ],
+    "eld025_attack_0#0": [
+     14802.4,
+     1011.7
+    ],
+    "eld025_skill_2#0": [
+     16034.1,
+     1632.5
+    ],
+    "eld025_attack_4#0": [
+     17886.6,
+     1553.1
+    ],
+    "eld025_damage#0": [
+     19659.7,
+     553.9
+    ],
+    "eld025_hit_combo#0": [
+     20433.6,
+     789.1
+    ]
+   }
+  },
+  "animeld001": {
+   "src": "assets/audio/sfx/animeld001.m4a",
+   "stereo": false,
+   "sprite": {
+    "animeld001_skill_2#0": [
+     250.0,
+     1749.5
+    ],
+    "animeld001_attack_0#0": [
+     2219.5,
+     2107.7
+    ],
+    "animeld001_attack_0#1": [
+     4547.2,
+     2113.0
+    ],
+    "animeld001_hit_combo#0": [
+     6880.3,
+     930.9
+    ],
+    "animeld001_skill_1#0": [
+     8031.2,
+     1830.2
+    ],
+    "animeld001_attack_2#0": [
+     10081.4,
+     2208.5
+    ],
+    "animeld001_demorph#0": [
+     12509.9,
+     1862.7
+    ],
+    "animeld001_damage#0": [
+     14592.6,
+     683.7
+    ],
+    "animeld001_morph#0": [
+     15496.3,
+     3304.4
+    ],
+    "animeld001_attack_1#0": [
+     19020.7,
+     2377.5
+    ]
+   }
+  },
+  "animeld005": {
+   "src": "assets/audio/sfx/animeld005.m4a",
+   "stereo": false,
+   "sprite": {
+    "animeld005_skill_1#0": [
+     250.0,
+     2570.3
+    ],
+    "animeld005_attack_1#0": [
+     3040.3,
+     1535.1
+    ],
+    "animeld005_attack_0#0": [
+     4795.3,
+     1418.4
+    ],
+    "animeld005_skill_2#0": [
+     6433.7,
+     1857.8
+    ],
+    "animeld005_hit_combo#0": [
+     8511.4,
+     1127.2
+    ],
+    "animeld005_morph#0": [
+     9858.6,
+     3304.4
+    ],
+    "animeld005_demorph#0": [
+     13383.0,
+     1862.7
+    ],
+    "animeld005_damage#0": [
+     15465.7,
+     683.7
+    ],
+    "animeld005_attack_2#0": [
+     16369.4,
+     1596.0
+    ]
+   }
+  },
+  "animmag003": {
+   "src": "assets/audio/sfx/animmag003.m4a",
+   "stereo": false,
+   "sprite": {
+    "animmag003_attack_0#0": [
+     250.0,
+     1274.4
+    ],
+    "animmag003_hit_combo#0": [
+     1744.4,
+     513.0
+    ],
+    "animmag003_demorph#0": [
+     2477.5,
+     1862.7
+    ],
+    "animmag003_skill_1#0": [
+     4560.2,
+     2344.7
+    ],
+    "animmag003_attack_3#0": [
+     7124.9,
+     1064.4
+    ],
+    "animmag003_morph#0": [
+     8409.2,
+     3304.4
+    ],
+    "animmag003_damage#0": [
+     11933.6,
+     694.6
+    ],
+    "animmag003_attack_2#0": [
+     12848.2,
+     1746.0
+    ],
+    "animmag003_skill_2#0": [
+     14814.2,
+     1691.4
+    ],
+    "animmag003_attack_1#0": [
+     16725.6,
+     1546.0
+    ]
+   }
+  },
+  "enemies": {
+   "src": "assets/audio/sfx/enemies.m4a",
+   "stereo": false,
+   "sprite": {
+    "dem013_hit_combo#0": [
+     250.0,
+     778.5
+    ],
+    "dem013_skill_1#0": [
+     1248.5,
+     1948.5
+    ],
+    "dem013_take_damage#0": [
+     3417.0,
+     794.0
+    ],
+    "dem013_attack_1#0": [
+     4431.0,
+     1941.5
+    ],
+    "dem013_death#0": [
+     6592.5,
+     2290.1
+    ],
+    "dem013_death#1": [
+     9102.6,
+     2284.8
+    ],
+    "dem013_attack_2#0": [
+     11607.4,
+     1218.1
+    ],
+    "dem019_hit_combo#0": [
+     13045.5,
+     1152.5
+    ],
+    "dem019_attack_1#0": [
+     14418.0,
+     1206.8
+    ],
+    "dem019_skill_1#0": [
+     15844.8,
+     2155.3
+    ],
+    "dem019_death#0": [
+     18220.1,
+     1638.7
+    ],
+    "dem019_take_damage#0": [
+     20078.7,
+     720.2
+    ],
+    "dem019_attack_2#0": [
+     21019.0,
+     1576.8
+    ],
+    "dem025_death#0": [
+     22815.7,
+     2026.5
+    ],
+    "dem025_attack_2#0": [
+     25062.3,
+     1861.5
+    ],
+    "dem025_attack_1#0": [
+     27143.8,
+     1109.6
+    ],
+    "dem025_skill_1#0": [
+     28473.4,
+     1760.0
+    ],
+    "dem025_take_damage#0": [
+     30453.4,
+     674.0
+    ],
+    "dem103_attack_2#0": [
+     31347.4,
+     1574.5
+    ],
+    "dem103_hit_combo#0": [
+     33141.9,
+     778.5
+    ],
+    "dem103_take_damage#0": [
+     34140.4,
+     689.4
+    ],
+    "dem103_take_damage#1": [
+     35049.8,
+     694.7
+    ],
+    "dem103_skill_1#0": [
+     35964.5,
+     1562.2
+    ],
+    "dem103_attack_1#0": [
+     37746.8,
+     1442.4
+    ],
+    "dem103_death#0": [
+     39409.1,
+     2025.7
+    ],
+    "dem127_skill_1#0": [
+     41654.8,
+     1669.1
+    ],
+    "dem127_death#0": [
+     43543.9,
+     2407.2
+    ],
+    "dem127_attack_2#0": [
+     46171.2,
+     1270.6
+    ],
+    "dem127_take_damage#0": [
+     47661.8,
+     529.6
+    ],
+    "dem127_hit_combo#0": [
+     48411.4,
+     873.1
+    ],
+    "dem127_attack_1#0": [
+     49504.5,
+     1429.1
+    ],
+    "dem127_skill_2#0": [
+     51153.6,
+     1512.7
+    ],
+    "ogr037_take_damage#0": [
+     52886.3,
+     933.4
+    ],
+    "ogr037_skill_1#0": [
+     54039.8,
+     3305.2
+    ],
+    "ogr037_attack_1#0": [
+     57564.9,
+     2129.2
+    ],
+    "ogr037_death#0": [
+     59914.1,
+     3717.8
+    ],
+    "ogr037_skill_2#0": [
+     63851.9,
+     3219.0
+    ],
+    "ogr037_attack_2#0": [
+     67290.9,
+     2298.1
+    ],
+    "ogr037_sphere#0": [
+     69809.0,
+     2339.2
+    ],
+    "cam021_ult_vo#0": [
+     72368.2,
+     1649.4
+    ],
+    "cam021_death#0": [
+     74237.6,
+     1569.8
+    ],
+    "cam021_attack_0#0": [
+     76027.4,
+     732.2
+    ],
+    "cam021_skill_2#0": [
+     76979.6,
+     1222.1
+    ],
+    "cam021_hit_combo#0": [
+     78421.8,
+     754.7
+    ],
+    "cam021_skill_3#0": [
+     79396.5,
+     1983.1
+    ],
+    "cam021_damage#0": [
+     81599.6,
+     690.5
+    ],
+    "cam021_attack_4#0": [
+     82510.1,
+     811.5
+    ],
+    "cam021_attack_4#1": [
+     83541.5,
+     806.1
+    ],
+    "cam021_attack_5#0": [
+     84567.7,
+     1494.9
+    ],
+    "cam021_attack_1#0": [
+     86282.6,
+     917.8
+    ],
+    "cam021_skill_1#0": [
+     87420.3,
+     1748.3
+    ],
+    "cam021_ult#0": [
+     89388.7,
+     2088.0
+    ],
+    "cam021_attack_3#0": [
+     91696.7,
+     916.6
+    ],
+    "cam021_attack_2#0": [
+     92833.3,
+     820.9
+    ]
+   }
+  }
+ },
+ "sounds": {
+  "ui_button_locked": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.11,
+   "event": "event:/Lobby/ui_button_locked"
+  },
+  "settings_environment": {
+   "g": "ui",
+   "n": 1,
+   "len": 3.246,
+   "event": "event:/UI/Settings/Environment"
+  },
+  "ui_click_tab": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.163,
+   "event": "event:/Lobby/ui_click_tab"
+  },
+  "settings_menu_ui": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.131,
+   "event": "event:/UI/Settings/Menu&UI"
+  },
+  "settings_battle_skills": {
+   "g": "ui",
+   "n": 1,
+   "len": 1.926,
+   "event": "event:/UI/Settings/Battle&Skills"
+  },
+  "ui_expand_out": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.423,
+   "event": "event:/Lobby/ui_expand_out"
+  },
+  "ui_bottle": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.315,
+   "event": "event:/Lobby/ui_bottle"
+  },
+  "ui_click_back": {
+   "g": "ui",
+   "n": 1,
+   "len": 1.819,
+   "event": "event:/Lobby/ui_click_back"
+  },
+  "ui_click_battle": {
+   "g": "ui",
+   "n": 1,
+   "len": 4.155,
+   "event": "event:/Lobby/ui_click_battle"
+  },
+  "ui_expand_in": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.387,
+   "event": "event:/Lobby/ui_expand_in"
+  },
+  "ui_click_main": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.176,
+   "event": "event:/Lobby/ui_click_main"
+  },
+  "ui_click_leave": {
+   "g": "ui",
+   "n": 1,
+   "len": 3.834,
+   "event": "event:/Lobby/ui_click_leave"
+  },
+  "ui_click_add": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.206,
+   "event": "event:/Lobby/ui_click_add"
+  },
+  "ingame_defeat": {
+   "g": "ui",
+   "n": 1,
+   "len": 3.645,
+   "event": "event:/UI/InGame/Defeat"
+  },
+  "vo_titan_charge": {
+   "g": "ui",
+   "n": 1,
+   "len": 1.589,
+   "event": "event:/VO/Gameplay/Narrator/TitanCharge"
+  },
+  "ingame_victory": {
+   "g": "ui",
+   "n": 1,
+   "len": 3.347,
+   "event": "event:/UI/InGame/Victory"
+  },
+  "loot_drop_equip": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.685,
+   "event": "event:/Ambience/LootDrop/LootDropEquip",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "loot_take": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.627,
+   "event": "event:/Ambience/LootDrop/LootTake"
+  },
+  "loot_drop_gold": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.857,
+   "event": "event:/Ambience/LootDrop/LootDropGold",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "loot_drop_artifact": {
+   "g": "ui",
+   "n": 1,
+   "len": 0.948,
+   "event": "event:/Ambience/LootDrop/LootDropArtifact"
+  },
+  "loot_take_mana": {
+   "g": "ui",
+   "n": 1,
+   "len": 1.149,
+   "event": "event:/Ambience/LootDrop/LootTakeMana",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "loot_notification": {
+   "g": "ui",
+   "n": 1,
+   "len": 1.486,
+   "event": "event:/Ambience/LootDrop/LootNotification"
+  },
+  "loot_drop_mana": {
+   "g": "ui",
+   "n": 1,
+   "len": 1.382,
+   "event": "event:/Ambience/LootDrop/LootDropMana",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "mag018_intro": {
+   "g": "lobby",
+   "n": 1,
+   "len": 5.482,
+   "event": "event:/SFX/Lobby/Intro Invokers/MAG/intro_MAG018"
+  },
+  "eld037_intro": {
+   "g": "lobby",
+   "n": 1,
+   "len": 7.642,
+   "event": "event:/SFX/Lobby/Intro Invokers/ELD/intro_ELD037"
+  },
+  "eld037_break_1": {
+   "g": "lobby",
+   "n": 1,
+   "len": 0.847,
+   "event": "event:/SFX/Lobby/Break Invokers/ELD/break_1_ELD037"
+  },
+  "eld037_break_2": {
+   "g": "lobby",
+   "n": 1,
+   "len": 0.855,
+   "event": "event:/SFX/Lobby/Break Invokers/ELD/break_2_ELD037"
+  },
+  "eld025_intro": {
+   "g": "lobby",
+   "n": 1,
+   "len": 4.45,
+   "event": "event:/SFX/Lobby/Intro Invokers/ELD/intro_ELD025"
+  },
+  "animeld001_intro": {
+   "g": "lobby",
+   "n": 1,
+   "len": 4.344,
+   "event": "event:/SFX/Lobby/Intro Titans/ANIMELD/intro_ANIMELD001"
+  },
+  "animeld001_summon_vo": {
+   "g": "lobby",
+   "n": 1,
+   "len": 3.149,
+   "event": "event:/SFX/Lobby/Summon Titans/ANIMELD/summon_ANIMELD001_VO"
+  },
+  "animeld005_break_2": {
+   "g": "lobby",
+   "n": 1,
+   "len": 1.342,
+   "event": "event:/SFX/Lobby/Break Titans/ANIMELD/break_2_ANIMELD005"
+  },
+  "animeld005_intro": {
+   "g": "lobby",
+   "n": 1,
+   "len": 4.421,
+   "event": "event:/SFX/Lobby/Intro Titans/ANIMELD/intro_ANIMELD005"
+  },
+  "animeld005_summon_vo": {
+   "g": "lobby",
+   "n": 2,
+   "len": 2.985,
+   "event": "event:/SFX/Lobby/Summon Titans/ANIMELD/summon_ANIMELD005_VO"
+  },
+  "animeld005_break_1": {
+   "g": "lobby",
+   "n": 1,
+   "len": 1.394,
+   "event": "event:/SFX/Lobby/Break Titans/ANIMELD/break_1_ANIMELD005"
+  },
+  "animmag003_intro": {
+   "g": "lobby",
+   "n": 1,
+   "len": 5.247,
+   "event": "event:/SFX/Lobby/Intro Titans/ANIMMAG/intro_ANIMMAG003"
+  },
+  "animmag003_summon_vo": {
+   "g": "lobby",
+   "n": 1,
+   "len": 1.985,
+   "event": "event:/SFX/Lobby/Summon Titans/ANIMMAG/summon_ANIMMAG003_VO"
+  },
+  "freeze": {
+   "g": "common",
+   "n": 1,
+   "len": 2.076,
+   "event": "event:/SFX/Character/Interactions/Freeze",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dash": {
+   "g": "common",
+   "n": 1,
+   "len": 0.793,
+   "event": "event:/SFX/Character/Dash/Dash",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "mob_spawn": {
+   "g": "common",
+   "n": 1,
+   "len": 1.514,
+   "event": "event:/SFX/Character/Spawn/MobSpawn",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "step_wings_small": {
+   "g": "common",
+   "n": 1,
+   "len": 0.444,
+   "event": "event:/SFX/Character/Steps/WingsSmall",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "step_big_anima_bosses": {
+   "g": "common",
+   "n": 1,
+   "len": 1.247,
+   "event": "event:/SFX/Character/Steps/Big (Anima, Bosses)",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "step_big_middle_bosses": {
+   "g": "common",
+   "n": 1,
+   "len": 0.511,
+   "event": "event:/SFX/Character/Steps/Big (Middle Bosses)",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "step_ground": {
+   "g": "common",
+   "n": 1,
+   "len": 0.544,
+   "event": "event:/SFX/Character/Steps/Ground",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_11": {
+   "g": "common",
+   "n": 1,
+   "len": 1.334,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_11",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_8": {
+   "g": "common",
+   "n": 1,
+   "len": 1.395,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_8",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_3": {
+   "g": "common",
+   "n": 1,
+   "len": 0.994,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_3",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_15": {
+   "g": "common",
+   "n": 1,
+   "len": 1.321,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_15",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_4": {
+   "g": "common",
+   "n": 1,
+   "len": 1.163,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_4",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_5": {
+   "g": "common",
+   "n": 1,
+   "len": 1.769,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_5",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_1": {
+   "g": "common",
+   "n": 1,
+   "len": 2.339,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_9": {
+   "g": "common",
+   "n": 1,
+   "len": 1.544,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_9",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_6": {
+   "g": "common",
+   "n": 1,
+   "len": 1.891,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_6",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_13": {
+   "g": "common",
+   "n": 1,
+   "len": 1.567,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_13",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_2": {
+   "g": "common",
+   "n": 1,
+   "len": 2.787,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_12": {
+   "g": "common",
+   "n": 1,
+   "len": 2.249,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_12",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_10": {
+   "g": "common",
+   "n": 1,
+   "len": 1.979,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_10",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_14": {
+   "g": "common",
+   "n": 1,
+   "len": 1.4,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_14",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "explosion_vfx_7": {
+   "g": "common",
+   "n": 1,
+   "len": 1.41,
+   "event": "event:/SFX/Character/Explosion/ExplosionVFX_7",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "mag018_death": {
+   "g": "mag018",
+   "n": 1,
+   "len": 4.693,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_death",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_skill_3": {
+   "g": "mag018",
+   "n": 1,
+   "len": 1.94,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_skill_3",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_skill_1": {
+   "g": "mag018",
+   "n": 1,
+   "len": 2.159,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_skill_1",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_attack_1": {
+   "g": "mag018",
+   "n": 1,
+   "len": 1.569,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_attack_1",
+   "dist": [
+    0.0,
+    50.0
+   ]
+  },
+  "mag018_damage": {
+   "g": "mag018",
+   "n": 1,
+   "len": 0.512,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_damage",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_skill_2": {
+   "g": "mag018",
+   "n": 1,
+   "len": 1.653,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_skill_2",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_attack_2": {
+   "g": "mag018",
+   "n": 1,
+   "len": 1.312,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_attack_2",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_attack_4": {
+   "g": "mag018",
+   "n": 1,
+   "len": 1.391,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_attack_4",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_attack_3": {
+   "g": "mag018",
+   "n": 1,
+   "len": 1.563,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_attack_3",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_ult": {
+   "g": "mag018",
+   "n": 1,
+   "len": 2.398,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_ult",
+   "dist": [
+    0.0,
+    60.0
+   ]
+  },
+  "mag018_attack_0": {
+   "g": "mag018",
+   "n": 1,
+   "len": 1.38,
+   "event": "event:/SFX/Heroes/MAG/102018 (MAG018)/mag018_attack_0",
+   "dist": [
+    0.0,
+    50.0
+   ]
+  },
+  "eld037_hit_combo": {
+   "g": "eld037",
+   "n": 1,
+   "len": 0.991,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_hit_combo",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_skill_3": {
+   "g": "eld037",
+   "n": 1,
+   "len": 1.922,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_skill_3",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_attack_0": {
+   "g": "eld037",
+   "n": 1,
+   "len": 0.919,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_attack_0",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_attack_3": {
+   "g": "eld037",
+   "n": 1,
+   "len": 1.016,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_attack_3",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_attack_1": {
+   "g": "eld037",
+   "n": 1,
+   "len": 0.79,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_attack_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_damage": {
+   "g": "eld037",
+   "n": 2,
+   "len": 0.524,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_damage",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_death": {
+   "g": "eld037",
+   "n": 1,
+   "len": 3.481,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_death",
+   "dist": [
+    0.0,
+    550.0
+   ]
+  },
+  "eld037_attack_2": {
+   "g": "eld037",
+   "n": 1,
+   "len": 1.012,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_attack_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_attack_5": {
+   "g": "eld037",
+   "n": 1,
+   "len": 1.144,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_attack_5",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_attack_4": {
+   "g": "eld037",
+   "n": 1,
+   "len": 1.476,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_attack_4",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_skill_2": {
+   "g": "eld037",
+   "n": 1,
+   "len": 1.874,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_skill_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_skill_1": {
+   "g": "eld037",
+   "n": 1,
+   "len": 1.492,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_skill_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld037_ult": {
+   "g": "eld037",
+   "n": 1,
+   "len": 2.158,
+   "event": "event:/SFX/Heroes/ELD/101037 (ELD037)/eld037_ult",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_attack_1": {
+   "g": "eld025",
+   "n": 1,
+   "len": 1.029,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_attack_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_skill_1": {
+   "g": "eld025",
+   "n": 1,
+   "len": 1.353,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_skill_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_ult": {
+   "g": "eld025",
+   "n": 1,
+   "len": 2.309,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_ult",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_skill_3": {
+   "g": "eld025",
+   "n": 1,
+   "len": 2.084,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_skill_3",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_attack_3": {
+   "g": "eld025",
+   "n": 1,
+   "len": 1.069,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_attack_3",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_attack_2": {
+   "g": "eld025",
+   "n": 1,
+   "len": 1.084,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_attack_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_attack_5": {
+   "g": "eld025",
+   "n": 1,
+   "len": 1.423,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_attack_5",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_death": {
+   "g": "eld025",
+   "n": 1,
+   "len": 2.202,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_death",
+   "dist": [
+    0.0,
+    550.0
+   ]
+  },
+  "eld025_attack_0": {
+   "g": "eld025",
+   "n": 1,
+   "len": 0.982,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_attack_0",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_skill_2": {
+   "g": "eld025",
+   "n": 1,
+   "len": 1.603,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_skill_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_attack_4": {
+   "g": "eld025",
+   "n": 1,
+   "len": 1.523,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_attack_4",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_damage": {
+   "g": "eld025",
+   "n": 1,
+   "len": 0.524,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_damage",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "eld025_hit_combo": {
+   "g": "eld025",
+   "n": 1,
+   "len": 0.759,
+   "event": "event:/SFX/Heroes/ELD/101025 (ELD025)/eld025_hit_combo",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_skill_2": {
+   "g": "animeld001",
+   "n": 1,
+   "len": 1.72,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_skill_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_attack_0": {
+   "g": "animeld001",
+   "n": 2,
+   "len": 2.078,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_attack_0",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_hit_combo": {
+   "g": "animeld001",
+   "n": 1,
+   "len": 0.901,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_hit_combo",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_skill_1": {
+   "g": "animeld001",
+   "n": 1,
+   "len": 1.8,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_skill_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_attack_2": {
+   "g": "animeld001",
+   "n": 1,
+   "len": 2.178,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_attack_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_demorph": {
+   "g": "animeld001",
+   "n": 1,
+   "len": 1.833,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_demorph",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_damage": {
+   "g": "animeld001",
+   "n": 1,
+   "len": 0.654,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_damage",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_morph": {
+   "g": "animeld001",
+   "n": 1,
+   "len": 3.274,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_morph",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld001_attack_1": {
+   "g": "animeld001",
+   "n": 1,
+   "len": 2.347,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD001/animeld001_attack_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_skill_1": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 2.54,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_skill_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_attack_1": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 1.505,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_attack_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_attack_0": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 1.388,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_attack_0",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_skill_2": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 1.828,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_skill_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_hit_combo": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 1.097,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_hit_combo",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_morph": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 3.274,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_morph",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_demorph": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 1.833,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_demorph",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_damage": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 0.654,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_damage",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animeld005_attack_2": {
+   "g": "animeld005",
+   "n": 1,
+   "len": 1.566,
+   "event": "event:/SFX/Titans/ANIMELD/ANIMELD005/animeld005_attack_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_attack_0": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 1.244,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_attack_0",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_hit_combo": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 0.483,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_hit_combo",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_demorph": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 1.833,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_demorph",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_skill_1": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 2.315,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_skill_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_attack_3": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 1.034,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_attack_3",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_morph": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 3.274,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_morph",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_damage": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 0.665,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_damage",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_attack_2": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 1.716,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_attack_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_skill_2": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 1.661,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_skill_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "animmag003_attack_1": {
+   "g": "animmag003",
+   "n": 1,
+   "len": 1.516,
+   "event": "event:/SFX/Titans/ANIMMAG/ANIMMAG003/animmag003_attack_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "dem013_hit_combo": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.749,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM013/dem013_hit_combo",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem013_skill_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.919,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM013/dem013_skill_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem013_take_damage": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.764,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM013/dem013_take_damage",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem013_attack_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.912,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM013/dem013_attack_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem013_death": {
+   "g": "enemies",
+   "n": 2,
+   "len": 2.26,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM013/dem013_death",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem013_attack_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.188,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM013/dem013_attack_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem019_hit_combo": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.122,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM019/dem019_hit_combo",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem019_attack_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.177,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM019/dem019_attack_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem019_skill_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 2.125,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM019/dem019_skill_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem019_death": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.609,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM019/dem019_death",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem019_take_damage": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.69,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM019/dem019_take_damage",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem019_attack_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.547,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM019/dem019_attack_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem025_death": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.997,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM025/dem025_death",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem025_attack_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.831,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM025/dem025_attack_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem025_attack_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.08,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM025/dem025_attack_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem025_skill_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.73,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM025/dem025_skill_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem025_take_damage": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.644,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM025/dem025_take_damage",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem103_attack_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.544,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM103/dem103_attack_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem103_hit_combo": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.749,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM103/dem103_hit_combo",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem103_take_damage": {
+   "g": "enemies",
+   "n": 2,
+   "len": 0.659,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM103/dem103_take_damage",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem103_skill_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.532,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM103/dem103_skill_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem103_attack_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.412,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM103/dem103_attack_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem103_death": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.996,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM103/dem103_death",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem127_skill_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.639,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM127/dem127_skill_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem127_death": {
+   "g": "enemies",
+   "n": 1,
+   "len": 2.377,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM127/dem127_death",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem127_attack_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.241,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM127/dem127_attack_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem127_take_damage": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.5,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM127/dem127_take_damage",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem127_hit_combo": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.843,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM127/dem127_hit_combo",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem127_attack_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.399,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM127/dem127_attack_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "dem127_skill_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.483,
+   "event": "event:/SFX/Enemies/Common/DEM/DEM127/dem127_skill_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "ogr037_take_damage": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.903,
+   "event": "event:/SFX/Enemies/Bosses/OGR/OGR037/ogr037_take_damage",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "ogr037_skill_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 3.275,
+   "event": "event:/SFX/Enemies/Bosses/OGR/OGR037/ogr037_skill_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "ogr037_attack_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 2.099,
+   "event": "event:/SFX/Enemies/Bosses/OGR/OGR037/ogr037_attack_1",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "ogr037_death": {
+   "g": "enemies",
+   "n": 1,
+   "len": 3.688,
+   "event": "event:/SFX/Enemies/Bosses/OGR/OGR037/ogr037_death",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "ogr037_skill_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 3.189,
+   "event": "event:/SFX/Enemies/Bosses/OGR/OGR037/ogr037_skill_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "ogr037_attack_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 2.268,
+   "event": "event:/SFX/Enemies/Bosses/OGR/OGR037/ogr037_attack_2",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "ogr037_sphere": {
+   "g": "enemies",
+   "n": 1,
+   "len": 2.309,
+   "event": "event:/SFX/Enemies/Bosses/OGR/OGR037/ogr037_sphere",
+   "dist": [
+    1.0,
+    20.0
+   ]
+  },
+  "cam021_ult_vo": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.619,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_ult_VO",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_death": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.54,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_death",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_attack_0": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.702,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_attack_0",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_skill_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.192,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_skill_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_hit_combo": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.725,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_hit_combo",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_skill_3": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.953,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_skill_3",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_damage": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.66,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_damage",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_attack_4": {
+   "g": "enemies",
+   "n": 2,
+   "len": 0.781,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_attack_4",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_attack_5": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.465,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_attack_5",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_attack_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.888,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_attack_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_skill_1": {
+   "g": "enemies",
+   "n": 1,
+   "len": 1.718,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_skill_1",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_ult": {
+   "g": "enemies",
+   "n": 1,
+   "len": 2.058,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_ult",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_attack_3": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.887,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_attack_3",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  },
+  "cam021_attack_2": {
+   "g": "enemies",
+   "n": 1,
+   "len": 0.791,
+   "event": "event:/SFX/Heroes/CAM/111021 (CAM021)/cam021_attack_2",
+   "dist": [
+    0.0,
+    600.0
+   ]
+  }
+ },
+ "gain": 1.0079,
+ "steps": {
+  "mag018": {
+   "Run": [
+    0.1232,
+    0.562
+   ],
+   "Walk": [
+    0.0623,
+    0.5136
+   ]
+  },
+  "eld037": {
+   "Walk": [
+    0.1169,
+    0.6312
+   ],
+   "Run": [
+    0.3512,
+    0.7439
+   ]
+  },
+  "eld025": {
+   "Walk": [
+    0.1221,
+    0.6574
+   ],
+   "Run": [
+    0.3774,
+    0.8253
+   ]
+  },
+  "animeld001": {
+   "Run": [
+    0.0884,
+    0.2781,
+    0.606
+   ]
+  },
+  "animeld005": {
+   "Run": [
+    0.0825,
+    0.1463,
+    0.2117,
+    0.5432
+   ]
+  },
+  "animmag003": {
+   "Run": [
+    0.0761,
+    0.5798
+   ]
+  },
+  "dem013": {
+   "Run": [
+    0.1031,
+    0.6935
+   ]
+  },
+  "dem025": {
+   "Run": [
+    0.2623,
+    0.743
+   ]
+  },
+  "dem103": {
+   "Run": [
+    0.0685,
+    0.588
+   ]
+  },
+  "dem127": {
+   "Run": [
+    0.1271,
+    0.6589
+   ]
+  },
+  "ogr037": {
+   "Run": [
+    0.3153,
+    0.8913
+   ]
+  },
+  "cam021": {
+   "Walk": [
+    0.1734,
+    0.6242
+   ],
+   "Run": [
+    0.2621,
+    0.6455
+   ]
+  }
+ },
+ "emitters": {
+  "B_FX_MAG018_CA5_AOE": "explosion_vfx_9",
+  "B_FX_ANIMELD005_Skill2_Target_1": "explosion_vfx_9",
+  "B_FX_OGR037_Skill2_AOE": "ogr037_sphere"
+ }
+}

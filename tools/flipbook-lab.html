@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <base href="../" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flipbook lab</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #070c1a; overflow: hidden; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #info { position: fixed; left: 8px; top: 6px; color: #fff; font: 12px monospace; white-space: pre; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="info"></div>
+    <script type="module" src="./tools/flipbook-lab.js"></script>
+  </body>
+</html>

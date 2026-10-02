@@ -1,0 +1,209 @@
+{
+ "fire_loop": {
+  "src": {
+   "color": "C:/Users/Yonix/Desktop/BUILD/invokers-playable/tools/embergen/scenes/fire_loop/fire_loop_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 15,
+  "loop": true,
+  "color": "premul",
+  "size": 6,
+  "pivot": [
+   0,
+   -0.47
+  ],
+  "billboard": "up",
+  "soft": 0.25,
+  "texSize": 1024
+ },
+ "smoke_plume": {
+  "src": {
+   "color": "C:/Users/Yonix/AppData/Local/Temp/claude/c--Users-Yonix-Desktop-BUILD/bc64aa96-3739-4635-bb9a-a7b6813bc5b0/scratchpad/eg/out/smoke_plume/smoke_plume_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 12,
+  "loop": true,
+  "color": "premul",
+  "size": 16,
+  "pivot": [
+   0,
+   -0.45
+  ],
+  "billboard": "up",
+  "soft": 0.5,
+  "texSize": 1024
+ },
+ "explosion_big": {
+  "src": {
+   "color": "C:/Users/Yonix/AppData/Local/Temp/claude/c--Users-Yonix-Desktop-BUILD/bc64aa96-3739-4635-bb9a-a7b6813bc5b0/scratchpad/eg/out/explosion_big/explosion_big_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 30,
+  "loop": false,
+  "color": "premul",
+  "size": 9,
+  "pivot": [
+   0,
+   -0.4
+  ],
+  "billboard": "up",
+  "soft": 0.3,
+  "texSize": 1024,
+  "capacity": 12
+ },
+ "magic_burst": {
+  "src": {
+   "color": "C:/Users/Yonix/AppData/Local/Temp/claude/c--Users-Yonix-Desktop-BUILD/bc64aa96-3739-4635-bb9a-a7b6813bc5b0/scratchpad/eg/out/magic_burst/magic_burst_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 36,
+  "loop": false,
+  "color": "heat",
+  "palette": "arcane",
+  "size": 4,
+  "pivot": [
+   0,
+   -0.4
+  ],
+  "billboard": "up",
+  "soft": 0.25,
+  "texSize": 1024,
+  "capacity": 24
+ },
+ "smoke_puff": {
+  "src": {
+   "color": "C:/Users/Yonix/AppData/Local/Temp/claude/c--Users-Yonix-Desktop-BUILD/bc64aa96-3739-4635-bb9a-a7b6813bc5b0/scratchpad/eg/out/smoke_puff/smoke_puff_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 36,
+  "loop": false,
+  "color": "premul",
+  "size": 3,
+  "pivot": [
+   0,
+   -0.42
+  ],
+  "billboard": "up",
+  "soft": 0.3,
+  "texSize": 1024,
+  "capacity": 32
+ },
+ "shockwave": {
+  "src": {
+   "color": "C:/Users/Yonix/AppData/Local/Temp/claude/c--Users-Yonix-Desktop-BUILD/bc64aa96-3739-4635-bb9a-a7b6813bc5b0/scratchpad/eg/out/shockwave/shockwave_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 40,
+  "loop": false,
+  "color": "heat",
+  "palette": "fire",
+  "size": 10,
+  "billboard": "ground",
+  "texSize": 1024,
+  "capacity": 12
+ },
+ "stand_floor": {
+  "src": {
+   "color": "C:/Users/Yonix/AppData/Local/Temp/claude/c--Users-Yonix-Desktop-BUILD/bc64aa96-3739-4635-bb9a-a7b6813bc5b0/scratchpad/eg/out/stand_floor/stand_floor_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 15,
+  "loop": true,
+  "color": "heat",
+  "palette": "fire",
+  "size": 3.2,
+  "billboard": "ground",
+  "texSize": 2048,
+  "capacity": 4
+ },
+ "stand_flame": {
+  "src": {
+   "color": "C:/Users/Yonix/AppData/Local/Temp/claude/c--Users-Yonix-Desktop-BUILD/bc64aa96-3739-4635-bb9a-a7b6813bc5b0/scratchpad/eg/out/stand_flame/stand_flame_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 20,
+  "loop": true,
+  "color": "heat",
+  "palette": "fire",
+  "size": 0.7,
+  "pivot": [
+   0,
+   -0.5
+  ],
+  "aspect": 0.6,
+  "billboard": "up",
+  "soft": 0.08,
+  "texSize": 1024,
+  "capacity": 48
+ },
+ "stand_burst": {
+  "src": {
+   "color": "C:/Users/Yonix/AppData/Local/Temp/claude/c--Users-Yonix-Desktop-BUILD/bc64aa96-3739-4635-bb9a-a7b6813bc5b0/scratchpad/eg/out/stand_burst/stand_burst_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 40,
+  "loop": false,
+  "color": "heat",
+  "palette": "fire",
+  "size": 4,
+  "billboard": "ground",
+  "texSize": 1024,
+  "capacity": 6
+ },
+ "flame_tongue": {
+  "src": {
+   "color": "C:/Users/Yonix/Desktop/BUILD/invokers-playable/tools/embergen/scenes/flame_tongue/flame_tongue_render_all.png"
+  },
+  "grid": [
+   8,
+   8
+  ],
+  "frames": 64,
+  "fps": 24,
+  "loop": true,
+  "color": "heat",
+  "size": 1,
+  "pivot": [
+   0,
+   -0.45
+  ],
+  "aspect": 0.75,
+  "texSize": 1024
+ }
+}
