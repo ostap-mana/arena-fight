@@ -1,3 +1,7 @@
+import { stream } from './rng.js'
+
+const random = stream('sim')
+
 export const GEAR_SLOTS = ['helmet', 'chestplate', 'belt', 'weapon', 'pauldrons', 'gauntlets', 'boots', 'shield']
 export const BUILD_PIECES = 4
 
@@ -36,7 +40,7 @@ export class Gear {
   add(drop) {
     const main = MAIN_STAT[drop.slot]
     const rank = RARITY_RANK[drop.rarity] || 1
-    const roll = drop.roll || 0.9 + Math.random() * 0.2
+    const roll = drop.roll || 0.9 + random() * 0.2
     const value = main.base * (RARITY_MULT[drop.rarity] || 1) * roll
     const item = {
       id: this.nextId++,

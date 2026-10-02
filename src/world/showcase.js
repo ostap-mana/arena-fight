@@ -3,6 +3,9 @@ import gsap from 'gsap'
 import { T, tiled, paletteFor } from './fx.js'
 import { Flipbooks } from './flipbook.js'
 import { LobbyAmbient } from './lobby-ambient.js'
+import { stream } from '../core/rng.js'
+
+const random = stream('lobby')
 
 const HAZE_TINT = { fire: 0x6a3a2a, water: 0x2e4a5c, earth: 0x4a4432, wind: 0x55606a, light: 0x6a5c44, dark: 0x3a2e4a }
 const IDLE_DIM = 0.55
@@ -333,7 +336,7 @@ export class Showcase {
     if (books.has(FLAME_BOOK)) {
       for (let k = 0; k < FLAME_COUNT; k++) {
         const a = (k / FLAME_COUNT) * Math.PI * 2
-        const size = FLAME_SIZE[0] + Math.random() * (FLAME_SIZE[1] - FLAME_SIZE[0])
+        const size = FLAME_SIZE[0] + random() * (FLAME_SIZE[1] - FLAME_SIZE[0])
         fx.push(books.spawn(FLAME_BOOK, {
           x: x + Math.cos(a) * FLAME_RADIUS,
           y: 0.07,
@@ -343,12 +346,12 @@ export class Showcase {
           palette,
           loop: true,
           rot: 0,
-          fadeIn: 0.25 + Math.random() * 0.3,
+          fadeIn: 0.25 + random() * 0.3,
         }))
       }
     }
     if (books.has(BURST_BOOK) && this.time - s.pickedAt < BURST_WINDOW) {
-      books.spawn(BURST_BOOK, { x, y: 0.1, z, billboard: 'ground', size: BURST_SIZE, palette, rot: Math.random() * Math.PI * 2 })
+      books.spawn(BURST_BOOK, { x, y: 0.1, z, billboard: 'ground', size: BURST_SIZE, palette, rot: random() * Math.PI * 2 })
     }
     s.fx = fx
   }

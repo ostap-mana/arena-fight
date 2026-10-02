@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { stream } from './rng.js'
+
+const random = stream('sim')
 
 const LOOPS = {
   idle: ['Idle'],
@@ -135,7 +138,7 @@ export class Rig {
   pickMove(move) {
     if (move.variants) {
       const pool = [...this.clips.keys()].filter(n => move.variants.test(n))
-      if (pool.length) return [pool[Math.floor(Math.random() * pool.length)]]
+      if (pool.length) return [pool[Math.floor(random() * pool.length)]]
     }
     return move.options.find(names => names.every(n => this.clips.has(n)))
   }

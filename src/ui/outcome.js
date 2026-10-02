@@ -216,6 +216,14 @@ export class Outcome {
     gsap.ticker.add(this.tick)
   }
 
+  hide() {
+    gsap.ticker.remove(this.tick)
+    gsap.killTweensOf([this.flash, this.band, this.bloom, this.control])
+    this.armed = false
+    this.introducing = false
+    this.root.classList.remove('on', 'defeat')
+  }
+
   tick(time, deltaMs) {
     const dt = deltaMs / 1000
     this.t += dt

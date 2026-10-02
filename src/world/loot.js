@@ -3,6 +3,9 @@ import { loadModelData } from '../core/model.js'
 import { characterMaterial } from './character-shader.js'
 import { audio } from '../core/audio.js'
 import { ARENA_RADIUS } from './arena.js'
+import { stream } from '../core/rng.js'
+
+const random = stream('sim')
 
 const LIB = 'loot'
 const MODELS = 'loot'
@@ -40,7 +43,7 @@ const _up = new THREE.Vector3()
 
 function pickWeighted(weights) {
   const entries = Object.entries(weights || { common: 1 })
-  let r = Math.random() * entries.reduce((a, [, w]) => a + w, 0)
+  let r = random() * entries.reduce((a, [, w]) => a + w, 0)
   for (const [k, w] of entries) {
     r -= w
     if (r <= 0) return k
@@ -49,7 +52,7 @@ function pickWeighted(weights) {
 }
 
 function between([a, b]) {
-  return a + Math.random() * (b - a)
+  return a + random() * (b - a)
 }
 
 function keepOnFloor(p) {
@@ -178,12 +181,12 @@ export class Loot {
       return
     }
     let count = table.relics || 0
-    if (Math.random() < (table.chance || 0)) count++
+    if (random() < (table.chance || 0)) count++
     for (let i = 0; i < count; i++) {
       const item = {
-        slot: SLOTS[Math.floor(Math.random() * SLOTS.length)],
+        slot: SLOTS[Math.floor(random() * SLOTS.length)],
         rarity: pickWeighted(table.rarity),
-        set: table.set || SETS[Math.floor(Math.random() * SETS.length)],
+        set: table.set || SETS[Math.floor(random() * SETS.length)],
       }
       this.queue.push({ item, at, delay: i * STAGGER, spread: boss ? 1.7 : 1 })
     }
@@ -219,7 +222,7 @@ export class Loot {
     if (offset) {
       to = keepOnFloor(new THREE.Vector3(hero.pos.x + offset.x, HOVER_Y, hero.pos.z + offset.z))
     } else {
-      const ang = Math.random() * Math.PI * 2
+      const ang = random() * Math.PI * 2
       const dist = between(SCATTER) * spread
       to = new THREE.Vector3(at.x + Math.cos(ang) * dist, HOVER_Y, at.z + Math.sin(ang) * dist)
     }
@@ -236,8 +239,8 @@ export class Loot {
       arc: between(ARC),
       phase: 'fly',
       t: 0,
-      tumble: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
-      spin: (Math.random() < 0.5 ? -1 : 1) * SPIN,
+      tumble: new THREE.Vector3(random() - 0.5, random() - 0.5, random() - 0.5).normalize(),
+      spin: (random() < 0.5 ? -1 : 1) * SPIN,
       look,
       trail: this.vfx.spawn(LIB, look.trail, { follow: mesh }),
       glow: null,

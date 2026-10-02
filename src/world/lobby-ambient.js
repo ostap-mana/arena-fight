@@ -1,4 +1,7 @@
 import { Flipbooks, loadManifest } from './flipbook.js'
+import { stream } from '../core/rng.js'
+
+const random = stream('lobby')
 
 const BACKDROP = [
   { book: 'smoke_plume', x: -13, y: 1.5, z: -24, size: 16, color: 0x8a5a48, alpha: 0.9 },
@@ -25,7 +28,7 @@ const HAZE_PER_LANE = 3
 
 const BLASTS = [[-9, 3.5, -26], [8, 4, -28], [-2, 5, -32], [14, 3, -20], [-15, 3, -18]]
 
-const rand = (a, b) => a + Math.random() * (b - a)
+const rand = (a, b) => a + random() * (b - a)
 
 export class LobbyAmbient {
   constructor(parent, { tint = 0x6a3a2a, arena = 'fire', lights = null } = {}) {
@@ -35,7 +38,7 @@ export class LobbyAmbient {
     this.arena = arena
     this.loops = []
     this.haze = []
-    this.wind = Math.random() < 0.5 ? -1 : 1
+    this.wind = random() < 0.5 ? -1 : 1
     this.nextBlast = 2.5
     this.disposed = false
     loadManifest().then(() => { if (!this.disposed) this.start() })
@@ -50,13 +53,13 @@ export class LobbyAmbient {
     }
     if (!this.books.has(HAZE_BOOK)) return
     HAZE_LANES.forEach(lane => {
-      for (let k = 0; k < HAZE_PER_LANE; k++) this.puff(lane, (k + Math.random() * 0.6) / HAZE_PER_LANE, true)
+      for (let k = 0; k < HAZE_PER_LANE; k++) this.puff(lane, (k + random() * 0.6) / HAZE_PER_LANE, true)
     })
   }
 
   puff(lane, along, warm) {
     const span = HAZE_SPAN
-    const x = lane.edge ? (Math.random() < 0.5 ? -1 : 1) * rand(lane.edge, lane.edge + 4) : (along * 2 - 1) * span
+    const x = lane.edge ? (random() < 0.5 ? -1 : 1) * rand(lane.edge, lane.edge + 4) : (along * 2 - 1) * span
     const life = rand(...HAZE_LIFE)
     const h = this.books.spawn(HAZE_BOOK, {
       x,
@@ -78,9 +81,9 @@ export class LobbyAmbient {
 
   blast() {
     if (!this.books.has('explosion_big')) return
-    const [x, y, z] = BLASTS[(Math.random() * BLASTS.length) | 0]
-    const jx = x + (Math.random() - 0.5) * 3
-    this.books.spawn('explosion_big', { x: jx, y, z, size: 9 + Math.random() * 4, rot: 0, billboard: 'up' })
+    const [x, y, z] = BLASTS[(random() * BLASTS.length) | 0]
+    const jx = x + (random() - 0.5) * 3
+    this.books.spawn('explosion_big', { x: jx, y, z, size: 9 + random() * 4, rot: 0, billboard: 'up' })
     if (this.lights) this.lights.flash({ x: jx, y: y + 2, z }, 0xff7a30, 3.2, 26, 0.9, 1)
   }
 
@@ -93,13 +96,13 @@ export class LobbyAmbient {
         continue
       }
       this.haze.splice(i, 1)
-      this.puff(z.lane, this.wind > 0 ? Math.random() * 0.35 : 0.65 + Math.random() * 0.35, false)
+      this.puff(z.lane, this.wind > 0 ? random() * 0.35 : 0.65 + random() * 0.35, false)
     }
     if (this.arena === 'fire') {
       this.nextBlast -= dt
       if (this.nextBlast <= 0) {
         this.blast()
-        this.nextBlast = 5 + Math.random() * 6
+        this.nextBlast = 5 + random() * 6
       }
     }
     if (camera) this.books.update(dt, camera, null)

@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { stream } from '../core/rng.js'
+
+const random = stream('fx')
 
 const BASE = 'assets/fx/eg/'
 const loader = new THREE.TextureLoader()
@@ -390,11 +393,11 @@ export class Flipbooks {
       x: o.x || 0, y: o.y || 0, z: o.z || 0,
       vx: o.vx || 0, vy: o.vy || 0, vz: o.vz || 0,
       drag: o.drag ?? 0,
-      rot: o.rot ?? (def.randomRot === false ? 0 : Math.random() * Math.PI * 2),
+      rot: o.rot ?? (def.randomRot === false ? 0 : random() * Math.PI * 2),
       spin: o.spin ?? 0,
       w: size * aspect, h: size,
       size0: size, grow: o.grow ?? 0,
-      frame: o.frame ?? (loop ? Math.random() * frames : 0),
+      frame: o.frame ?? (loop ? random() * frames : 0),
       fps, loop, frames,
       t: 0,
       life: o.life ?? (loop ? Infinity : frames / fps),

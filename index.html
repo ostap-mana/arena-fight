@@ -2,6 +2,89 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>window.__BUILD={"buildId":"dev","commit":"dev","tuneHash":"dev","at":"1970-01-01T00:00:00Z"};</script>
+    <script>window.__CREATIVE={"id":"invokers-arena-fight","title":"Invokers Arena Fight","orientation":"portrait","emits":["displayed","started","progress","failed","retry","solved","endcard","cta"],"hooks":{"start":"sdk|auto","seed":"__SEED","step":"playdata.step","state":"__STATE","states":{"victory":"KeyV","defeat":"KeyD","restart":"KeyR"}},"cta":{"ios":"https://apps.apple.com/app/id6755186220","android":"https://play.google.com/store/apps/details?id=hitzone.anima.spirit.guardians","targets":[{"where":"solved","selector":"#outcome .control"}]}};</script>
+    <script>
+      window.__BOOT = { marks: [['shell', Math.round(performance.now())]] };
+      (function () {
+        var listeners = [];
+        var running = false;
+        var paused = false;
+        var volume = null;
+        var game = null;
+
+        function hosted() { return listeners.length > 0; }
+
+        function emit(name, data) {
+          for (var i = 0; i < listeners.length; i++) {
+            try { listeners[i](name, data); } catch (e) { continue; }
+          }
+        }
+
+        function call(name, arg) {
+          if (!game || typeof game[name] !== 'function') return;
+          try { game[name](arg); } catch (e) { return; }
+        }
+
+        function begin() {
+          call('start');
+          if (paused) call('pause');
+          emit('displayed');
+          emit('started');
+        }
+
+        window.__PLAYABLE = {
+          on: function (fn) { if (typeof fn === 'function') listeners.push(fn); },
+
+          start: function () {
+            if (running) return;
+            running = true;
+            paused = false;
+            if (game) begin();
+          },
+
+          pause: function () {
+            paused = true;
+            if (running) call('pause');
+          },
+
+          resume: function () {
+            paused = false;
+            if (running) call('resume');
+          },
+
+          setAudio: function (on) {
+            volume = !!on;
+            call('audio', volume);
+          },
+
+          openStore: function () {},
+
+          ctaRects: function () { return []; },
+
+          emit: emit,
+          hosted: hosted,
+        };
+
+        window.__INVOKERS_LINK = {
+          emit: emit,
+          hosted: hosted,
+
+          running: function () { return running; },
+
+          wire: function (impl) {
+            game = impl;
+            if (volume !== null) call('audio', volume);
+            if (running) begin();
+            else if (hosted()) call('hold');
+          },
+        };
+
+        setTimeout(function () {
+          if (!hosted()) window.__PLAYABLE.start();
+        }, 1500);
+      }());
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#050914" />
     <title>INVOKERS — Titan Legacy</title>

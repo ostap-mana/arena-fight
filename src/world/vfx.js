@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { stream } from '../core/rng.js'
+
+const random = stream('fx')
 
 const BASE = 'assets/vfx/'
 const LUT = 48
@@ -880,7 +883,7 @@ function sampleShape(def, pos, dir) {
   }
   const R = s.radius
   const thick = s.thick
-  const radial = () => R * (1 - thick * Math.random())
+  const radial = () => R * (1 - thick * random())
   const arc = THREE.MathUtils.degToRad(s.arc || 360)
   switch (s.type) {
     case 0:
@@ -889,7 +892,7 @@ function sampleShape(def, pos, dir) {
     case 3: {
       randomUnit(dir)
       if (s.type === 2 || s.type === 3) dir.z = -Math.abs(dir.z)
-      const r = s.type === 1 || s.type === 3 ? R : R * (1 - thick * (1 - Math.cbrt(Math.random())))
+      const r = s.type === 1 || s.type === 3 ? R : R * (1 - thick * (1 - Math.cbrt(random())))
       pos.copy(dir).multiplyScalar(r)
       if (s.type === 2 || s.type === 3) dir.z = Math.abs(dir.z)
       break
@@ -899,16 +902,16 @@ function sampleShape(def, pos, dir) {
     case 8:
     case 9: {
       const a = arcAngle(s, arc)
-      const rr = s.type === 7 || s.type === 9 ? R : R * Math.sqrt(1 - thick * Math.random())
+      const rr = s.type === 7 || s.type === 9 ? R : R * Math.sqrt(1 - thick * random())
       const cx = Math.cos(a)
       const cy = Math.sin(a)
       pos.set(cx * rr, cy * rr, 0)
       const ang = THREE.MathUtils.degToRad(Math.min(s.angle, 89.9))
-      const spread = R > 1e-5 ? rr / R : Math.random()
+      const spread = R > 1e-5 ? rr / R : random()
       const t = Math.tan(ang) * spread
       dir.set(cx * t, cy * t, 1).normalize()
       if (s.type === 8 || s.type === 9) {
-        const l = s.length * Math.random()
+        const l = s.length * random()
         pos.addScaledVector(dir, l / Math.max(dir.z, 1e-3))
       }
       break
@@ -916,15 +919,15 @@ function sampleShape(def, pos, dir) {
     case 5:
     case 15:
     case 16: {
-      pos.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
+      pos.set(random() - 0.5, random() - 0.5, random() - 0.5)
       if (s.type === 15) {
-        const ax = Math.floor(Math.random() * 3)
-        pos.setComponent(ax, Math.random() < 0.5 ? -0.5 : 0.5)
+        const ax = Math.floor(random() * 3)
+        pos.setComponent(ax, random() < 0.5 ? -0.5 : 0.5)
       } else if (s.type === 16) {
-        const ax = Math.floor(Math.random() * 3)
-        const bx = (ax + 1 + Math.floor(Math.random() * 2)) % 3
-        pos.setComponent(ax, Math.random() < 0.5 ? -0.5 : 0.5)
-        pos.setComponent(bx, Math.random() < 0.5 ? -0.5 : 0.5)
+        const ax = Math.floor(random() * 3)
+        const bx = (ax + 1 + Math.floor(random() * 2)) % 3
+        pos.setComponent(ax, random() < 0.5 ? -0.5 : 0.5)
+        pos.setComponent(bx, random() < 0.5 ? -0.5 : 0.5)
       }
       dir.set(0, 0, 1)
       break
@@ -938,15 +941,15 @@ function sampleShape(def, pos, dir) {
       break
     }
     case 12: {
-      const x = (Math.random() - 0.5) * 2 * R
+      const x = (random() - 0.5) * 2 * R
       pos.set(x, 0, 0)
       dir.set(0, 1, 0)
       break
     }
     case 17: {
       const a = arcAngle(s, arc)
-      const b = Math.random() * Math.PI * 2
-      const rr = s.donut * (1 - thick * Math.random())
+      const b = random() * Math.PI * 2
+      const rr = s.donut * (1 - thick * random())
       const cx = Math.cos(a), cy = Math.sin(a)
       const ox = Math.cos(b) * rr, oz = Math.sin(b) * rr
       pos.set(cx * (R + ox), cy * (R + ox), oz)
@@ -954,7 +957,7 @@ function sampleShape(def, pos, dir) {
       break
     }
     case 18: {
-      pos.set(Math.random() - 0.5, Math.random() - 0.5, 0)
+      pos.set(random() - 0.5, random() - 0.5, 0)
       dir.set(0, 0, 1)
       break
     }
@@ -963,7 +966,7 @@ function sampleShape(def, pos, dir) {
     case 14: {
       const m = def.shapeMesh
       if (m && m.p.length >= 3) {
-        const vi = Math.floor(Math.random() * (m.p.length / 3))
+        const vi = Math.floor(random() * (m.p.length / 3))
         pos.set(m.p[vi * 3], m.p[vi * 3 + 1], -m.p[vi * 3 + 2])
         if (m.n) dir.set(m.n[vi * 3], m.n[vi * 3 + 1], -m.n[vi * 3 + 2]).normalize()
         else dir.copy(pos).normalize()
@@ -977,7 +980,7 @@ function sampleShape(def, pos, dir) {
       pos.set(0, 0, 0)
       dir.set(0, 0, 1)
   }
-  if (s.rndPos > 0) pos.add(_v3.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(s.rndPos * 2))
+  if (s.rndPos > 0) pos.add(_v3.set(random() - 0.5, random() - 0.5, random() - 0.5).multiplyScalar(s.rndPos * 2))
   if (s.sphDir > 0) {
     _v3.copy(pos)
     if (_v3.lengthSq() > 1e-8) dir.lerp(_v3.normalize(), s.sphDir).normalize()
@@ -1001,16 +1004,16 @@ function arcAngle(s, arc) {
   if (s.arcMode === 0 || !s.arcMode) {
     if (s.arcSpread > 0) {
       const steps = Math.max(1, Math.round(1 / s.arcSpread))
-      return Math.floor(Math.random() * steps) / steps * arc
+      return Math.floor(random() * steps) / steps * arc
     }
-    return Math.random() * arc
+    return random() * arc
   }
-  return Math.random() * arc
+  return random() * arc
 }
 
 function randomUnit(out) {
-  const z = Math.random() * 2 - 1
-  const a = Math.random() * Math.PI * 2
+  const z = random() * 2 - 1
+  const a = random() * Math.PI * 2
   const r = Math.sqrt(1 - z * z)
   return out.set(r * Math.cos(a), r * Math.sin(a), z)
 }
@@ -1042,7 +1045,7 @@ class Emitter {
     this.curCol = new Float32Array(n * 4)
     this.curSize = new Float32Array(n)
     this.nextId = 1
-    this.t = -def.delay.get(0, Math.random())
+    this.t = -def.delay.get(0, random())
     this.emitting = true
     this.acc = 0
     this.distAcc = 0
@@ -1050,7 +1053,7 @@ class Emitter {
     this.burstFired = def.bursts.map(() => 0)
     this.lastWorld = new THREE.Vector3()
     this.hasLast = false
-    this.sysRnd = Math.random()
+    this.sysRnd = random()
     this.subTriggers = []
     this.mesh = null
     this.trails = null
@@ -1147,7 +1150,7 @@ class Emitter {
             const at = b.t + this.burstFired[i] * b.rep
             if (local < at || at > def.dur + 1e-4) break
             this.burstFired[i]++
-            if (Math.random() <= b.p) this.emit(Math.round(b.n.get(norm, Math.random())), norm)
+            if (random() <= b.p) this.emit(Math.round(b.n.get(norm, random())), norm)
           }
         }
         if (!def.loop && this.t >= def.dur && prev < def.dur + 1) this.emitting = false
@@ -1172,7 +1175,7 @@ class Emitter {
     let k = trig.n
     if (k === undefined || k < 0) {
       k = 0
-      for (const b of def.bursts) k += Math.round(b.n.get(0, Math.random()))
+      for (const b of def.bursts) k += Math.round(b.n.get(0, random()))
       if (!def.bursts.length && def.rate) k = Math.max(1, Math.round(def.rate.get(0, 0.5) * 0.05))
     }
     for (let i = 0; i < k; i++) {
@@ -1189,11 +1192,11 @@ class Emitter {
   spawn(norm, at) {
     const def = this.def
     const i = this.count++
-    const r0 = Math.random()
+    const r0 = random()
     this.age[i] = 0
-    this.life[i] = Math.max(0.01, def.life.get(norm, Math.random()))
-    const speed = def.spd.get(norm, Math.random())
-    const sr = Math.random()
+    this.life[i] = Math.max(0.01, def.life.get(norm, random()))
+    const speed = def.spd.get(norm, random())
+    const sr = random()
     if (def.size.length === 3) {
       this.size[i * 3] = def.size[0].get(norm, sr)
       this.size[i * 3 + 1] = def.size[1].get(norm, sr)
@@ -1204,20 +1207,20 @@ class Emitter {
       this.size[i * 3 + 1] = s
       this.size[i * 3 + 2] = s
     }
-    const flip = def.flipRot > 0 && Math.random() < def.flipRot * 0.5 ? -1 : 1
-    this.rot[i * 3] = def.rot[0] ? def.rot[0].get(norm, Math.random()) * flip : 0
-    this.rot[i * 3 + 1] = def.rot[1] ? def.rot[1].get(norm, Math.random()) * flip : 0
-    this.rot[i * 3 + 2] = def.rot[2] ? def.rot[2].get(norm, Math.random()) * flip : 0
-    def.col.get(norm, Math.random(), _col)
+    const flip = def.flipRot > 0 && random() < def.flipRot * 0.5 ? -1 : 1
+    this.rot[i * 3] = def.rot[0] ? def.rot[0].get(norm, random()) * flip : 0
+    this.rot[i * 3 + 1] = def.rot[1] ? def.rot[1].get(norm, random()) * flip : 0
+    this.rot[i * 3 + 2] = def.rot[2] ? def.rot[2].get(norm, random()) * flip : 0
+    def.col.get(norm, random(), _col)
     this.col.set(_col, i * 4)
     this.rnd[i * 4] = r0
-    this.rnd[i * 4 + 1] = Math.random()
-    this.rnd[i * 4 + 2] = Math.random()
-    this.rnd[i * 4 + 3] = Math.random()
+    this.rnd[i * 4 + 1] = random()
+    this.rnd[i * 4 + 2] = random()
+    this.rnd[i * 4 + 3] = random()
     if (def.sheet) {
       const sh = def.sheet
       const frames = sh.type === 1 ? sh.x : sh.x * sh.y
-      this.frame[i] = def.sheet.start.get(0, Math.random()) + (sh.type === 1 && sh.rowMode === 0 ? Math.floor(Math.random() * sh.y) * 1000 : 0)
+      this.frame[i] = def.sheet.start.get(0, random()) + (sh.type === 1 && sh.rowMode === 0 ? Math.floor(random() * sh.y) * 1000 : 0)
       if (frames <= 0) this.frame[i] = 0
     }
     sampleShape(def, _v, _dir)
@@ -1282,7 +1285,7 @@ class Emitter {
     for (const s of this.def.subs) {
       if (s.type !== type) continue
       const target = this.inst.emitterByNode.get(s.node)
-      if (!target || Math.random() > (s.p === undefined ? 1 : s.p)) continue
+      if (!target || random() > (s.p === undefined ? 1 : s.p)) continue
       target.subTriggers.push({ p: this.worldPosOf(i, new THREE.Vector3()), n: -1 })
     }
   }
@@ -1600,7 +1603,7 @@ class Emitter {
           }
         } else if (s === 21) v = t
         else if (s >= 23 && s <= 26) v = this.rnd[i * 4 + c]
-        else if (s >= 27 && s <= 30) v = Math.random()
+        else if (s >= 27 && s <= 30) v = random()
         else if (s === 22) v = 1 / this.life[i]
         else if (s === 12 || s === 13 || s === 14) v = this.size[i * 3 + c]
         else if (s === 15 || s === 16) v = this.rot[i * 3 + (s === 15 ? 2 : c)]

@@ -19,6 +19,10 @@ import { Input } from './input.js'
 import { Gear } from './gear.js'
 import { BUILDS, POWER_GOAL } from '../data/builds.js'
 import { UI, ELEMENT_ART } from '../ui/ui.js'
+import { stream, seed } from './rng.js'
+import { wireBus, sayOnce, sayProgress, openStore, stepDoor, tellState, bootMark } from '../net/bus.js'
+
+const random = stream('sim')
 
 const SKILL_SLOT = { s1: 0, s2: 1, s3: 2 }
 const SKILL_PRIORITY = ['s3', 's2', 's1']
@@ -123,6 +127,8 @@ const SHIELD_HIT_MULT = 2.2
 const IMMUNE_TEXT_GAP = 0.45
 const GATE_WARN_DELAY = 2.1
 const DEFEAT_REASON_DELAY = 2.4
+const STATE_KEYS = { KeyV: 'victory', KeyD: 'defeat', KeyR: 'restart' }
+const RETRY_DELAY = 160
 const _camVel = new THREE.Vector3()
 const _dampA = new THREE.Vector3()
 const _dampB = new THREE.Vector3()
@@ -204,7 +210,42 @@ export class Game {
       this.steered = true
       this.ui.showGestureHint(false)
     }
+    this.epoch = 0
+    this.benched = false
     this.bindUI()
+    this.wireHost()
+    bootMark('module')
+  }
+
+  wireHost() {
+    wireBus({
+      start: () => this.bench(false),
+      pause: () => this.bench(true),
+      resume: () => this.bench(false),
+      hold: () => this.bench(true),
+      audio: on => audio.silence('volume', !on),
+    })
+    tellState(() => {
+      const h = this.hero
+      return {
+        seed: seed(),
+        time: this.t,
+        mode: this.state,
+        wave: this.waveIndex,
+        hp: h ? h.hp : 0,
+        x: h ? h.pos.x : 0,
+        z: h ? h.pos.z : 0,
+        foes: this.enemies.filter(e => !e.dead).length,
+        kills: this.kills,
+        titan: this.titanMode,
+        power: this.gear ? this.gear.power() : 0,
+      }
+    })
+  }
+
+  bench(on) {
+    this.benched = on
+    audio.silence('host', on)
   }
 
   setupRenderer() {
@@ -389,9 +430,15 @@ export class Game {
     })
     this.ui.end.querySelector('#cta').addEventListener('click', () => {
       audio.play('ui_click_main')
-      window.open('https://invokers.game', '_blank')
+      openStore('end')
     })
-    this.ui.end.querySelector('.replay').addEventListener('click', () => location.reload())
+    for (const store of this.ui.end.querySelectorAll('.store')) {
+      store.addEventListener('click', () => {
+        audio.play('ui_click_main')
+        openStore('end-store')
+      })
+    }
+    this.ui.end.querySelector('.replay').addEventListener('click', () => this.retry())
     this.ui.powerGoal.addEventListener('click', () => {
       if (this.state !== 'battle' || !this.hero || this.hero.dead || !this.gear) return
       haptic()
@@ -404,14 +451,15 @@ export class Game {
     }
     addEventListener('keydown', e => {
       if (e.code === 'Escape' && this.gearOpen) this.closeGear()
+      if (STATE_KEYS[e.code]) this.stateKey(STATE_KEYS[e.code])
     })
     this.ui.outcome.onCta = () => {
       audio.play('outcome_cta')
-      window.open('https://invokers.game', '_blank')
+      openStore('outcome')
     }
     this.ui.outcome.onRetry = () => {
       audio.play('outcome_select')
-      setTimeout(() => location.reload(), 160)
+      this.retry()
     }
     this.ui.fail.querySelector('#rescue').addEventListener('click', () => {
       audio.play('ui_click_main')
@@ -452,9 +500,12 @@ export class Game {
       if (h.lobbyFocus) this.heroFx.focusLobby(h.vfx, h.lobbyFocus)
     }
     await Promise.all([arenaReady, ...lobbyReady])
+    bootMark('models')
     this.setupLights()
     await Promise.all([audio.init(), Promise.race([fontsReady, new Promise(r => setTimeout(r, 3000))]), new Promise(r => setTimeout(r, 320))])
+    bootMark('audio')
     await this.renderer.compileAsync(this.scene, this.camera).catch(() => this.renderer.compile(this.scene, this.camera))
+    bootMark('compiled')
     this.ui.progress(1)
     this.ui.bootDone()
     this.backgroundLoad = this.loadInBackground()
@@ -462,6 +513,7 @@ export class Game {
     const start = () => {
       removeEventListener('pointerdown', start)
       removeEventListener('keydown', start)
+      bootMark('tap')
       audio.play('ui_braam')
       audio.track('music_lobby')
       this.ui.hideBoot()
@@ -764,6 +816,7 @@ export class Game {
     this.ui.playSelectIntro()
     this.ui.veilOut()
     this.playIntro(0)
+    bootMark('select')
   }
 
   settleFrames() {
@@ -837,7 +890,7 @@ export class Game {
   }
 
   nextIdleBreak(a) {
-    a.breakAt = this.t + IDLE_BREAK_GAP[0] + Math.random() * (IDLE_BREAK_GAP[1] - IDLE_BREAK_GAP[0])
+    a.breakAt = this.t + IDLE_BREAK_GAP[0] + random() * (IDLE_BREAK_GAP[1] - IDLE_BREAK_GAP[0])
   }
 
   updateSelectActors(dt) {
@@ -1093,7 +1146,7 @@ export class Game {
     for (const [type, n] of w.spawns) {
       for (let i = 0; i < n; i++) {
         this.pending.push({ type, t: delay })
-        delay += 0.14 + Math.random() * 0.2
+        delay += 0.14 + random() * 0.2
       }
     }
     this.waveTimer = 0
@@ -1109,14 +1162,17 @@ export class Game {
       if (e.wave === this.waveIndex) this.waveKills++
     }
     const boss = WAVES[this.waveIndex] && WAVES[this.waveIndex].boss && this.boss
-    if (boss && boss.wave === this.waveIndex && !boss.dead) this.ui.setWaveProgress(1 - boss.hp / boss.maxHp)
-    else this.ui.setWaveProgress(this.waveTotal ? this.waveKills / this.waveTotal : 0)
+    const share = boss && boss.wave === this.waveIndex && !boss.dead ? 1 - boss.hp / boss.maxHp : this.waveTotal ? this.waveKills / this.waveTotal : 0
+    this.ui.setWaveProgress(share)
+    sayProgress((Math.max(0, this.waveIndex) + share) / WAVES.length)
   }
 
   async spawnEnemy(type) {
     const def = ENEMIES[type]
+    const epoch = this.epoch
     this.spawning++
     const loaded = await Promise.all([enemyModel(def), def.vfx ? this.vfx.preload([def.vfx]) : null]).catch(() => null)
+    if (epoch !== this.epoch) return
     this.spawning--
     if (!loaded || this.state === 'end') return
     const [data] = loaded
@@ -1128,20 +1184,20 @@ export class Game {
     a.def = def
     a.type = type
     a.wave = this.waveIndex
-    a.cd = Math.random() * def.rate
+    a.cd = random() * def.rate
     if (def.skills) {
       a.cd = def.rate
       a.skillCd = Object.fromEntries(def.skills.map(s => [s.key, s.first ?? s.cd]))
       a.castGap = 0
       this.placeBoss(a)
     } else {
-      const ang = Math.random() * Math.PI * 2
+      const ang = random() * Math.PI * 2
       const r = ARENA_RADIUS - 1.5
       a.setPos(Math.cos(ang) * r, Math.sin(ang) * r)
     }
     a.pos.y = def.fly || 0
     a.rig.play(def.fly ? 'fly' : 'idle', { force: true })
-    a.rig.t = Math.random() * 3
+    a.rig.t = random() * 3
     this.scene.add(a.root)
     this.enemies.push(a)
     if (this.enemyVfx(def)) this.heroFx.attachSkin(def.vfx, a)
@@ -1216,7 +1272,7 @@ export class Game {
     if (s.kind === 'circle') c.center = h.pos.clone().setY(0)
     else if (s.kind === 'line') {
       c.center = h.pos.clone().setY(0)
-      if (Math.random() < 0.5) c.yaw += Math.PI / 2
+      if (random() < 0.5) c.yaw += Math.PI / 2
     } else if (s.kind === 'charge') {
       c.length = clamp(dist + BOSS_CHARGE_OVERSHOOT, 6, s.length)
       c.from = e.pos.clone().setY(0)
@@ -1307,7 +1363,7 @@ export class Game {
     d.style.color = color
     d.style.fontSize = big ? '34px' : '19px'
     this.ui.root.appendChild(d)
-    const dx = (Math.random() - 0.5) * 70
+    const dx = (random() - 0.5) * 70
     d.animate(
       [
         { transform: 'translate(-50%,-50%) scale(.4)', opacity: 0 },
@@ -1647,7 +1703,7 @@ export class Game {
       return
     }
     const mods = this.gearMods
-    const crit = !!mods && Math.random() < mods.crit
+    const crit = !!mods && random() < mods.crit
     if (mods) amount *= mods.atk * (crit ? mods.critMult : 1)
     const dealt = e.hit(amount)
     if (!dealt) return
@@ -1800,18 +1856,18 @@ export class Game {
     this.crystals = []
     for (let i = 0; i < 26; i++) {
       const a = (i / 26) * Math.PI * 2
-      const r = 5.5 + Math.random() * 3
-      const g = new THREE.ConeGeometry(0.16 + Math.random() * 0.16, 0.9 + Math.random() * 1.0, 4)
+      const r = 5.5 + random() * 3
+      const g = new THREE.ConeGeometry(0.16 + random() * 0.16, 0.9 + random() * 1.0, 4)
       const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
         color: 0x9fe4ff, emissive: 0x2e8fd8, emissiveIntensity: 2.4,
         roughness: 0.15, metalness: 0.5, transparent: true, opacity: 0.95,
       }))
-      m.position.set(h.pos.x + Math.cos(a) * r, 0.4 + Math.random() * 4.5, h.pos.z + Math.sin(a) * r)
-      m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3)
+      m.position.set(h.pos.x + Math.cos(a) * r, 0.4 + random() * 4.5, h.pos.z + Math.sin(a) * r)
+      m.rotation.set(random() * 3, random() * 3, random() * 3)
       this.scene.add(m)
       this.crystals.push(m)
-      gsap.to(m.position, { x: h.pos.x, y: 2.2, z: h.pos.z, duration: 1.5, delay: 0.15 + Math.random() * 0.5, ease: 'power3.in' })
-      gsap.to(m.scale, { x: 0.1, y: 0.1, z: 0.1, duration: 0.4, delay: 1.5 + Math.random() * 0.2 })
+      gsap.to(m.position, { x: h.pos.x, y: 2.2, z: h.pos.z, duration: 1.5, delay: 0.15 + random() * 0.5, ease: 'power3.in' })
+      gsap.to(m.scale, { x: 0.1, y: 0.1, z: 0.1, duration: 0.4, delay: 1.5 + random() * 0.2 })
     }
 
     setTimeout(() => this.finishMorph(), 2100)
@@ -1849,7 +1905,9 @@ export class Game {
     const def = this.titanDef
     this.fx.flash(h.pos.x, 2.4, h.pos.z, 26, 0xffffff, 0.55)
 
+    const epoch = this.epoch
     const { data, land } = await this.titanLoad
+    if (epoch !== this.epoch) return
     this.summoning = false
     const model = buildModel(data, { castShadow: true })
     const titan = new Actor(model, { targetHeight: model.height * h.scale, radius: def.radius })
@@ -1955,6 +2013,9 @@ export class Game {
   victory() {
     if (this.state === 'end') return
     this.state = 'end'
+    sayProgress(1)
+    sayOnce('solved')
+    const epoch = this.epoch
     this.ui.show('hud', false)
     this.shake(0.4, 0.5)
     gsap.to(this.camOffset, { x: 0.6, y: 2.6, z: 5.2, duration: 2.2, ease: 'power2.inOut' })
@@ -1962,15 +2023,15 @@ export class Game {
     if (this.hero) this.hero.rig.play('roar', { force: true })
     for (let i = 0; i < 5; i++) {
       setTimeout(() => {
-        const a = Math.random() * 6.28
-        this.fx.celebrate(Math.cos(a) * 4, 1 + Math.random() * 3, Math.sin(a) * 4)
+        const a = random() * 6.28
+        this.fx.celebrate(Math.cos(a) * 4, 1 + random() * 3, Math.sin(a) * 4)
       }, 400 + i * 260)
     }
-    setTimeout(() => this.showOutcome('victory'), 1400)
+    setTimeout(() => { if (epoch === this.epoch) this.showOutcome('victory') }, 1400)
   }
 
   defeat() {
-    if (this.variant === 'rescue' && !this.rescued && !this.titanMode) {
+    if (this.variant === 'rescue' && this.hero && !this.rescued && !this.titanMode) {
       this.rescued = true
       this.rescueActive = true
       this.rescueT = 3
@@ -1980,15 +2041,20 @@ export class Game {
       audio.play('freeze')
       return
     }
+    if (this.state === 'end') return
     this.state = 'end'
+    sayOnce('failed')
+    this.lost = true
+    const epoch = this.epoch
     this.ui.show('hud', false)
     const short = this.underpowered()
     const score = short ? `${this.gear.power().toLocaleString('en-US')} / ${POWER_GOAL.toLocaleString('en-US')} power` : ''
     if (short) this.ui.showBanner('TOO WEAK', score, DEFEAT_REASON_DELAY)
-    setTimeout(() => this.showOutcome('defeat'), short ? DEFEAT_REASON_DELAY * 1000 : 1200)
+    setTimeout(() => { if (epoch === this.epoch) this.showOutcome('defeat') }, short ? DEFEAT_REASON_DELAY * 1000 : 1200)
   }
 
   showOutcome(kind) {
+    sayOnce('endcard')
     const defeat = kind === 'defeat'
     audio.layer('amb_battle', false, 500)
     audio.track('music_endcard', 500)
@@ -1997,6 +2063,90 @@ export class Game {
     audio.play('outcome_card_plate', { delay: 0.06 })
     audio.play('outcome_card_shine', { delay: 0.16 })
     this.ui.outcome.show(kind)
+  }
+
+  retry() {
+    if (this.retrying) return
+    this.retrying = true
+    setTimeout(() => {
+      this.retrying = false
+      this.restartBattle()
+    }, RETRY_DELAY)
+  }
+
+  async restartBattle() {
+    if (this.state === 'boot' || this.state === 'intro') return
+    if (this.lost) sayOnce('retry')
+    bootMark('restart')
+    if (this.state === 'select' || this.state === 'fuse') {
+      this.ui.show('fuse', false)
+      await this.startBattle()
+      return
+    }
+    this.clearBattle()
+    await this.startBattle()
+  }
+
+  clearBattle() {
+    this.epoch++
+    gsap.killTweensOf(this.camOffset)
+    gsap.killTweensOf(this.camLook)
+    gsap.killTweensOf(this.bloom)
+    this.ui.outcome.hide()
+    this.ui.show('fail', false)
+    this.ui.show('end', false)
+    this.ui.showSkip(false)
+    if (this.gearOpen) this.closeGear()
+    for (const e of this.enemies) {
+      e.dead = true
+      this.heroFx.detachSkin(e)
+      this.scene.remove(e.root)
+    }
+    this.enemies = []
+    this.ui.pruneEnemyBars([])
+    for (const a of [this.hero, this.heroBase]) {
+      if (!a) continue
+      this.heroFx.detachSkin(a)
+      this.scene.remove(a.root)
+    }
+    for (const c of this.crystals || []) this.scene.remove(c)
+    this.crystals = []
+    this.hero = this.heroBase = this.boss = null
+    this.pending = []
+    this.spawning = 0
+    this.loot.clear()
+    this.heroFx.clear()
+    this.vfx.clear()
+    this.lights.clear()
+    this.titan = this.titanT = this.ult = 0
+    this.titanReady = this.titanMode = this.ultReady = false
+    this.unmorphing = this.summoning = false
+    this.kills = this.lootWait = 0
+    this.timeScale = 1
+    this.rescued = this.rescueActive = false
+    this.shieldUp = false
+    this.ui.setShield(false)
+    this.immuneT = this.dashT = this.invuln = this.tapQueuedT = this.autoCastT = 0
+    for (const k in this.cooldowns) this.cooldowns[k] = 0
+    this.ui.setTitanTimer(0, false)
+    this.heroLight.intensity = 22
+    this.key.intensity = 2.5
+    this.bloom.intensity = BLOOM_BASE
+  }
+
+  stateKey(kind) {
+    if (this.state === 'boot' || this.state === 'intro') return
+    if (kind === 'restart') {
+      this.restartBattle()
+      return
+    }
+    if (this.state === 'end') return
+    if (this.state !== 'battle') {
+      this.ui.show('select', false)
+      this.ui.show('fuse', false)
+    }
+    if (kind === 'victory') this.victory()
+    else this.defeat()
   }
 
   updateHero(dt) {
@@ -2349,20 +2499,22 @@ export class Game {
     if (this.shakeT > 0) {
       this.shakeT -= dt
       const k = this.shakeAmp * Math.max(0, this.shakeT)
-      this.camera.position.x += (Math.random() - 0.5) * k
-      this.camera.position.y += (Math.random() - 0.5) * k
-      this.camera.position.z += (Math.random() - 0.5) * k * 0.6
+      this.camera.position.x += (random() - 0.5) * k
+      this.camera.position.y += (random() - 0.5) * k
+      this.camera.position.z += (random() - 0.5) * k * 0.6
       if (this.shakeT <= 0) this.shakeAmp = 0
     }
   }
 
   loop() {
     let last = performance.now()
+    bootMark('loop')
     const frame = now => {
       requestAnimationFrame(frame)
-      let dt = Math.min(0.05, (now - last) / 1000)
+      let dt = stepDoor(Math.min(0.05, (now - last) / 1000))
       last = now
-      if (this.paused) { this.composer.render(); return }
+      if (this.benched) return
+      if (dt == null || this.paused) { this.composer.render(); return }
       this.realDt = dt
       dt *= this.timeScale * THREE.MathUtils.lerp(1, GEAR_SLOWMO, this.gearK)
       this.t += dt

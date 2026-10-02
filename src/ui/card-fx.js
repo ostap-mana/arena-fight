@@ -1,4 +1,7 @@
 import { loadManifest } from '../world/flipbook.js'
+import { stream } from '../core/rng.js'
+
+const random = stream('lobby')
 
 const BOOK = 'flame_tongue'
 const CARD = [128, 171]
@@ -98,10 +101,10 @@ function rampPixels() {
   return data
 }
 
-const rand = (a, b) => a + Math.random() * (b - a)
+const rand = (a, b) => a + random() * (b - a)
 
 function flame(x, y, size, gain) {
-  return { x, y, size, gain, phase: Math.random(), rate: rand(0.85, 1.15), flip: Math.random() < 0.5 ? 1 : 0 }
+  return { x, y, size, gain, phase: random(), rate: rand(0.85, 1.15), flip: random() < 0.5 ? 1 : 0 }
 }
 
 function layout() {

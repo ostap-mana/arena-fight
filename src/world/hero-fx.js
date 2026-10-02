@@ -2,6 +2,9 @@ import * as THREE from 'three'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
 import { loadModelData } from '../core/model.js'
 import { CHAIN_FADE } from '../core/rig.js'
+import { stream } from '../core/rng.js'
+
+const random = stream('sim')
 
 const _v = new THREE.Vector3()
 const _v2 = new THREE.Vector3()
@@ -35,8 +38,8 @@ function sampleCurve(c, k) {
 function curveAmount(c, dist) {
   if (!c) return 0
   const r = c.range
-  const pick = r ? r[0] + (r[1] - r[0]) * Math.random() : 1
-  const side = c.randomSide && Math.random() < 0.5 ? -1 : 1
+  const pick = r ? r[0] + (r[1] - r[0]) * random() : 1
+  const side = c.randomSide && random() < 0.5 ? -1 : 1
   return c.mul * pick * side * (c.byDistance ? dist : 1)
 }
 
@@ -849,7 +852,7 @@ export class HeroFx {
       })
     }
     if (projectiles.length) {
-      const e = projectiles[Math.floor(Math.random() * projectiles.length)]
+      const e = projectiles[Math.floor(random() * projectiles.length)]
       this.later(impact, () => this.fly(id, e.fx, caster, target, {
         fallback: caster.pos.clone().add(new THREE.Vector3(Math.sin(caster.facing) * 8, caster.height * 0.55, Math.cos(caster.facing) * 8)),
         onArrive: () => {

@@ -1,5 +1,8 @@
 import { Howl, Howler } from 'howler'
 import BANK from '../data/sounds.json'
+import { stream } from './rng.js'
+
+const random = stream('audio')
 
 const SFX = {
   ui_braam: 0.65, boss_laugh: 0.7, explosion: 0.8,
@@ -60,6 +63,20 @@ class Audio {
     this.ext = FORMATS[0]
     this.booting = null
     this.ready = false
+    this.silencers = new Set()
+    if (typeof document !== 'undefined') {
+      const hide = () => this.silence('hidden', document.hidden)
+      document.addEventListener('visibilitychange', hide)
+      addEventListener('pagehide', () => this.silence('hidden', true))
+      addEventListener('pageshow', hide)
+      hide()
+    }
+  }
+
+  silence(reason, on) {
+    if (on) this.silencers.add(reason)
+    else this.silencers.delete(reason)
+    Howler.mute(this.silencers.size > 0)
   }
 
   init() {
@@ -123,7 +140,7 @@ class Audio {
   }
 
   playAny(names, opts) {
-    this.play(names[(Math.random() * names.length) | 0], opts)
+    this.play(names[(random() * names.length) | 0], opts)
   }
 
   playEvent(key, opts) {
@@ -139,7 +156,7 @@ class Audio {
     if (opts.gap && now - (this.lastAt[slot] ?? -Infinity) < opts.gap) return
     const live = (this.voices[slot] || []).filter(v => v.h.playing(v.id))
     if (opts.max && live.length >= opts.max) return
-    const id = h.play(`${key}#${(Math.random() * s.n) | 0}`)
+    const id = h.play(`${key}#${(random() * s.n) | 0}`)
     live.push({ h, id, key })
     this.voices[slot] = live
     this.lastAt[slot] = now
@@ -228,7 +245,7 @@ class Audio {
   }
 
   mute(v) {
-    Howler.mute(v)
+    this.silence('pause', v)
   }
 }
 

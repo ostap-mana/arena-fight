@@ -1,5 +1,8 @@
 import * as THREE from 'three'
 import { Flipbooks } from './flipbook.js'
+import { stream } from '../core/rng.js'
+
+const random = stream('fx')
 
 const loader = new THREE.TextureLoader()
 const cache = new Map()
@@ -524,17 +527,17 @@ export class FX {
       this.sPos[k * 3] = x
       this.sPos[k * 3 + 1] = y
       this.sPos[k * 3 + 2] = z
-      const a = Math.random() * Math.PI * 2
-      const e = Math.random() * 0.9
-      const s = speed * (0.35 + Math.random() * 0.9)
+      const a = random() * Math.PI * 2
+      const e = random() * 0.9
+      const s = speed * (0.35 + random() * 0.9)
       this.sVel[k * 3] = Math.cos(a) * Math.cos(e) * s
       this.sVel[k * 3 + 1] = (Math.sin(e) * s + 1.5) * up
       this.sVel[k * 3 + 2] = Math.sin(a) * Math.cos(e) * s
-      this.sLife[k] = this.sMax[k] = 0.34 + Math.random() * 0.5
+      this.sLife[k] = this.sMax[k] = 0.34 + random() * 0.5
       this.sCol[k * 3] = c.r
       this.sCol[k * 3 + 1] = c.g
       this.sCol[k * 3 + 2] = c.b
-      this.sBase[k] = this.sSize[k] = size * (0.6 + Math.random() * 0.8)
+      this.sBase[k] = this.sSize[k] = size * (0.6 + random() * 0.8)
     }
     this.sAwake = true
   }
@@ -548,7 +551,7 @@ export class FX {
     u.uColor.value.set(color)
     u.uAlpha.value = 0
     m.position.set(x, 0.09, z)
-    m.rotation.set(0, Math.random() * Math.PI * 2, 0)
+    m.rotation.set(0, random() * Math.PI * 2, 0)
     m.scale.set(size, 1, size)
     this.items.push({ kind: 'decal', o: m, pool: this.decalPool, t: 0, life, size, spin })
     return m
@@ -559,9 +562,9 @@ export class FX {
     const u = m.material.uniforms
     u.uColor.value.set(color)
     u.uT.value = 0
-    u.uSeed.value = Math.random()
+    u.uSeed.value = random()
     m.position.set(x, 0.11, z)
-    m.rotation.set(0, Math.random() * Math.PI * 2, 0)
+    m.rotation.set(0, random() * Math.PI * 2, 0)
     m.scale.set(size, 1, size)
     this.items.push({ kind: 'shock', o: m, pool: this.ringPool, t: 0, life, size })
   }
@@ -572,9 +575,9 @@ export class FX {
     this.slashFlip = -this.slashFlip
     const dir = this.slashFlip
     const r = 0.6 + scale * 0.45
-    u.uMask.value = this.slashTex[(Math.random() * this.slashTex.length) | 0]
+    u.uMask.value = this.slashTex[(random() * this.slashTex.length) | 0]
     u.uColor.value.set(color)
-    u.uSpan.value = 2.5 + Math.random() * 0.4
+    u.uSpan.value = 2.5 + random() * 0.4
     u.uR.value = r
     u.uW.value = 0.45 + scale * 0.42
     u.uDir.value = dir
@@ -589,7 +592,7 @@ export class FX {
     const lx = (cx * ca - cz * sa) / cl
     const lz = (cx * sa + cz * ca) / cl
     m.position.set(x - sa * back, y, z - ca * back)
-    m.rotation.set(lz * 0.2, angle, -lx * 0.36 + (Math.random() - 0.5) * 0.24)
+    m.rotation.set(lz * 0.2, angle, -lx * 0.36 + (random() - 0.5) * 0.24)
     this.items.push({ kind: 'slash', o: m, pool: this.slashPool, t: 0, life, scale, r })
   }
 
@@ -599,10 +602,10 @@ export class FX {
     u.uMap.value = tex || this.flare
     u.uColor.value.set(color)
     u.uSize.value = size
-    u.uRot.value = Math.random() * Math.PI * 2
+    u.uRot.value = random() * Math.PI * 2
     u.uAlpha.value = 1
     m.position.set(x, y, z)
-    this.items.push({ kind: 'flash', o: m, pool: this.flashPool, t: 0, life, size, spin: (Math.random() - 0.5) * 1.2 })
+    this.items.push({ kind: 'flash', o: m, pool: this.flashPool, t: 0, life, size, spin: (random() - 0.5) * 1.2 })
   }
 
   puff(x, y, z, size, color, life = 0.7) {
@@ -610,12 +613,12 @@ export class FX {
     const u = m.material.uniforms
     u.uColor.value.set(color)
     u.uSize.value = size
-    u.uRot.value = Math.random() * Math.PI * 2
+    u.uRot.value = random() * Math.PI * 2
     u.uAlpha.value = 0
     u.uT.value = 0
-    u.uSeed.value = Math.random()
+    u.uSeed.value = random()
     m.position.set(x, y, z)
-    this.items.push({ kind: 'puff', o: m, pool: this.puffPool, t: 0, life, size, vy: 1.2 + Math.random(), spin: (Math.random() - 0.5) * 2 })
+    this.items.push({ kind: 'puff', o: m, pool: this.puffPool, t: 0, life, size, vy: 1.2 + random(), spin: (random() - 0.5) * 2 })
   }
 
   beam(from, to, width, color, life = 0.3) {
@@ -630,7 +633,7 @@ export class FX {
     u.uThin.value = 0.7
     u.uAlpha.value = 1
     u.uAge.value = 0
-    u.uSeed.value = Math.random()
+    u.uSeed.value = random()
     this.items.push({ kind: 'beam', o: m, pool: this.beamPool, t: 0, life, width })
   }
 
@@ -642,7 +645,7 @@ export class FX {
     u.uRad.value = radius
     u.uAge.value = 0
     u.uAlpha.value = 0
-    u.uSeed.value = Math.random()
+    u.uSeed.value = random()
     m.position.set(x, 0.02, z)
     this.items.push({ kind: 'pillar', o: m, pool: this.pillarPool, t: 0, life, height, radius })
   }
