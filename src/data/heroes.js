@@ -50,6 +50,7 @@ export const HEROES = [
       [5.8664, 'FX_ELD037_Intro_LOB_Weapon_2_1_Ground'],
       [7.095, 'FX_ELD037_Intro_LOB_Weapon_2_3_Spin'],
     ],
+    lobbySkin: false,
     name: 'Ardell the Torrent',
     short: 'Ardell',
     rarity: 'legendary',

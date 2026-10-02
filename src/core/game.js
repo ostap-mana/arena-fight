@@ -614,14 +614,14 @@ export class Game {
   }
 
   lobbyFxNames() {
-    return HEROES.flatMap(h => [...(h.intro || []).map(([, name]) => name), ...this.heroFx.skinNames(h.vfx, true)])
+    return HEROES.flatMap(h => [...(h.intro || []).map(([, name]) => name), ...(h.lobbySkin === false ? [] : this.heroFx.skinNames(h.vfx, true))])
   }
 
   attachSelectSkins() {
     if (this.state !== 'select' || !this.selectActors) return
     this.selectActors.forEach((a, i) => {
       const h = HEROES[i]
-      if (h.vfx && !(a.skinFx && a.skinFx.length)) this.heroFx.attachSkin(h.vfx, a, { lobby: true })
+      if (h.vfx && h.lobbySkin !== false && !(a.skinFx && a.skinFx.length)) this.heroFx.attachSkin(h.vfx, a, { lobby: true })
     })
   }
 
@@ -743,7 +743,7 @@ export class Game {
       await texturesReady()
       this.scene.add(a.root)
       this.selectActors.push(a)
-      if (h.vfx && this.heroFx) this.heroFx.attachSkin(h.vfx, a, { lobby: true })
+      if (h.vfx && this.heroFx && h.lobbySkin !== false) this.heroFx.attachSkin(h.vfx, a, { lobby: true })
     }
     this.fitSelectCamera()
     this.heroIndex = 0
