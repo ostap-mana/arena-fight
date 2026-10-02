@@ -380,7 +380,7 @@ export class Game {
     })
     this.ui.autoBtn.addEventListener('pointerdown', e => {
       e.stopPropagation()
-      this.setAuto(this.autoAttack === false)
+      this.setAuto(this.autoCast === false)
       audio.play('ui_click_tab')
     })
     this.ui.skip.addEventListener('click', () => {
@@ -1048,7 +1048,7 @@ export class Game {
     this.ui.setAnima(this.titanDef, hero)
     this.ui.setTitan(this.titan, this.titanReady, this.titanSecondsLeft())
     this.ui.setUlt(this.ult, this.ultReady)
-    this.setAuto(this.autoAttack !== false)
+    this.setAuto(this.autoCast !== false)
     this.ui.setHp(this.hero.hp, this.hero.maxHp)
     this.heroLight.color.set(hero.color)
 
@@ -1406,7 +1406,7 @@ export class Game {
   }
 
   setAuto(on) {
-    this.autoAttack = on
+    this.autoCast = on
     this.ui.setAuto(on)
   }
 
@@ -2012,7 +2012,7 @@ export class Game {
     const def = this.activeDef()
     const steer = this.moveAxis()
     const hold = this.gearOpen && !steer[0] && !steer[1]
-    const [ax, az] = hold ? [0, 0] : steer[0] || steer[1] || this.autoAttack === false ? steer : this.autoMoveAxis(def)
+    const [ax, az] = hold ? [0, 0] : steer[0] || steer[1] ? steer : this.autoMoveAxis(def)
     if (hold) h.targetFacing = this.camYaw
     const dashing = this.dashT > 0
     const rooted = ['cast', 'morph', 'unmorph'].includes(h.rig.state) && !h.rig.oneShotDone
@@ -2448,7 +2448,7 @@ export class Game {
         this.tapQueuedT -= dt
         if (!this.heroBusy() && !this.heroLocked()) this.oneHandTap()
       }
-      if (this.autoAttack !== false && !this.gearOpen && !steering && this.autoCastT <= 0 && !this.heroLocked() && !this.heroBusy()) {
+      if (this.autoCast !== false && !this.gearOpen && !steering && this.autoCastT <= 0 && !this.heroLocked() && !this.heroBusy()) {
         if (this.ultInReach() && this.castUltimate()) this.autoCastT = AUTO_CAST_GAP
         else {
           const key = this.readySkill(true)
@@ -2458,7 +2458,7 @@ export class Game {
           }
         }
       }
-      if (this.autoAttack !== false && !this.gearOpen && this.cooldowns.attack <= 0 && !steering && !this.heroLocked() && !this.heroBusy()) {
+      if (!this.gearOpen && this.cooldowns.attack <= 0 && !steering && !this.heroLocked() && !this.heroBusy()) {
         const near = this.nearestEnemy()
         const def = this.activeDef()
         if (near && near.d < def.atkRange + 0.6) this.attack()

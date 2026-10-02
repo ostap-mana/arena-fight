@@ -3,23 +3,14 @@ import victoryBandUrl from '../assets/GENERAL/lose-win/victory-band.webp'
 import defeatBandUrl from '../assets/GENERAL/lose-win/defeat-band.webp'
 import victoryFigureUrl from '../assets/GENERAL/lose-win/victory-figure.webp'
 import defeatFigureUrl from '../assets/GENERAL/lose-win/defeat-figure.webp'
-import victoryClipUrl from '../assets/GENERAL/lose-win/victory-figure.mp4'
-import defeatClipUrl from '../assets/GENERAL/lose-win/defeat-figure.mp4'
 import ricklowVictoryFigureUrl from '../assets/GENERAL/lose-win/ricklow-victory.webp'
 import ricklowDefeatFigureUrl from '../assets/GENERAL/lose-win/ricklow-defeat.webp'
-import ricklowVictoryClipUrl from '../assets/GENERAL/lose-win/ricklow-victory.mp4'
-import ricklowDefeatClipUrl from '../assets/GENERAL/lose-win/ricklow-defeat.mp4'
 import ardellVictoryFigureUrl from '../assets/GENERAL/lose-win/ardell-victory.webp'
 import ardellDefeatFigureUrl from '../assets/GENERAL/lose-win/ardell-defeat.webp'
-import ardellVictoryClipUrl from '../assets/GENERAL/lose-win/ardell-victory.mp4'
-import ardellDefeatClipUrl from '../assets/GENERAL/lose-win/ardell-defeat.mp4'
 import confarVictoryFigureUrl from '../assets/GENERAL/lose-win/confar-victory.webp'
 import confarDefeatFigureUrl from '../assets/GENERAL/lose-win/confar-defeat.webp'
-import confarVictoryClipUrl from '../assets/GENERAL/lose-win/confar-victory.mp4'
-import confarDefeatClipUrl from '../assets/GENERAL/lose-win/confar-defeat.mp4'
 import playNowUrl from '../assets/GENERAL/BUTTONS/play-now.webp'
 import retryPlateUrl from '../assets/GENERAL/BUTTONS/retry-plate.webp'
-import { AlphaClip } from './alpha-clip.js'
 
 const VERDICT_ART = { w: 816, h: 266 }
 const PLAY_ART = { w: 640, h: 164 }
@@ -60,22 +51,22 @@ const SIDE = {
 }
 
 const DEFAULT_FIGURES = {
-  victory: { figure: victoryFigureUrl, clip: victoryClipUrl, loop: null },
-  defeat: { figure: defeatFigureUrl, clip: defeatClipUrl, loop: null },
+  victory: { figure: victoryFigureUrl },
+  defeat: { figure: defeatFigureUrl },
 }
 
 const HERO_FIGURES = {
   ricklow: {
-    victory: { figure: ricklowVictoryFigureUrl, clip: ricklowVictoryClipUrl, loop: 72 / 24, wide: 576 / 512 },
-    defeat: { figure: ricklowDefeatFigureUrl, clip: ricklowDefeatClipUrl, loop: 86 / 24, wide: 576 / 512 },
+    victory: { figure: ricklowVictoryFigureUrl, wide: 576 / 512 },
+    defeat: { figure: ricklowDefeatFigureUrl, wide: 576 / 512 },
   },
   confar: {
-    victory: { figure: confarVictoryFigureUrl, clip: confarVictoryClipUrl, loop: null, wide: 1120 / 512 },
-    defeat: { figure: confarDefeatFigureUrl, clip: confarDefeatClipUrl, loop: 72 / 24, wide: 832 / 512 },
+    victory: { figure: confarVictoryFigureUrl, wide: 1120 / 512 },
+    defeat: { figure: confarDefeatFigureUrl, wide: 832 / 512 },
   },
   ardell: {
-    victory: { figure: ardellVictoryFigureUrl, clip: ardellVictoryClipUrl, loop: null, wide: 1088 / 512 },
-    defeat: { figure: ardellDefeatFigureUrl, clip: ardellDefeatClipUrl, loop: 80 / 24, wide: 912 / 512 },
+    victory: { figure: ardellVictoryFigureUrl, wide: 1088 / 512 },
+    defeat: { figure: ardellDefeatFigureUrl, wide: 912 / 512 },
   },
 }
 
@@ -106,8 +97,6 @@ const UNFURL = { slitW: 0.34, slitH: 0.015, widen: 0.34, openAt: 0.12, open: 0.5
 const BLOOM_FLARE = 1.75
 const ARM_AFTER = 0.5
 const CONTROL_AT = 0.72
-const STALL = 0.6
-const CLIP_PX = 512
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v)
 
@@ -166,18 +155,8 @@ export class Outcome {
     this.onCta = null
     this.warm = Object.values(SIDE).flatMap(s => [s.band, s.plate]).map(warmImage)
     document.fonts?.load('500 20px Hitzone').catch(() => {})
-    this.clip = null
-    this.kind = 'victory'
-    this.clipAt = -1
-    this.clipIdle = 0
-    this.primed = false
     this.figures = null
-    this.clips = {}
     this.useFigures(DEFAULT_FIGURES)
-    addEventListener('pointerdown', () => {
-      this.primed = true
-      this.primeClips()
-    }, { once: true, capture: true })
     this.tick = this.tick.bind(this)
     this.control.addEventListener('click', e => {
       e.stopPropagation()
@@ -202,82 +181,8 @@ export class Outcome {
 
   useFigures(figures) {
     if (figures === this.figures) return
-    if (this.clip) this.ground(this.kind)
-    for (const clip of Object.values(this.clips)) clip?.dispose()
     this.figures = figures
-    this.grounded = { victory: false, defeat: false }
-    this.clips = {}
-    for (const [kind, f] of Object.entries(figures)) {
-      this.warm.push(warmImage(f.figure))
-      this.clips[kind] = this.mountClip(f.clip, f.loop, f.wide)
-    }
-    if (this.primed) this.primeClips()
-  }
-
-  mountClip(src, loop = null, wide = 1) {
-    try {
-      const clip = new AlphaClip(src, loop, wide)
-      clip.canvas.className = 'clip'
-      clip.canvas.hidden = true
-      spread(clip.canvas, wide)
-      this.figure.append(clip.canvas)
-      return clip
-    } catch {
-      return null
-    }
-  }
-
-  primeClips() {
-    for (const clip of Object.values(this.clips)) clip?.prime()
-  }
-
-  pickFigure(kind) {
-    const clip = this.grounded[kind] ? null : this.clips[kind]
-    for (const other of Object.values(this.clips)) {
-      if (!other || other === clip) continue
-      other.stop()
-      other.canvas.hidden = true
-    }
-    this.clip = clip || null
-    this.revealClip()
-  }
-
-  revealClip() {
-    const clip = this.clip
-    const live = !!clip?.ready
-    this.still.hidden = live
-    if (clip) clip.canvas.hidden = !live
-  }
-
-  rollClip() {
-    const clip = this.clip
-    if (!clip) return
-    const kind = this.kind
-    clip.play(() => {
-      if (this.clip === clip) this.ground(kind)
-    })
-    this.clipAt = this.clip.video.currentTime
-    this.clipIdle = 0
-  }
-
-  watchClip(dt) {
-    const video = this.clip.video
-    if (!this.clip.ready || video.ended || video.currentTime !== this.clipAt) {
-      this.clipAt = video.currentTime
-      this.clipIdle = 0
-      return
-    }
-    this.clipIdle += dt
-    if (this.clipIdle > STALL) this.ground(this.kind)
-  }
-
-  ground(kind) {
-    this.grounded[kind] = true
-    if (!this.clip) return
-    this.clip.stop()
-    this.clip.canvas.hidden = true
-    this.clip = null
-    this.still.hidden = false
+    for (const f of Object.values(figures)) this.warm.push(warmImage(f.figure))
   }
 
   layout() {
@@ -320,7 +225,6 @@ export class Outcome {
 
     const foot = cy - ph / 2 + span * side.bury
     place(this.figure, cx - span / 2, foot - span, span, span)
-    this.clip?.size(Math.min(CLIP_PX, span * (devicePixelRatio || 1)))
 
     const bw = Math.max(80, pw * 0.62)
     const bh = Math.max(80, ph * 3.4)
@@ -374,7 +278,6 @@ export class Outcome {
   show(kind) {
     const side = SIDE[kind]
     this.side = side
-    this.kind = kind
     this.defeat = kind === 'defeat'
     this.root.classList.toggle('defeat', this.defeat)
     this.still.src = this.figures[kind].figure
@@ -384,9 +287,7 @@ export class Outcome {
     this.bloom.style.setProperty('--tint', side.bloom)
     this.flash.style.background = side.flash
     this.root.classList.add('on')
-    this.pickFigure(kind)
     this.layout()
-    this.rollClip()
 
     const parts = [this.flash, this.band, this.bloom, this.figure, this.control, this.why]
     gsap.killTweensOf(parts)
@@ -422,11 +323,6 @@ export class Outcome {
   tick(time, deltaMs) {
     const dt = deltaMs / 1000
     this.t += dt
-    if (this.clip) {
-      this.watchClip(dt)
-      this.clip?.draw()
-      if (this.clip?.canvas.hidden && this.clip.ready) this.revealClip()
-    }
     if (this.introducing) return
     this.bloom.style.opacity = this.side.idle + Math.sin(this.t * 1.8) * 0.08
     if (this.defeat) return
