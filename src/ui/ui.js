@@ -1,10 +1,6 @@
-import gsap from 'gsap'
 import { CardBorderFx } from './card-fx.js'
 import { HEROES, LOOT } from '../data/heroes.js'
 import playNowImg from '../assets/GENERAL/BUTTONS/play-now.webp'
-import attackSwordImg from '../assets/GENERAL/HUD/buttons/attack-sword.webp'
-import attackSpearImg from '../assets/GENERAL/HUD/buttons/attack-spear.webp'
-import attackArcanaImg from '../assets/GENERAL/HUD/buttons/attack-arcana.webp'
 import eld037Skill1 from '../assets/GENERAL/HUD/skills/eld037-1.webp'
 import eld037Skill2 from '../assets/GENERAL/HUD/skills/eld037-2.webp'
 import eld037Skill3 from '../assets/GENERAL/HUD/skills/eld037-3.webp'
@@ -39,12 +35,6 @@ import lootWeaponImg from '../assets/GENERAL/HUD/icons/loot-weapon.webp'
 import lootGemsImg from '../assets/GENERAL/HUD/icons/loot-gems.webp'
 import lootChestImg from '../assets/GENERAL/HUD/icons/loot-chest.webp'
 import lootAnimaImg from '../assets/GENERAL/HUD/icons/loot-anima.webp'
-import autoOffImg from '../assets/GENERAL/HUD/buttons/auto-off.webp'
-import autoOnImg from '../assets/GENERAL/HUD/buttons/auto-on.webp'
-import autoArrowsImg from '../assets/GENERAL/HUD/buttons/auto-arrows.webp'
-import autoSwordImg from '../assets/GENERAL/HUD/buttons/auto-sword.webp'
-import titanManualImg from '../assets/GENERAL/HUD/buttons/titan-manual.webp'
-import fingerImg from '../assets/GENERAL/HUD/select/pointer.webp'
 import classRangedImg from '../assets/GENERAL/HUD/select/class-ranged.webp'
 import classMeleeImg from '../assets/GENERAL/HUD/select/class-melee.webp'
 import classTankImg from '../assets/GENERAL/HUD/select/class-tank.webp'
@@ -52,6 +42,7 @@ import classSupportImg from '../assets/GENERAL/HUD/select/class-support.webp'
 import { Outcome } from './outcome.js'
 import { GearRing } from './gear-ring.js'
 import { deferImages, whenReleased, releaseImages } from './lazy.js'
+import { FINGER, TAP } from './tapcue.js'
 import powerIconImg from '../assets/GENERAL/HUD/gear/power-icon.webp'
 
 export const ELEMENT_ART = {
@@ -81,12 +72,6 @@ const LOOT_ART = {
   gems: lootGemsImg,
   chest: lootChestImg,
   anima: lootAnimaImg,
-}
-
-const ATTACK_ART = {
-  sword: attackSwordImg,
-  spear: attackSpearImg,
-  arcana: attackArcanaImg,
 }
 
 const SKILL_ART = {
@@ -131,16 +116,10 @@ const RARITY_STARS = {
   legendary: 5,
   mythic: 6,
 }
-const HERO_NOTCH_LEVELS = [
-  { step: 100, maxCount: 20 },
-  { step: 500, maxCount: 20 },
-  { step: 2500, maxCount: 15 },
-  { step: 5000, maxCount: 50 },
-]
-const ONE_HAND_QUERY = '(max-aspect-ratio: 5/6)'
 const EASY = 'cubic-bezier(.45, 0, .55, 1)'
 const EASE_IN = 'cubic-bezier(.55, 0, 1, .45)'
 const EASE_OUT = 'cubic-bezier(.25, 1, .5, 1)'
+const BANNER_IN = 'cubic-bezier(.2, .9, .3, 1)'
 const APPEAR_FROM = 1.15
 const APPEAR_MS = 400
 const APPEAR_FADE_MS = 300
@@ -154,7 +133,7 @@ const VEIL_OUT_MS = 450
 const WAVE_FULL_HOLD = 0.8
 const LOOT_ROW_MS = 2600
 const LOOT_HIDE_MS = 250
-const LOOT_ROWS = 3
+const LOOT_ROWS = 2
 
 function spring(t) {
   const k = Math.min(1, Math.max(0, t))
@@ -166,26 +145,17 @@ const APPEAR_FRAMES = Array.from({ length: 25 }, (_, n) => {
   return { transform: `scale(${(APPEAR_FROM + (1 - APPEAR_FROM) * spring(t)).toFixed(4)})`, offset: t }
 })
 
-const FINGER = `<img class="finger" src="${fingerImg}" alt="" draggable="false">`
-const TAP = `<div class="tap"><i class="ring a"></i><i class="ring b"></i>${FINGER}</div>`
-const JOYSTICK_TUTORIAL = `<div class="joy"><i class="ring a"></i><i class="ring b"></i><i class="jcircle"></i><i class="jarrow a1"></i><i class="jarrow a2"></i><i class="jarrow a3"></i>${FINGER}</div>`
+const JOYSTICK_TUTORIAL = `<div class="joy"><i class="ring a"></i><i class="ring b"></i><i class="jbase"></i><i class="jknob"></i>${FINGER}</div>`
+const HINT_TEXT = {
+  move: ['DRAG TO MOVE', 'LET GO · AUTO ATTACK'],
+  skill: ['TAP TO CAST', ''],
+  titan: ['TAP TO TRANSFORM', ''],
+}
 
 export function el(html) {
   const d = document.createElement('div')
   d.innerHTML = html.trim()
   return d.firstElementChild
-}
-
-function heroNotchStep(max) {
-  const level = HERO_NOTCH_LEVELS.find((l) => max / l.step <= l.maxCount) || HERO_NOTCH_LEVELS[HERO_NOTCH_LEVELS.length - 1]
-  return level.step
-}
-
-function heroNotchMarks(max) {
-  const step = heroNotchStep(max)
-  let marks = ''
-  for (let hp = step; hp < max; hp += step) marks += `<b style="left:${(hp / max * 100).toFixed(3)}%"></b>`
-  return marks
 }
 
 export class UI {
@@ -220,32 +190,22 @@ export class UI {
 
       <div id="hud" class="screen">
         <div id="hpbars"></div>
-        <button id="powergoal"><i class="pbg"></i><img class="ico" src="${powerIconImg}" alt="" draggable="false"><div class="nums"><b class="now">0</b><span class="goal"></span></div><div class="bar"><i class="fill"></i></div><span class="tip">tap to equip</span></button>
-        <div id="waveinfo"><b></b><span></span>
-          <div class="wavebar"><i class="back"></i><div class="track"><i class="fill"></i><i class="start"></i><i class="end"></i><i class="marker"></i></div></div>
-        </div>
-        <div id="pause"><i></i></div>
-        <div id="autoplay" class="on">
-          <div class="state off"><img class="bg" src="${autoOffImg}" alt="" draggable="false"><div class="tab"><span>Auto</span></div></div>
-          <div class="state on"><img class="bg" src="${autoOnImg}" alt="" draggable="false"><div class="tab"><span>Auto</span></div><img class="arrows" src="${autoArrowsImg}" alt="" draggable="false"><img class="sword" src="${autoSwordImg}" alt="" draggable="false"></div>
-          <img class="titanmode" src="${titanManualImg}" alt="" draggable="false">
-        </div>
-        <div id="titanmeter">
-          <div class="mana">
-            <div class="seg bonus"><i class="back"></i></div>
-            <div class="seg main"><i class="back"></i><div class="clip"><i class="fill"></i></div><i class="glow"></i><i class="orn"></i></div>
-            <div class="gain"><i class="halo"></i><b></b></div>
-            <div class="tip">Titan mana</div>
+        <div id="topbar">
+          <i class="shade"></i>
+          <button id="powergoal">
+            <div class="nums"><img class="ico" src="${powerIconImg}" alt="" draggable="false"><b class="now">0</b><span class="goal"></span></div>
+            <div class="bar"><i class="back"></i><div class="clip"><i class="fill"></i></div></div>
+          </button>
+          <div id="waveinfo"><b></b>
+            <div class="wavebar"><i class="back"></i><div class="track"><i class="fill"></i><i class="start"></i><i class="end"></i><i class="marker"></i></div></div>
           </div>
-          <div class="lbl title-ornate">TITAN READY!</div>
-          <div class="sub">tap anywhere</div>
+          <div class="tip"></div>
         </div>
-        <div id="titantimer"><div class="t"><i></i></div><div class="c">TITAN FORM</div></div>
+        <div id="titantimer"><div class="c">TITAN</div><div class="t"><i class="back"></i><i class="fill"></i></div></div>
         <div id="stick">
           <div class="base"></div>
           <i class="decor r"></i><i class="decor l"></i><i class="decor t"></i><i class="decor d"></i>
           <div class="knob"></div>
-          <div class="autobadge"><i class="back"></i><i class="spin"></i><i class="ring"></i><div class="tab"><span>Auto</span></div><i class="disk"></i></div>
         </div>
         <div id="animacard">
           <div class="btn">
@@ -261,13 +221,11 @@ export class UI {
           <i class="shadow"></i>
           <div class="hero"><div class="mask"><img alt="" draggable="false"></div></div>
         </div>
-        <div id="gesturehint"><div class="g-hand">${JOYSTICK_TUTORIAL}</div><div class="g-main"></div><div class="g-sub"><span class="land">TAP · SKILL &nbsp;&nbsp; SWIPE · DASH</span><span class="port">LET GO · AUTO FIGHT &nbsp;&nbsp; SWIPE · DASH</span></div></div>
+        <div id="gesturehint"><div class="g-main"></div><div class="g-sub"></div><div class="g-hand">${JOYSTICK_TUTORIAL}</div></div>
+        <div id="herocue">${TAP}</div>
         <div id="skills">
-          <div class="skill main" data-k="attack"><img class="art" alt="" draggable="false"><span class="cd"></span><span class="press"></span></div>
           <div class="skill s1" data-k="s1"><img class="icon" alt="" draggable="false"><span class="cd"></span><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
           <div class="skill s2" data-k="s2"><img class="icon" alt="" draggable="false"><span class="cd"></span><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
-          <div class="skill s3" data-k="s3"><img class="icon" alt="" draggable="false"><span class="cd"></span><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
-          <div class="skill dash" data-k="dash"><span class="cd"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
           <div id="ultbtn">
             <span class="aura"></span>
             <img class="icon" alt="" draggable="false">
@@ -280,7 +238,7 @@ export class UI {
             <span class="press"></span>
             <span class="burst"></span>
           </div>
-          <div class="ulthint">${FINGER}</div>
+          ${TAP}
         </div>
       </div>
 
@@ -291,9 +249,8 @@ export class UI {
       <div id="powerpop"><i class="orn"></i><img class="ico" src="${powerIconImg}" alt="" draggable="false"><b>0</b><span>+0</span></div>
       <div id="gearring"></div>
 
-      <div id="banner"><div class="t"></div><div class="s"></div></div>
+      <div id="banner"><i class="bk"></i><div class="t"></div><div class="s"></div></div>
       <div id="veil"></div>
-      <div id="skip">skip</div>
 
       <div id="fail" class="screen">
         <div class="t">CRITICAL HP!</div>
@@ -333,19 +290,17 @@ export class UI {
     this.hud = this.root.querySelector('#hud')
     this.enemyLayer = this.hud.querySelector('#hpbars')
     this.enemyBars = new Map()
-    this.heroBar = el(`<div class="fhp"><div class="part"><i class="glow"></i><i class="fill"></i><i class="notch"></i><i class="noise"></i></div><i class="gearbadge"></i></div>`)
-    this.heroBarNotches = this.heroBar.querySelector('.notch')
+    this.heroBar = el(`<div class="fhp"><div class="part"><i class="glow"></i><i class="fill"></i><i class="noise"></i></div></div>`)
     this.enemyLayer.appendChild(this.heroBar)
     this.heroBarState = { k: 1, max: 0, shown: false }
     this.cooldownState = {}
+    this.topBar = this.root.querySelector('#topbar')
+    this.topTip = this.topBar.querySelector('.tip')
     this.waveInfo = this.root.querySelector('#waveinfo')
     this.waveBar = this.waveInfo.querySelector('.wavebar')
     this.waveK = 0
     this.wavePainted = -1
     this.waveHold = 0
-    this.titanMeter = this.root.querySelector('#titanmeter')
-    this.titanFill = this.titanMeter.querySelector('.mana')
-    this.autoBtn = this.root.querySelector('#autoplay')
     this.ultBtn = this.root.querySelector('#ultbtn')
     this.ultIcon = this.ultBtn.querySelector('.icon')
     this.ultPct = this.ultBtn.querySelector('.pct b')
@@ -356,20 +311,20 @@ export class UI {
     this.animaCooldown = this.animaCard.querySelector('.cooldown b')
     this.animaReady = false
     this.titanTimer = this.root.querySelector('#titantimer')
-    this.titanTimerFill = this.titanTimer.querySelector('.t > i')
     this.stick = this.root.querySelector('#stick')
     this.gestureHint = this.root.querySelector('#gesturehint')
+    this.heroCue = this.root.querySelector('#herocue')
+    this.heroCueTap = this.heroCue.querySelector('.tapcue')
+    this.skillsBox = this.root.querySelector('#skills')
+    this.skillCue = this.skillsBox.querySelector('.tapcue')
     this.skills = this.root.querySelectorAll('.skill')
-    this.attackArt = this.hud.querySelector('.skill.main .art')
-    this.skillIcons = ['s1', 's2', 's3'].map(k => this.hud.querySelector(`.skill.${k} .icon`))
+    this.skillIcons = ['s1', 's2'].map(k => this.hud.querySelector(`.skill.${k} .icon`))
     whenReleased(() => {
       Object.values(PORTRAIT_ART).forEach(src => { new Image().src = src })
-      Object.values(ATTACK_ART).forEach(src => { new Image().src = src })
       Object.values(SKILL_ART).flat().forEach(src => { new Image().src = src })
     })
     this.banner = this.root.querySelector('#banner')
     this.veil = this.root.querySelector('#veil')
-    this.skip = this.root.querySelector('#skip')
     this.end = this.root.querySelector('#end')
     this.fail = this.root.querySelector('#fail')
     this.fuse = this.root.querySelector('#fuse')
@@ -387,18 +342,53 @@ export class UI {
 
   showGestureHint(on, mode = 'move') {
     const el = this.gestureHint
-    if (!el) return
     if (!on) {
       if (el.dataset.mode === mode) el.classList.remove('on')
       return
     }
     el.dataset.mode = mode
-    el.classList.toggle('titan', mode === 'titan')
-    const oneHand = matchMedia(ONE_HAND_QUERY).matches
-    el.querySelector('.g-main').textContent = mode === 'titan' ? 'TAP TO TRANSFORM' : oneHand ? 'DRAG ANYWHERE TO MOVE' : 'DRAG TO MOVE'
+    for (const m of Object.keys(HINT_TEXT)) el.classList.toggle(m, m === mode)
+    const [main, sub] = HINT_TEXT[mode]
+    el.querySelector('.g-main').textContent = main
+    el.querySelector('.g-sub').textContent = sub
     el.classList.remove('play')
     void el.offsetWidth
     el.classList.add('on', 'play')
+  }
+
+  hintShown(mode) {
+    return this.gestureHint.classList.contains('on') && this.gestureHint.dataset.mode === mode
+  }
+
+  cueSkill(key) {
+    const cue = this.skillCue
+    this.cuedSkill = key
+    if (!key) {
+      cue.classList.remove('on')
+      return
+    }
+    const btn = key === 'ult' ? this.ultBtn : this.hud.querySelector(`.skill.${key}`)
+    cue.style.left = `${btn.offsetLeft + btn.offsetWidth / 2}px`
+    cue.style.top = `${btn.offsetTop + btn.offsetHeight / 2}px`
+    const r = btn.getBoundingClientRect()
+    cue.classList.toggle('flip', r.left + r.width / 2 > innerWidth * 0.62)
+    cue.classList.add('on')
+  }
+
+  cueHero(on) {
+    this.heroCueTap.classList.toggle('on', on)
+  }
+
+  placeHeroCue(x, y, visible) {
+    this.heroCue.style.visibility = visible ? 'visible' : 'hidden'
+    if (!visible) return
+    this.heroCue.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
+    this.heroCueTap.classList.toggle('flip', x > innerWidth * 0.62)
+  }
+
+  setTip(text) {
+    this.topBar.classList.toggle('tipped', !!text)
+    if (text) this.topTip.textContent = text
   }
 
   fitHud() {
@@ -418,11 +408,6 @@ export class UI {
     releaseImages(this.root)
   }
 
-  bootDone() {
-    this.boot.classList.add('ready')
-    if (this.ringSpin) gsap.to(this.ringSpin, { playbackRate: 0.16, duration: 1.8, ease: 'power2.out' })
-  }
-
   hideBoot() {
     this.boot.style.opacity = '0'
     setTimeout(() => {
@@ -436,7 +421,7 @@ export class UI {
     map[name].classList.toggle('on', on)
   }
 
-  buildCards(onPick) {
+  buildCards(onPreview, onPick) {
     this.cards.innerHTML = ''
     this.cardEls = []
     HEROES.forEach((h, i) => {
@@ -460,23 +445,44 @@ export class UI {
           </div>
           <button class="pick"><i class="halo"></i><i class="plate"></i><i class="sweep"><i></i></i><span>Select</span></button>
         </div>`)
-      slot.querySelector('.card').addEventListener('click', () => onPick(i))
+      slot.querySelector('.card').addEventListener('click', () => onPreview(i))
       slot.querySelector('.pick').addEventListener('click', () => onPick(i))
-      this.cards.appendChild(slot)
       this.cardEls.push(slot)
+      this.cards.appendChild(slot)
     })
     const tap = el(TAP)
     this.cards.appendChild(tap)
     this.tap = tap
-    this.positionHand(0)
+    this.handTarget = null
   }
 
-  positionHand(i) {
-    if (!this.tap || !this.cardEls) return
+  pointAtCard(i) {
+    this.handTarget = { node: '.card', i, x: 0.5, y: 0.4 }
+    this.placeHand()
+  }
+
+  pointAtPick(i) {
+    this.handTarget = { node: '.pick', i, x: 0.7, y: 0.64 }
+    this.placeHand()
+  }
+
+  placeHand() {
+    if (!this.tap || !this.cardEls || !this.handTarget) return
+    const { node, i, x, y } = this.handTarget
     const slot = this.cardEls[i]
-    const btn = slot.querySelector('.pick')
-    this.tap.style.left = `${slot.offsetLeft + btn.offsetLeft + btn.offsetWidth * 0.7}px`
-    this.tap.style.top = `${slot.offsetTop + btn.offsetTop + btn.offsetHeight * 0.64}px`
+    const target = slot.querySelector(node)
+    const left = slot.offsetLeft + target.offsetLeft + target.offsetWidth * x
+    this.tap.style.left = `${left}px`
+    this.tap.style.top = `${slot.offsetTop + target.offsetTop + target.offsetHeight * y}px`
+    this.tap.classList.toggle('flip', left > this.cards.offsetWidth * 0.62)
+  }
+
+  setChosen(on) {
+    const was = this.select.classList.contains('chosen')
+    this.select.classList.toggle('chosen', on)
+    this.select.querySelector('.head p').textContent = on ? 'The arena is under attack' : 'Tap a hero to preview'
+    const picked = this.cardEls && this.cardEls.find(c => c.classList.contains('sel'))
+    if (on && !was && picked) this.appear(picked.querySelector('.pick'), 0)
   }
 
   selectCard(i) {
@@ -484,8 +490,8 @@ export class UI {
     this.cardEls.forEach((c, k) => c.classList.toggle('sel', k === i))
     this.cardFx = this.cardFx || new CardBorderFx()
     this.cardFx.attach(this.cardEls[i], HEROES[i].rarity)
-    this.positionHand(i)
-    if (prev === i) return
+    this.placeHand()
+    if (prev === i || !this.select.classList.contains('chosen')) return
     const settle = (this.introAt || 0) + CARD_DELAY_MS + i * CARD_STAGGER_MS + PICK_LAG_MS - performance.now()
     this.appear(this.cardEls[i].querySelector('.pick'), Math.max(0, settle))
   }
@@ -500,13 +506,17 @@ export class UI {
     this.select.classList.remove('leaving', 'intro')
     void this.select.offsetWidth
     this.select.classList.add('intro')
+    const chosen = this.select.classList.contains('chosen')
     this.cardEls.forEach((slot, i) => {
       this.appear(slot, CARD_DELAY_MS + i * CARD_STAGGER_MS)
-      if (slot.classList.contains('sel')) this.appear(slot.querySelector('.pick'), CARD_DELAY_MS + i * CARD_STAGGER_MS + PICK_LAG_MS)
+      if (chosen && slot.classList.contains('sel')) this.appear(slot.querySelector('.pick'), CARD_DELAY_MS + i * CARD_STAGGER_MS + PICK_LAG_MS)
     })
     this.tap.classList.remove('on')
     clearTimeout(this.tapTimer)
-    this.tapTimer = setTimeout(() => this.tap.classList.add('on'), TAP_DELAY_MS)
+    this.tapTimer = setTimeout(() => {
+      this.placeHand()
+      this.tap.classList.add('on')
+    }, TAP_DELAY_MS)
   }
 
   leaveSelect(duration) {
@@ -537,7 +547,6 @@ export class UI {
   }
 
   setHud(hero) {
-    this.attackArt.src = ATTACK_ART[hero.attack] || ATTACK_ART.sword
     const art = SKILL_ART[hero.model] || SKILL_ART.mag018
     this.skillIcons.forEach((img, i) => { img.src = art[i] })
     this.ultIcon.src = art[3]
@@ -557,29 +566,26 @@ export class UI {
     const done = power >= goal
     el.querySelector('.now').textContent = power.toLocaleString('en-US')
     el.querySelector('.goal').textContent = `/ ${goal.toLocaleString('en-US')}`
-    el.querySelector('.fill').style.transform = `scaleX(${Math.min(1, power / goal)})`
+    el.style.setProperty('--k', Math.min(1, power / goal).toFixed(4))
     el.classList.toggle('done', done)
     el.classList.toggle('ready', !!ready)
     if (this.shownGoalPower >= 0 && power !== this.shownGoalPower) {
-      el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.35 }, { transform: 'scale(1)' }], { duration: 420, easing: 'ease-out' })
-      if (done && this.shownGoalPower < goal) el.querySelector('.pbg').animate([{ opacity: 1, filter: 'brightness(2.4)' }, { opacity: 1, filter: 'brightness(1)' }], { duration: 900, easing: 'ease-out' })
+      el.querySelector('.nums').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.16)', offset: 0.35 }, { transform: 'scale(1)' }], { duration: 420, easing: 'ease-out' })
+      if (done && this.shownGoalPower < goal) el.querySelector('.bar').animate([{ filter: 'brightness(2.4)' }, { filter: 'brightness(1)' }], { duration: 900, easing: 'ease-out' })
     }
     this.shownGoalPower = power
   }
 
   setShield(on) {
-    this.powerGoal.classList.toggle('danger', on)
-    this.root.querySelector('#waveinfo').classList.toggle('shielded', on)
+    this.topBar.classList.toggle('danger', on)
+    this.waveInfo.classList.toggle('shielded', on)
   }
 
   setHeroBar(k, max) {
     const bar = this.heroBarState
     const reset = max !== bar.max
     const hit = !reset && k < bar.k
-    if (reset) {
-      bar.max = max
-      this.heroBarNotches.innerHTML = heroNotchMarks(max)
-    }
+    bar.max = max
     bar.k = k
     this.heroBar.classList.toggle('snap', reset)
     this.heroBar.style.setProperty('--k', k)
@@ -597,11 +603,6 @@ export class UI {
 
   tick(dt) {
     if (this.cardFx && this.select.classList.contains('on')) this.cardFx.tick(dt)
-  }
-
-  setAuto(on) {
-    this.autoBtn.classList.toggle('on', on)
-    this.stick.classList.toggle('auto', on)
   }
 
   setUlt(k, ready) {
@@ -625,8 +626,6 @@ export class UI {
 
   setTitan(k, ready, secondsLeft) {
     const v = Math.max(0, Math.min(1, k))
-    this.titanFill.style.setProperty('--k', v)
-    this.titanMeter.classList.toggle('ready', ready)
     const card = this.animaCard
     card.style.setProperty('--r', 1 - v)
     const secs = Math.max(0, secondsLeft)
@@ -649,7 +648,7 @@ export class UI {
     this.hud.classList.toggle('titan', on)
     this.animaCard.classList.toggle('active', on)
     this.animaCard.style.setProperty('--d', Math.max(0, k))
-    this.titanTimerFill.style.transform = `scaleX(${Math.max(0, k)})`
+    this.titanTimer.style.setProperty('--k', Math.max(0, k).toFixed(4))
   }
 
   replayClass(node, cls) {
@@ -690,9 +689,8 @@ export class UI {
     }
   }
 
-  setWave(label, sub) {
+  setWave(label) {
     this.waveInfo.querySelector('b').textContent = label
-    this.waveInfo.querySelector('span').textContent = sub
   }
 
   setWaveProgress(k, fresh = false) {
@@ -736,27 +734,30 @@ export class UI {
   showBanner(title, sub, dur = 1.6) {
     const t = this.banner.querySelector('.t')
     const s = this.banner.querySelector('.s')
+    const bk = this.banner.querySelector('.bk')
+    for (const node of [t, s, bk]) node.getAnimations().forEach(a => a.cancel())
     t.textContent = title
     s.textContent = sub || ''
-    t.animate(
-      [
-        { opacity: 0, transform: 'scale(1.6)', filter: 'blur(8px)' },
-        { opacity: 1, transform: 'scale(1)', filter: 'blur(0)', offset: 0.22 },
-        { opacity: 1, transform: 'scale(1.02)', offset: 0.78 },
-        { opacity: 0, transform: 'scale(1.1)' },
-      ],
-      { duration: dur * 1000, easing: 'cubic-bezier(.2,.9,.3,1)' }
-    )
-    s.animate(
-      [{ opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }],
+    this.banner.classList.toggle('subbed', !!sub)
+    bk.animate(
+      [{ opacity: 0 }, { opacity: 1, offset: 0.16 }, { opacity: 1, offset: 0.82 }, { opacity: 0 }],
       { duration: dur * 1000 }
     )
-  }
-
-  showSkip(on) { this.skip.classList.toggle('on', on) }
-
-  setGearBadge(on) {
-    this.heroBar.classList.toggle('gear', on)
+    const enter = Math.min(0.2, 0.32 / dur)
+    const leave = 1 - Math.min(0.16, 0.3 / dur)
+    t.animate(
+      [
+        { opacity: 0, transform: 'scale(1.6)', filter: 'blur(8px)', easing: BANNER_IN },
+        { opacity: 1, transform: 'scale(1)', filter: 'blur(0px)', offset: enter },
+        { opacity: 1, transform: 'scale(1.02)', filter: 'blur(0px)', offset: leave, easing: EASE_IN },
+        { opacity: 0, transform: 'scale(1.1)', filter: 'blur(0px)' },
+      ],
+      { duration: dur * 1000 }
+    )
+    s.animate(
+      [{ opacity: 0 }, { opacity: 1, offset: enter + 0.06 }, { opacity: 1, offset: leave }, { opacity: 0 }],
+      { duration: dur * 1000 }
+    )
   }
 
   openGear(gear, hero) {

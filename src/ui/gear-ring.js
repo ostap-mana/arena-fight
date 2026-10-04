@@ -1,6 +1,7 @@
 import { BUILD_PIECES, formatStat, GEAR_SLOTS, STAT_LABEL } from '../core/gear.js'
 import { POWER_GOAL, SET_NAME } from '../data/builds.js'
 import { deferImages } from './lazy.js'
+import { TAP } from './tapcue.js'
 
 const RELIC_ART = import.meta.glob('../assets/GENERAL/HUD/loot/relic-*.webp', { eager: true, import: 'default' })
 const GEAR_ART = import.meta.glob('../assets/GENERAL/HUD/gear/*.webp', { eager: true, import: 'default' })
@@ -83,6 +84,7 @@ export class GearRing {
         <div class="row">
           <button class="auto"><i class="sweep"></i><span>AUTO</span></button>
           <div class="items"></div>
+          ${TAP}
         </div>
       </div></div>`)
     this.plate = this.el.querySelector('.plate')
@@ -92,6 +94,8 @@ export class GearRing {
     this.powerValue = this.el.querySelector('.pvalue')
     this.powerDelta = this.el.querySelector('.pdelta')
     this.autoBtn = this.el.querySelector('.auto')
+    this.autoCue = this.el.querySelector('.row > .tapcue')
+    this.wantsAutoCue = false
     this.buildChip = this.el.querySelector('.buildchip')
     this.slots = Object.fromEntries([...this.el.querySelectorAll('.slot')].map(s => [s.dataset.slot, s]))
     this.el.querySelector('.x').addEventListener('click', () => this.onClose && this.onClose())
@@ -153,6 +157,7 @@ export class GearRing {
   }
 
   close() {
+    this.cueAuto(false)
     const token = this.seq
     const c = this.center
     for (const [type, slot] of Object.entries(this.slots)) {
@@ -306,7 +311,13 @@ export class GearRing {
     burst.animate([{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'scale(1.15)', offset: 0.3 }, { opacity: 0, transform: 'scale(1.8)' }], { duration: 560, easing: 'ease-out' })
   }
 
+  cueAuto(on) {
+    this.wantsAutoCue = on
+    this.autoCue.classList.toggle('on', on && this.autoBtn.classList.contains('ready'))
+  }
+
   autoEquip() {
+    this.wantsAutoCue = false
     const before = { ...this.gear.equipped }
     this.change(() => this.gear.autoEquip(), 'auto')
     const changed = GEAR_SLOTS.filter(s => this.gear.equipped[s] && this.gear.equipped[s] !== before[s])
@@ -334,6 +345,7 @@ export class GearRing {
     this.paintBuild()
     const upgrades = g.items.some(it => g.isUpgrade(it))
     this.autoBtn.classList.toggle('ready', upgrades)
+    this.autoCue.classList.toggle('on', this.wantsAutoCue && upgrades)
     const shown = it => this.filter === 'all' || it.slot === this.filter || (this.filter === 'build' && g.isBuild(it))
     const list = g.items.filter(shown).sort((a, b) => Number(g.isUpgrade(b)) - Number(g.isUpgrade(a)) || b.rank - a.rank || b.value - a.value)
     this.items.innerHTML = list.length

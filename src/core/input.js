@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-const IGNORED = '#animacard, #titanmeter.ready, #autoplay, #pause, #gearring, button, .card, .chip, .store, .replay'
+const IGNORED = '#animacard, #gearring, button, .card, .chip, .store, .replay'
 const CONTROLS = '.skill, #ultbtn'
 const DRAG_THROUGH_QUERY = matchMedia('(max-aspect-ratio: 5/6)')
 const TAP_TIME = 260

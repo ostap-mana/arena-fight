@@ -107,6 +107,10 @@ class Audio {
     Howler.volume()
   }
 
+  unlocked() {
+    return !!Howler.ctx && Howler.ctx.state === 'running'
+  }
+
   init() {
     if (!this.booting) this.booting = this.probe().then(ext => this.create(ext))
     return this.booting
