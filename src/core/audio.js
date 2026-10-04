@@ -24,6 +24,8 @@ const PROBE_CLIP = 'assets/audio/outcome_cta'
 
 const GROUP_VOLUME = { enemies: 0.9 }
 const BOOT_GROUPS = ['ui', 'lobby']
+const BOOT_SFX = new Set(['ui_braam'])
+const WAKE_EVENTS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']
 const PAN_DEPTH = 0.55
 const PAN_SPAN = 14
 const FAR_GAIN = 0.3
@@ -50,6 +52,16 @@ async function playableFormat() {
 
 const withFormat = (src, ext) => src.replace(/\.m4a$/, `.${ext}`)
 
+function wakeContext() {
+  const ctx = Howler.ctx
+  if (!ctx || ctx.state === 'running' || ctx.state === 'closed' || document.hidden) return
+  ctx.resume().then(() => {
+    if (Howler.state === 'running') return
+    Howler.state = 'running'
+    for (const h of Howler._howls) h._emit('resume')
+  }).catch(() => {})
+}
+
 class Audio {
   constructor() {
     this.sfx = {}
@@ -64,11 +76,18 @@ class Audio {
     this.booting = null
     this.ready = false
     this.silencers = new Set()
+    this.probing = null
+    Howler.autoSuspend = false
     if (typeof document !== 'undefined') {
-      const hide = () => this.silence('hidden', document.hidden)
+      const hide = () => {
+        this.silence('hidden', document.hidden)
+        wakeContext()
+      }
       document.addEventListener('visibilitychange', hide)
       addEventListener('pagehide', () => this.silence('hidden', true))
       addEventListener('pageshow', hide)
+      addEventListener('focus', wakeContext)
+      for (const type of WAKE_EVENTS) document.addEventListener(type, wakeContext, { capture: true, passive: true })
       hide()
     }
   }
@@ -79,8 +98,17 @@ class Audio {
     Howler.mute(this.silencers.size > 0)
   }
 
+  probe() {
+    if (!this.probing) this.probing = playableFormat()
+    return this.probing
+  }
+
+  prime() {
+    Howler.volume()
+  }
+
   init() {
-    if (!this.booting) this.booting = playableFormat().then(ext => this.create(ext))
+    if (!this.booting) this.booting = this.probe().then(ext => this.create(ext))
     return this.booting
   }
 
@@ -88,7 +116,7 @@ class Audio {
     this.ext = ext
     this.ready = true
     for (const k in SFX) {
-      this.sfx[k] = new Howl({ src: [`assets/audio/${k}.${ext}`], volume: SFX[k], preload: true })
+      this.sfx[k] = new Howl({ src: [`assets/audio/${k}.${ext}`], volume: SFX[k], preload: BOOT_SFX.has(k) })
     }
     for (const k in MUSIC) {
       this.music[k] = new Howl({
@@ -111,9 +139,13 @@ class Audio {
 
   fetch(names) {
     for (const name of names) {
-      const h = this.music[name] || this.group(name)
+      const h = this.music[name] || this.sfx[name] || this.group(name)
       if (h && h.state() === 'unloaded') h.load()
     }
+  }
+
+  fetchSfx() {
+    this.fetch(Object.keys(SFX))
   }
 
   has(key) {
@@ -133,6 +165,7 @@ class Audio {
     if (BANK.sounds[name]) return this.playEvent(name, opts)
     const h = this.sfx[name]
     if (!h) return
+    if (h.state() === 'unloaded') h.load()
     const id = h.play()
     if (opts.rate) h.rate(opts.rate, id)
     if (opts.volume != null) h.volume(SFX[name] * opts.volume, id)

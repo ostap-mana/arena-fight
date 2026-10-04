@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import { stream } from '../core/rng.js'
+import { fetchJson } from '../core/fetch.js'
+import { compileFor } from '../core/compile.js'
 
 const random = stream('fx')
 
@@ -2057,8 +2059,7 @@ async function uploadTextures(renderer, materials) {
 
 export function loadVfx(id) {
   if (!libraries.has(id)) {
-    libraries.set(id, fetch(`${BASE}${id}.json`)
-      .then(r => (r.ok ? r.json() : null))
+    libraries.set(id, fetchJson(`${BASE}${id}.json`)
       .then(d => (d ? new Library(d) : null))
       .catch(() => null))
   }
@@ -2126,7 +2127,7 @@ export class Vfx {
     return inst
   }
 
-  async warm(renderer, camera, names = []) {
+  async warm(renderer, camera, names = [], target = null) {
     maxAnisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 1)
     for (const tex of textureCache.values()) {
       if (tex.anisotropy === maxAnisotropy) continue
@@ -2164,12 +2165,7 @@ export class Vfx {
     const stage = new THREE.Scene()
     stage.fog = this.scene.fog
     stage.add(probe)
-    try {
-      if (renderer.compileAsync) await renderer.compileAsync(stage, camera)
-      else renderer.compile(stage, camera)
-    } catch (e) {
-      console.warn('vfx warm', e)
-    }
+    await compileFor(renderer, stage, camera, target)
     stage.remove(probe)
     probe.traverse(o => {
       if (o.isInstancedMesh) {

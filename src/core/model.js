@@ -1,10 +1,13 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
-import { characterMaterial, addProjectedShadow } from '../world/character-shader.js'
+import { characterMaterial, addProjectedShadow, characterTexturesReady } from '../world/character-shader.js'
 import { meshVfxMaterial } from '../world/vfx.js'
+import { fetchBuffer } from './fetch.js'
 
-const loader = new GLTFLoader()
+const MODEL_DIR = 'assets/glb/'
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
 const COMPACT = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
 const modelCache = new Map()
 const IGNORED_CLIP = /^(FXA_|New Animation)/
@@ -16,13 +19,13 @@ const WING_CLIP = { Run: 'Run', Walk: 'Run', Dash: 'Dash', Death: 'Death' }
 const _v = new THREE.Vector3()
 
 export function texturesReady() {
-  return Promise.resolve()
+  return characterTexturesReady()
 }
 
 export function loadModelData(id) {
   if (!modelCache.has(id)) {
     const file = COMPACT && /_lob$/.test(id) ? `${id}_m` : id
-    modelCache.set(id, loader.loadAsync(`assets/glb/${file}.glb`).then(prepareModel))
+    modelCache.set(id, fetchBuffer(`${MODEL_DIR}${file}.glb`).then(data => loader.parseAsync(data, MODEL_DIR)).then(prepareModel))
   }
   return modelCache.get(id)
 }

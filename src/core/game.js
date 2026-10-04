@@ -21,6 +21,9 @@ import { BUILDS, POWER_GOAL } from '../data/builds.js'
 import { UI, ELEMENT_ART } from '../ui/ui.js'
 import { stream, seed } from './rng.js'
 import { wireBus, sayOnce, sayProgress, openStore, stepDoor, tellState, bootMark } from '../net/bus.js'
+import { prefetchProgress } from './fetch.js'
+import { compileFor } from './compile.js'
+import { ResolutionGovernor } from './governor.js'
 
 const random = stream('sim')
 
@@ -129,6 +132,8 @@ const GATE_WARN_DELAY = 2.1
 const DEFEAT_REASON_DELAY = 2.4
 const STATE_KEYS = { KeyV: 'victory', KeyD: 'defeat', KeyR: 'restart' }
 const RETRY_DELAY = 160
+const BOOT_PROGRESS = { fetch: 0.8, parse: 0.15 }
+const SELECT_TEXTURE_WAIT = 4000
 const _camVel = new THREE.Vector3()
 const _dampA = new THREE.Vector3()
 const _dampB = new THREE.Vector3()
@@ -196,6 +201,10 @@ export class Game {
     this.variant = new URLSearchParams(location.search).get('v') || 'default'
     this.heroIndex = 0
     this.cooldowns = { s1: 0, s2: 0, s3: 0, dash: 0, attack: 0 }
+    this.selectActors = []
+    this.renderHold = 0
+    this.idleBehindBoot = false
+    this.revealing = null
     this.setupRenderer()
     this.input = new Input()
     this.input.attachStick(this.ui.stick)
@@ -257,6 +266,10 @@ export class Game {
     })
     r.setPixelRatio(Math.min(devicePixelRatio, 2))
     r.setSize(innerWidth, innerHeight)
+    this.governor = new ResolutionGovernor(r.getPixelRatio())
+    this.contextLost = false
+    this.canvas.addEventListener('webglcontextlost', () => { this.contextLost = true })
+    this.canvas.addEventListener('webglcontextrestored', () => { this.contextLost = false })
     r.outputColorSpace = THREE.SRGBColorSpace
     r.toneMapping = THREE.ACESFilmicToneMapping
     r.toneMappingExposure = 1.05
@@ -474,14 +487,18 @@ export class Game {
   async boot() {
     const fonts = ['400 20px Hitzone', '500 20px Hitzone', '20px "Hitzone Med"', '20px "Montserrat It"']
     const fontsReady = Promise.all(fonts.map(f => document.fonts?.load(f).catch(() => {})))
+    audio.probe()
     const lobbyIds = [...new Set(HEROES.map(h => h.lobby || h.model))]
     const total = lobbyIds.length + 1
     let done = 0
-    const advance = () => {
-      done++
-      this.ui.progress(0.05 + (done / total) * 0.85)
+    let booting = true
+    const advance = () => { done++ }
+    const showProgress = () => {
+      if (!booting) return
+      this.ui.progress(BOOT_PROGRESS.fetch * prefetchProgress() + BOOT_PROGRESS.parse * (done / total))
+      requestAnimationFrame(showProgress)
     }
-    this.ui.progress(0.04)
+    showProgress()
     const arenaReady = buildArena(this.scene).then(async arena => {
       this.arena = arena
       await loadCharacterLighting(arena.id)
@@ -499,21 +516,27 @@ export class Game {
       if (h.skinMute) this.heroFx.muteSkin(h.vfx, h.skinMute)
       if (h.lobbyFocus) this.heroFx.focusLobby(h.vfx, h.lobbyFocus)
     }
+    await new Promise(r => requestAnimationFrame(r))
+    this.warmPost()
+    audio.prime()
     await Promise.all([arenaReady, ...lobbyReady])
     bootMark('models')
     this.setupLights()
-    await Promise.all([audio.init(), Promise.race([fontsReady, new Promise(r => setTimeout(r, 3000))]), new Promise(r => setTimeout(r, 320))])
+    await Promise.all([audio.init(), Promise.race([fontsReady, new Promise(r => setTimeout(r, 3000))])])
     bootMark('audio')
-    await this.renderer.compileAsync(this.scene, this.camera).catch(() => this.renderer.compile(this.scene, this.camera))
-    bootMark('compiled')
+    booting = false
     this.ui.progress(1)
     this.ui.bootDone()
-    this.backgroundLoad = this.loadInBackground()
+    this.ui.release()
+    this.idleBehindBoot = true
+    this.selectWarm = this.warmSelect().catch(e => console.warn('select warm-up', e))
+    this.backgroundLoad = this.selectWarm.then(() => this.loadInBackground())
 
     const start = () => {
       removeEventListener('pointerdown', start)
       removeEventListener('keydown', start)
       bootMark('tap')
+      this.idleBehindBoot = false
       audio.play('ui_braam')
       audio.track('music_lobby')
       this.ui.hideBoot()
@@ -524,20 +547,51 @@ export class Game {
     this.loop()
   }
 
+  warmPost() {
+    for (const lobby of [true, false]) {
+      this.switchPost(lobby)
+      this.composer.render()
+    }
+  }
+
+  async warmSelect() {
+    await this.prepareSelect()
+    await this.compileScene()
+    bootMark('compiled')
+    await Promise.race([texturesReady(), new Promise(r => setTimeout(r, SELECT_TEXTURE_WAIT))])
+    await new Promise(r => requestAnimationFrame(r))
+    this.composer.render()
+    bootMark('warm')
+  }
+
+  quiet() {
+    return this.revealing || Promise.resolve()
+  }
+
   async loadInBackground() {
     const vfxIds = [...new Set(HEROES.map(h => h.vfx).filter(Boolean))]
+    await this.quiet()
     await this.vfx.preload(vfxIds)
+    await this.quiet()
     for (const id of vfxIds) this.heroFx.preloadModels(id)
     this.attachSelectSkins()
-    await this.vfx.warm(this.renderer, this.camera, this.lobbyFxNames())
+    await this.vfx.warm(this.renderer, this.camera, this.lobbyFxNames(), this.composer.inputBuffer)
     audio.fetch(['music_battle', 'amb_battle', 'common', 'enemies'])
-    for (const id of [...new Set(HEROES.map(h => h.model))]) await loadModelData(id).catch(() => null)
-    for (const def of [...new Set(WAVES.flatMap(w => w.spawns.map(([type]) => ENEMIES[type])))]) await enemyModel(def).catch(() => null)
+    audio.fetchSfx()
+    for (const id of [...new Set(HEROES.map(h => h.model))]) {
+      await this.quiet()
+      await loadModelData(id).catch(() => null)
+    }
+    for (const def of [...new Set(WAVES.flatMap(w => w.spawns.map(([type]) => ENEMIES[type])))]) {
+      await this.quiet()
+      await enemyModel(def).catch(() => null)
+    }
+    await this.quiet()
     await this.loot.load().catch(e => console.warn('loot', e))
     if (this.state === 'battle') this.warmBattleFx([], true)
     const enemyVfx = [...new Set(WAVES.flatMap(w => w.spawns.map(([type]) => ENEMIES[type].vfx)).filter(Boolean))]
     if (enemyVfx.length) await this.vfx.preload(enemyVfx)
-    this.vfx.warm(this.renderer, this.camera, this.loot.fxNames())
+    this.vfx.warm(this.renderer, this.camera, this.loot.fxNames(), this.composer.inputBuffer)
     audio.fetch(['music_titan', 'music_victory', 'music_endcard'])
   }
 
@@ -777,13 +831,9 @@ export class Game {
     c.updateProjectionMatrix()
   }
 
-  async enterSelect() {
-    this.state = 'select'
-    this.ui.veilHold()
-    this.setLobbyPost(true)
-    this.ui.buildCards(i => this.pickHero(i))
-    this.ui.show('select', true)
-    this.selectActors = []
+  async prepareSelect() {
+    if (this.selectActors && this.selectActors.length) return
+    const actors = []
     for (let i = 0; i < HEROES.length; i++) {
       const h = HEROES[i]
       const data = await loadModelData(h.lobby || h.model)
@@ -792,11 +842,24 @@ export class Game {
       a.targetFacing = a.facing = (h.turn || 0) - (i - 1) * 0.16
       a.rig.play('pose', { force: true })
       a.rig.t = i * 1.7
-      await texturesReady()
       this.scene.add(a.root)
-      this.selectActors.push(a)
-      if (h.vfx && this.heroFx && h.lobbySkin !== false) this.heroFx.attachSkin(h.vfx, a, { lobby: true })
+      actors.push(a)
     }
+    this.selectActors = actors
+    this.showcase = new Showcase(this.scene, this.selectActors, HEROES, this.arena)
+  }
+
+  async enterSelect() {
+    let revealed
+    this.revealing = new Promise(resolve => { revealed = resolve })
+    this.state = 'select'
+    this.ui.veilHold()
+    this.setLobbyPost(true)
+    this.ui.buildCards(i => this.pickHero(i))
+    this.ui.show('select', true)
+    await this.selectWarm
+    await this.prepareSelect()
+    this.attachSelectSkins()
     this.fitSelectCamera()
     this.heroIndex = 0
     this.camTarget.set(0, 0, 0)
@@ -805,18 +868,18 @@ export class Game {
     this.camSnap = true
     this.ui.selectCard(0)
     this.highlightSelected()
-    this.showcase = new Showcase(this.scene, this.selectActors, HEROES, this.arena)
     setLobbyView(this.camera)
     this.selectShadow()
     const warm = this.warmIntroFx()
-    await new Promise(r => requestAnimationFrame(r))
-    if (this.renderer.compileAsync) await this.renderer.compileAsync(this.scene, this.camera).catch(() => {})
+    await this.compileHidden()
     await this.settleFrames()
     for (const inst of warm) inst.stop()
     this.ui.playSelectIntro()
     this.ui.veilOut()
     this.playIntro(0)
     bootMark('select')
+    this.revealing = null
+    revealed()
   }
 
   settleFrames() {
@@ -834,12 +897,29 @@ export class Game {
     })
   }
 
-  async warmBattleFx(ids, withLoot = false) {
+  compileScene(scene = this.scene) {
+    return compileFor(this.renderer, scene, this.camera, this.composer.inputBuffer)
+  }
+
+  async compileHidden() {
+    this.renderHold++
+    try {
+      await new Promise(r => requestAnimationFrame(r))
+      await this.compileScene()
+    } finally {
+      this.renderHold--
+    }
+  }
+
+  async warmBattleFx(ids, withLoot = false, veiled = false) {
     const hidden = new THREE.Vector3(0, -40, 0)
     const warm = ids.filter(Boolean).flatMap(id => this.heroFx.warmSkills(id, hidden))
     const probe = withLoot && this.loot.ready ? this.loot.warmProbe(LOOT_WARM_AT, LOOT_WARM_SCALE) : null
-    await new Promise(r => requestAnimationFrame(r))
-    if (this.renderer.compileAsync) await this.renderer.compileAsync(this.scene, this.camera).catch(() => {})
+    if (veiled) await this.compileHidden()
+    else {
+      await new Promise(r => requestAnimationFrame(r))
+      await this.compileScene()
+    }
     await new Promise(r => requestAnimationFrame(r))
     for (const inst of warm) inst.stop()
     if (probe) probe.removeFromParent()
@@ -1105,7 +1185,7 @@ export class Game {
     this.camLook.set(0, BATTLE_LOOK_Y, 0)
     this.fitCamera()
     this.camSnap = true
-    await this.warmBattleFx([hero.vfx], true)
+    await this.warmBattleFx([hero.vfx], true, true)
 
     audio.track('music_battle')
     audio.layer('amb_battle', true)
@@ -1880,7 +1960,7 @@ export class Game {
 
   async loadTitan(def) {
     const [data] = await Promise.all([loadModelData(def.model), this.vfx.preload([def.vfx])])
-    this.vfx.warm(this.renderer, this.camera)
+    this.vfx.warm(this.renderer, this.camera, [], this.composer.inputBuffer)
     await this.warmBattleFx([def.vfx])
     return { data, land: landingTime(data, 'Morph') }
   }
@@ -2506,20 +2586,37 @@ export class Game {
     }
   }
 
+  render() {
+    if (!this.renderHold && !this.contextLost) this.composer.render()
+  }
+
+  govern(elapsed) {
+    if (this.renderHold || this.contextLost || (this.state !== 'select' && this.state !== 'battle')) {
+      this.governor.reset()
+      return
+    }
+    const ratio = this.governor.sample(elapsed)
+    if (ratio === null) return
+    this.renderer.setPixelRatio(ratio)
+    this.resize()
+  }
+
   loop() {
     let last = performance.now()
     bootMark('loop')
     const frame = now => {
       requestAnimationFrame(frame)
-      let dt = stepDoor(Math.min(0.05, (now - last) / 1000))
+      const elapsed = (now - last) / 1000
+      let dt = stepDoor(Math.min(0.05, elapsed))
       last = now
-      if (this.benched) return
-      if (dt == null || this.paused) { this.composer.render(); return }
+      if (this.benched || this.idleBehindBoot) return
+      if (dt == null || this.paused) { this.render(); return }
       this.realDt = dt
       dt *= this.timeScale * THREE.MathUtils.lerp(1, GEAR_SLOWMO, this.gearK)
       this.t += dt
       this.step(dt)
-      this.composer.render()
+      this.render()
+      this.govern(elapsed)
     }
     requestAnimationFrame(frame)
   }

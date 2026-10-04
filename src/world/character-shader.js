@@ -1,12 +1,43 @@
 import * as THREE from 'three'
 import { DYN_LIGHTS, DYN_LIGHTS_GLSL } from './lights.js'
+import { fetchJson } from '../core/fetch.js'
 
 const BASE = 'assets/glb/'
-const texLoader = new THREE.TextureLoader()
 const cubeLoader = new THREE.CubeTextureLoader()
+const imageLoader = bitmapsDecodeOffThread()
+  ? new THREE.ImageBitmapLoader().setOptions({ imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
+  : new THREE.ImageLoader()
 const textures = new Map()
 const cubes = new Map()
+const pendingTextures = new Set()
 let lighting = null
+
+function bitmapsDecodeOffThread() {
+  if (typeof createImageBitmap === 'undefined' || typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  const safari = /^((?!chrome|android).)*safari/i.test(ua)
+  const safariVersion = Number((ua.match(/Version\/(\d+)/) || [])[1] || 0)
+  const firefoxVersion = Number((ua.match(/Firefox\/(\d+)/) || [])[1] || 0)
+  return !(safari && safariVersion < 17) && !(firefoxVersion && firefoxVersion < 98)
+}
+
+function loadTexture(url) {
+  const texture = new THREE.Texture()
+  const done = new Promise(resolve => {
+    imageLoader.load(url, image => {
+      texture.image = image
+      texture.needsUpdate = true
+      resolve()
+    }, undefined, resolve)
+  })
+  pendingTextures.add(done)
+  done.then(() => pendingTextures.delete(done))
+  return texture
+}
+
+export function characterTexturesReady() {
+  return Promise.all([...pendingTextures])
+}
 
 export const CHARACTER_LIGHT = {
   uCharLightDir: { value: new THREE.Vector3(0.2198, 0.766, 0.604).normalize() },
@@ -55,7 +86,7 @@ const GREY_CUBE = (() => {
 
 export async function loadCharacterLighting(location) {
   if (!lighting) {
-    lighting = fetch('assets/locations/lighting.json').then(r => (r.ok ? r.json() : {})).catch(() => ({}))
+    lighting = fetchJson('assets/locations/lighting.json').catch(() => ({}))
   }
   const all = await lighting
   const l = all[location] || all.fire
@@ -73,7 +104,7 @@ export function tickCharacters(dt) {
 function mask(entry, wrap = THREE.RepeatWrapping) {
   if (!entry || !entry.file) return null
   if (!textures.has(entry.file)) {
-    const t = texLoader.load(BASE + entry.file)
+    const t = loadTexture(BASE + entry.file)
     t.colorSpace = entry.srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace
     t.wrapS = t.wrapT = wrap
     t.flipY = false

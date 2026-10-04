@@ -51,6 +51,7 @@ import classTankImg from '../assets/GENERAL/HUD/select/class-tank.webp'
 import classSupportImg from '../assets/GENERAL/HUD/select/class-support.webp'
 import { Outcome } from './outcome.js'
 import { GearRing } from './gear-ring.js'
+import { deferImages, whenReleased, releaseImages } from './lazy.js'
 import powerIconImg from '../assets/GENERAL/HUD/gear/power-icon.webp'
 
 export const ELEMENT_ART = {
@@ -194,18 +195,7 @@ export class UI {
   }
 
   build() {
-    this.root.innerHTML = `
-      <div id="boot">
-        <div class="logo">
-          <img class="base" src="assets/img/logo_base.webp" alt="INVOKERS — Titan Legacy" draggable="false">
-          <img class="ring" src="assets/img/logo_ring.webp" alt="" draggable="false">
-          <div class="foot">
-            <div class="bar"><i></i></div>
-            <div class="tap">tap to begin</div>
-          </div>
-        </div>
-      </div>
-
+    this.root.insertAdjacentHTML('beforeend', deferImages(`
       <div id="select" class="screen">
         <div class="shade"></div>
         <div class="head">
@@ -332,14 +322,12 @@ export class UI {
         <button class="control"><img class="plate" alt="" draggable="false"><span class="label">RETRY</span></button>
         <div class="flash"></div>
       </div>
-    `
+    `))
 
     this.boot = this.root.querySelector('#boot')
     this.bootBar = this.boot.querySelector('.bar > i')
-    this.ringSpin = this.boot.querySelector('.ring').animate(
-      [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }],
-      { duration: 1500, iterations: Infinity }
-    )
+    const ring = this.boot.querySelector('.ring')
+    this.ringSpin = (ring.getAnimations && ring.getAnimations()[0]) || null
     this.select = this.root.querySelector('#select')
     this.cards = this.select.querySelector('.cards')
     this.hud = this.root.querySelector('#hud')
@@ -374,9 +362,11 @@ export class UI {
     this.skills = this.root.querySelectorAll('.skill')
     this.attackArt = this.hud.querySelector('.skill.main .art')
     this.skillIcons = ['s1', 's2', 's3'].map(k => this.hud.querySelector(`.skill.${k} .icon`))
-    Object.values(ATTACK_ART).forEach(src => { new Image().src = src })
-    Object.values(SKILL_ART).flat().forEach(src => { new Image().src = src })
-    Object.values(PORTRAIT_ART).forEach(src => { new Image().src = src })
+    whenReleased(() => {
+      Object.values(PORTRAIT_ART).forEach(src => { new Image().src = src })
+      Object.values(ATTACK_ART).forEach(src => { new Image().src = src })
+      Object.values(SKILL_ART).flat().forEach(src => { new Image().src = src })
+    })
     this.banner = this.root.querySelector('#banner')
     this.veil = this.root.querySelector('#veil')
     this.skip = this.root.querySelector('#skip')
@@ -423,16 +413,21 @@ export class UI {
     this.bootBar.style.transform = `scaleX(${p})`
   }
 
+  release() {
+    this.root.classList.remove('booting')
+    releaseImages(this.root)
+  }
+
   bootDone() {
     this.boot.classList.add('ready')
-    gsap.to(this.ringSpin, { playbackRate: 0.16, duration: 1.8, ease: 'power2.out' })
+    if (this.ringSpin) gsap.to(this.ringSpin, { playbackRate: 0.16, duration: 1.8, ease: 'power2.out' })
   }
 
   hideBoot() {
     this.boot.style.opacity = '0'
     setTimeout(() => {
       this.boot.classList.add('hidden')
-      this.ringSpin.cancel()
+      if (this.ringSpin) this.ringSpin.cancel()
     }, 520)
   }
 

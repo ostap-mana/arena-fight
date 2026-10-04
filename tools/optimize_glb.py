@@ -4,6 +4,8 @@ import re
 import sys
 import json
 import struct
+import subprocess
+import tempfile
 import numpy as np
 from PIL import Image
 
@@ -14,6 +16,9 @@ ROT_TOL = 0.0015
 POS_TOL = 0.0008
 SCALE_TOL = 0.001
 ALBEDO_QUALITY = 90
+ALPHA_QUALITY = 75
+MESHOPT_TOOL = os.path.join(HERE, "meshopt_glb.mjs")
+MESHOPT = "EXT_meshopt_compression"
 
 FLOAT, BYTE, UBYTE, SHORT, USHORT, UINT = 5126, 5120, 5121, 5122, 5123, 5125
 DTYPE = {FLOAT: np.float32, BYTE: np.int8, UBYTE: np.uint8, SHORT: np.int16, USHORT: np.uint16, UINT: np.uint32}
@@ -23,6 +28,10 @@ ARRAY_BUFFER, ELEMENT_ARRAY_BUFFER = 34962, 34963
 
 def log(*a):
     print(*a, file=sys.stderr, flush=True)
+
+
+def meshopt(*args):
+    subprocess.run(["node", MESHOPT_TOOL, *args], check=True, stdout=subprocess.DEVNULL)
 
 
 def read_glb(path):
@@ -201,8 +210,41 @@ def webp_bytes(data, lossless, has_alpha, max_side=None):
     if lossless:
         img.save(buf, "WEBP", lossless=True, method=6, exact=True)
     else:
-        img.save(buf, "WEBP", quality=ALBEDO_QUALITY, alpha_quality=100, method=6, exact=True)
+        img.save(buf, "WEBP", quality=ALBEDO_QUALITY, alpha_quality=ALPHA_QUALITY, method=6, exact=True)
     return buf.getvalue()
+
+
+def riff_chunks(data):
+    pos, chunks = 12, []
+    while pos + 8 <= len(data):
+        tag = data[pos:pos + 4]
+        size = struct.unpack_from("<I", data, pos + 4)[0]
+        chunks.append((tag, data[pos + 8:pos + 8 + size]))
+        pos += 8 + size + (size & 1)
+    return chunks
+
+
+def riff_join(chunks):
+    body = b"WEBP"
+    for tag, payload in chunks:
+        body += tag + struct.pack("<I", len(payload)) + payload + (b"\0" if len(payload) & 1 else b"")
+    return b"RIFF" + struct.pack("<I", len(body)) + body
+
+
+def requantize_alpha(data):
+    if data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        return data
+    chunks = riff_chunks(data)
+    alpha = next((p for t, p in chunks if t == b"ALPH"), None)
+    if alpha is None or (alpha[0] >> 4) & 3:
+        return data
+    img = Image.open(io.BytesIO(data)).convert("RGBA")
+    buf = io.BytesIO()
+    img.save(buf, "WEBP", quality=ALBEDO_QUALITY, alpha_quality=ALPHA_QUALITY, method=6, exact=True)
+    fresh = next((p for t, p in riff_chunks(buf.getvalue()) if t == b"ALPH"), None)
+    if fresh is None or len(fresh) >= len(alpha):
+        return data
+    return riff_join([(t, fresh if t == b"ALPH" else p) for t, p in chunks])
 
 
 def image_alpha(data):
@@ -212,8 +254,22 @@ def image_alpha(data):
     return bool((np.asarray(img.convert("RGBA"))[..., 3] < 250).any())
 
 
-def optimize(path, out_path=None, lobby=None, max_tex=None):
+def read_plain(path):
     gltf, bin_data = read_glb(path)
+    if MESHOPT not in gltf.get("extensionsUsed", []):
+        return gltf, bin_data
+    fd, plain = tempfile.mkstemp(suffix=".glb")
+    os.close(fd)
+    try:
+        meshopt("--decode", path, plain)
+        return read_glb(plain)
+    finally:
+        os.remove(plain)
+
+
+def optimize(path, out_path=None, lobby=None, max_tex=None):
+    before = os.path.getsize(path)
+    gltf, bin_data = read_plain(path)
     src = Source(gltf, bin_data)
     lobby = lobby if lobby is not None else bool(re.search(r"_lob(_m)?\.glb$", path))
     b = Builder()
@@ -306,6 +362,8 @@ def optimize(path, out_path=None, lobby=None, max_tex=None):
             data = webp_bytes(data, ii in normal_images, image_alpha(data), max_tex)
             im["mimeType"] = "image/webp"
             webp_used = True
+        elif im.get("mimeType") == "image/webp" and ii not in normal_images:
+            data = requantize_alpha(data)
         im["bufferView"] = b.view(data)
     if webp_used:
         for tex in gltf.get("textures", []):
@@ -328,16 +386,50 @@ def optimize(path, out_path=None, lobby=None, max_tex=None):
     gltf["bufferViews"] = b.views
     blob = b.data()
     gltf["buffers"] = [{"byteLength": len(blob) + (4 - len(blob) % 4) % 4}]
-    before = os.path.getsize(path)
     target = out_path or path
     write_glb(target, gltf, blob)
+    meshopt(target)
     after = os.path.getsize(target)
     log("%s: %.2f MB -> %.2f MB, clips %d, keys %d -> %d" % (os.path.basename(path), before / 1048576, after / 1048576, len(anims), keys_before, keys_after))
     return after
 
 
+def repack(path):
+    before = os.path.getsize(path)
+    gltf, bin_data = read_plain(path)
+    src = Source(gltf, bin_data)
+    normal_images = set()
+    for m in gltf.get("materials", []):
+        nt = m.get("normalTexture")
+        if nt is not None:
+            tex = gltf["textures"][nt["index"]]
+            normal_images.add(tex.get("source", (tex.get("extensions", {}).get("EXT_texture_webp") or {}).get("source")))
+    fresh = {}
+    for ii, im in enumerate(gltf.get("images", [])):
+        if im.get("mimeType") == "image/webp" and ii not in normal_images and "bufferView" in im:
+            fresh[im["bufferView"]] = requantize_alpha(src.view_bytes(im["bufferView"]))
+    blob = bytearray()
+    for vi, view in enumerate(gltf["bufferViews"]):
+        data = fresh.get(vi, src.view_bytes(vi))
+        blob += b"\0" * ((4 - len(blob) % 4) % 4)
+        view["buffer"] = 0
+        view["byteOffset"] = len(blob)
+        view["byteLength"] = len(data)
+        blob += data
+    gltf["buffers"] = [{"byteLength": len(blob) + (4 - len(blob) % 4) % 4}]
+    write_glb(path, gltf, bytes(blob))
+    meshopt(path)
+    after = os.path.getsize(path)
+    log("%s: %.2f MB -> %.2f MB (repacked)" % (os.path.basename(path), before / 1048576, after / 1048576))
+    return after
+
+
 def main(argv):
     paths = [a for a in argv if not a.startswith("--")] or sorted(os.path.join(GLB_DIR, f) for f in os.listdir(GLB_DIR) if f.endswith(".glb"))
+    if "--repack" in argv:
+        for p in paths:
+            repack(p)
+        return 0
     out_dir = next((a.split("=", 1)[1] for a in argv if a.startswith("--out=")), None)
     max_tex = next((int(a.split("=", 1)[1]) for a in argv if a.startswith("--max-tex=")), None)
     suffix = next((a.split("=", 1)[1] for a in argv if a.startswith("--suffix=")), "")

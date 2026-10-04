@@ -3,6 +3,7 @@ import victoryBandUrl from '../assets/GENERAL/lose-win/victory-band.webp'
 import defeatBandUrl from '../assets/GENERAL/lose-win/defeat-band.webp'
 import playNowUrl from '../assets/GENERAL/BUTTONS/play-now.webp'
 import retryPlateUrl from '../assets/GENERAL/BUTTONS/retry-plate.webp'
+import { whenReleased } from './lazy.js'
 
 const VERDICT_ART = { w: 816, h: 266 }
 const PLAY_ART = { w: 640, h: 164 }
@@ -106,7 +107,8 @@ export class Outcome {
     this.t = 0
     this.onRetry = null
     this.onCta = null
-    this.warm = Object.values(SIDE).flatMap(s => [s.band, s.plate]).map(warmImage)
+    this.warm = []
+    whenReleased(() => { this.warm = Object.values(SIDE).flatMap(s => [s.band, s.plate]).map(warmImage) })
     document.fonts?.load('500 20px Hitzone').catch(() => {})
     this.tick = this.tick.bind(this)
     this.control.addEventListener('click', e => {

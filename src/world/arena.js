@@ -1,13 +1,15 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { DYN_LIGHTS, DYN_LIGHTS_GLSL } from './lights.js'
+import { LOCATIONS, DEFAULT_LOCATION } from '../data/locations.js'
+import { fetchBuffer, fetchJson } from '../core/fetch.js'
 
-export const LOCATIONS = ['fire', 'water', 'earth', 'wind', 'light', 'dark']
-export const DEFAULT_LOCATION = 'fire'
 export const ARENA_RADIUS = 18.5
 
 const LIGHTMAP_INTENSITY = 3.6
-const loader = new GLTFLoader()
+const ARENA_DIR = 'assets/locations/'
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
 
 export function pickLocation() {
   const q = new URLSearchParams(location.search).get('loc')
@@ -19,9 +21,9 @@ export async function buildArena(scene, id = pickLocation()) {
   group.name = `spire_${id}`
   scene.add(group)
 
-  const index = await fetch('assets/locations/index.json').then(r => r.json())
+  const index = await fetchJson(`${ARENA_DIR}index.json`)
   const meta = index[id]
-  const gltf = await loader.loadAsync(`assets/locations/${meta.file}`)
+  const gltf = await loader.parseAsync(await fetchBuffer(`${ARENA_DIR}${meta.file}`), ARENA_DIR)
   const parser = gltf.parser
   const lightmapIds = gltf.scene.userData.lightmaps || []
   const lightmaps = await Promise.all(lightmapIds.map(i => (i == null ? null : parser.getDependency('texture', i))))

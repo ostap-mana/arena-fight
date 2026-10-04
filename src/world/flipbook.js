@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { stream } from '../core/rng.js'
+import { fetchJson } from '../core/fetch.js'
 
 const random = stream('fx')
 
@@ -59,8 +60,7 @@ export function paletteRow(name) {
 
 export function loadManifest() {
   if (!manifestReady) {
-    manifestReady = fetch(`${BASE}flipbooks.json`)
-      .then(r => (r.ok ? r.json() : {}))
+    manifestReady = fetchJson(`${BASE}flipbooks.json`)
       .catch(() => ({}))
       .then(m => (manifest = m))
   }

@@ -1,5 +1,6 @@
 import { BUILD_PIECES, formatStat, GEAR_SLOTS, STAT_LABEL } from '../core/gear.js'
 import { POWER_GOAL, SET_NAME } from '../data/builds.js'
+import { deferImages } from './lazy.js'
 
 const RELIC_ART = import.meta.glob('../assets/GENERAL/HUD/loot/relic-*.webp', { eager: true, import: 'default' })
 const GEAR_ART = import.meta.glob('../assets/GENERAL/HUD/gear/*.webp', { eager: true, import: 'default' })
@@ -64,7 +65,7 @@ export class GearRing {
   }
 
   build() {
-    this.el.innerHTML = `
+    this.el.innerHTML = deferImages(`
       <i class="halo"></i>
       <div class="plate"><div class="pk">
         <i class="pshadow"></i>
@@ -83,7 +84,7 @@ export class GearRing {
           <button class="auto"><i class="sweep"></i><span>AUTO</span></button>
           <div class="items"></div>
         </div>
-      </div></div>`
+      </div></div>`)
     this.plate = this.el.querySelector('.plate')
     this.strip = this.el.querySelector('.strip')
     this.items = this.el.querySelector('.items')

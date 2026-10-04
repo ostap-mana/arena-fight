@@ -10,11 +10,13 @@ import game_assets as ga
 import export_heroes as eh
 import char_materials
 import optimize_glb
+import pack_masks
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CODES = ["MAG018", "ELD037", "ELD025"]
 LOBBY_TEX = 2048
 LOBBY_MASK = 1024
+MASK_KEYS = ("_MSE_SkinMask", "_AOSE_Mask")
 PLATFORM_SCENE = "64cb31baef87e0619063cf1e3e1469a0"
 REFLECTION_CUBE = -1735286067516325744
 LOBBY_COLORS = ("_EmissiveColor", "_RimColor", "_NoiseColor", "_S_AmbientColor")
@@ -65,12 +67,13 @@ def save_lossless(img, path, max_side):
     img.save(path, "WEBP", lossless=True, exact=True, method=6)
 
 
-def export_texture(tex, out_dir, max_side, cache, mode="RGBA"):
+def export_texture(tex, out_dir, max_side, cache, mode="RGBA", mask=False):
     name = tex.m_Name.replace(" ", "_")
     rel = "tex/%s.webp" % name
     if name not in cache:
         path = os.path.join(out_dir, rel)
-        save_lossless(tex.image.convert(mode), path, max_side)
+        img = tex.image.convert(mode)
+        save_lossless(pack_masks.posterize(img) if mask else img, path, max_side)
         cache[name] = {"file": rel, "srgb": 1 if getattr(tex, "m_ColorSpace", 1) == 1 else 0}
     return cache[name]
 
@@ -178,7 +181,7 @@ def make_exporter(glb, cube):
             for key, side, mode in textures:
                 t = glb.tex_prop(self.b, mat, (key,))
                 if t is not None:
-                    out[key.strip("_")] = export_texture(t, glb.OUT, side, cache, mode)
+                    out[key.strip("_")] = export_texture(t, glb.OUT, side, cache, mode, mask=key in MASK_KEYS)
             return out
 
         def write_glb(self):
