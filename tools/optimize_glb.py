@@ -17,6 +17,9 @@ POS_TOL = 0.0008
 SCALE_TOL = 0.001
 ALBEDO_QUALITY = 90
 ALPHA_QUALITY = 75
+MOBILE_TEX_MAX = 512
+MOBILE_TEX_QUALITY = 88
+TEX_REF = re.compile(r"^tex/([^/]+\.webp)$")
 MESHOPT_TOOL = os.path.join(HERE, "meshopt_glb.mjs")
 MESHOPT = "EXT_meshopt_compression"
 
@@ -267,9 +270,52 @@ def read_plain(path):
         os.remove(plain)
 
 
-def optimize(path, out_path=None, lobby=None, max_tex=None):
+def small_texture(ref, max_side):
+    hit = TEX_REF.match(ref)
+    if not hit:
+        return ref
+    src = os.path.join(GLB_DIR, "tex", hit.group(1))
+    if not os.path.exists(src):
+        return ref
+    img = Image.open(src)
+    if max(img.size) <= max_side:
+        return ref
+    dst = os.path.join(GLB_DIR, "tex", "m", hit.group(1))
+    if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        img = img.convert("RGBA" if img.mode in ("RGBA", "LA", "P") else "RGB")
+        k = max_side / max(img.size)
+        size = (max(1, round(img.width * k)), max(1, round(img.height * k)))
+        img = Image.merge(img.mode, [band.resize(size, Image.LANCZOS) for band in img.split()])
+        img.save(dst, "WEBP", quality=MOBILE_TEX_QUALITY, alpha_quality=100, method=6, exact=True)
+    return "tex/m/" + hit.group(1)
+
+
+def mobile_textures(gltf, max_side):
+    def walk(value):
+        if isinstance(value, dict):
+            return {k: small_texture(v, max_side) if k == "file" and isinstance(v, str) else walk(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [walk(v) for v in value]
+        return value
+    for m in gltf.get("materials", []):
+        if "extras" in m:
+            m["extras"] = walk(m["extras"])
+
+
+def retarget_textures(path, max_side):
+    before = os.path.getsize(path)
+    gltf, bin_data = read_glb(path)
+    mobile_textures(gltf, max_side)
+    write_glb(path, gltf, bin_data)
+    log("%s: %.2f MB, external textures capped at %d px" % (os.path.basename(path), before / 1048576, max_side))
+
+
+def optimize(path, out_path=None, lobby=None, max_tex=None, ext_max=None):
     before = os.path.getsize(path)
     gltf, bin_data = read_plain(path)
+    if ext_max:
+        mobile_textures(gltf, ext_max)
     src = Source(gltf, bin_data)
     lobby = lobby if lobby is not None else bool(re.search(r"_lob(_m)?\.glb$", path))
     b = Builder()
@@ -430,13 +476,18 @@ def main(argv):
         for p in paths:
             repack(p)
         return 0
+    ext_max = next((int(a.split("=", 1)[1]) for a in argv if a.startswith("--ext-max=")), None)
+    if "--retarget" in argv:
+        for p in paths:
+            retarget_textures(p, ext_max or MOBILE_TEX_MAX)
+        return 0
     out_dir = next((a.split("=", 1)[1] for a in argv if a.startswith("--out=")), None)
     max_tex = next((int(a.split("=", 1)[1]) for a in argv if a.startswith("--max-tex=")), None)
     suffix = next((a.split("=", 1)[1] for a in argv if a.startswith("--suffix=")), "")
     for p in paths:
         name = os.path.basename(p)[:-4] + suffix + ".glb"
         out = os.path.join(out_dir or os.path.dirname(p), name) if out_dir or suffix else None
-        optimize(p, out, max_tex=max_tex)
+        optimize(p, out, max_tex=max_tex, ext_max=ext_max)
     return 0
 
 

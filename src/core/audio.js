@@ -120,7 +120,7 @@ class Audio {
     this.ext = ext
     this.ready = true
     for (const k in SFX) {
-      this.sfx[k] = new Howl({ src: [`assets/audio/${k}.${ext}`], volume: SFX[k], preload: BOOT_SFX.has(k) })
+      this.sfx[k] = new Howl({ src: [`assets/audio/${k}.${ext}`], volume: SFX[k], preload: false })
     }
     for (const k in MUSIC) {
       this.music[k] = new Howl({
@@ -128,10 +128,13 @@ class Audio {
         volume: 0,
         loop: MUSIC[k].loop,
         html5: false,
-        preload: k === 'music_lobby',
+        preload: false,
       })
     }
-    this.fetch(BOOT_GROUPS)
+  }
+
+  fetchBoot() {
+    this.fetch(['music_lobby', ...BOOT_GROUPS, ...BOOT_SFX])
   }
 
   group(name) {

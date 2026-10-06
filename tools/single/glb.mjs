@@ -1,11 +1,12 @@
 import { MeshoptEncoder, MeshoptDecoder, MeshoptSimplifier } from 'meshoptimizer'
-import { encodeImages } from './util.mjs'
+import { encodeImages, imageKind } from './util.mjs'
 
 export const glbReady = Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready, MeshoptSimplifier.ready])
 
 const MESHOPT = 'EXT_meshopt_compression'
 const QUANT = 'KHR_mesh_quantization'
 const WEBP = 'EXT_texture_webp'
+const AVIF = 'EXT_texture_avif'
 const BYTE = 5120
 const UBYTE = 5121
 const SHORT = 5122
@@ -73,7 +74,7 @@ export function packGlb(json, bin) {
   return out
 }
 
-class Reader {
+export class Reader {
   constructor(json, bin) {
     this.json = json
     this.bin = bin
@@ -277,10 +278,12 @@ function octInput(values, width) {
 }
 
 function roundTo(values, scale, bits) {
-  const levels = 2 ** bits - 1
-  const step = scale / levels
+  const full = scale === 65535 ? 16 : 8
+  const keep = Math.min(bits, full)
+  const levels = 2 ** keep - 1
+  const shift = 2 ** (full - keep)
   const out = new (scale === 65535 ? Uint16Array : Uint8Array)(values.length)
-  for (let i = 0; i < values.length; i++) out[i] = Math.round(Math.round(Math.min(1, Math.max(0, values[i])) * levels) * step)
+  for (let i = 0; i < values.length; i++) out[i] = Math.round(Math.min(1, Math.max(0, values[i])) * levels) * shift
   return out
 }
 
@@ -314,6 +317,8 @@ function writeAttribute(out, src, name, ai, keep, profile) {
   }
   if (name.startsWith('JOINTS_')) {
     const joints = gather(src.accessor(ai).array, 4, keep)
+    const remap = src.jointRemap && src.jointRemap.get(ai)
+    if (remap) for (let i = 0; i < joints.length; i++) joints[i] = remap[joints[i]] ?? 0
     let max = 0
     for (const j of joints) if (j > max) max = j
     const Arr = max < 256 ? Uint8Array : Uint16Array
@@ -329,9 +334,13 @@ function writeAttribute(out, src, name, ai, keep, profile) {
   if (name.startsWith('TEXCOORD_')) {
     const values = gather(src.floats(ai), 2, keep)
     let inside = true
-    for (const v of values) if (v < 0 || v > 1) inside = false
+    const slack = profile.uvSlack || 0
+    for (const v of values) if (v < -slack || v > 1 + slack) inside = false
+    if (inside && slack) for (let i = 0; i < values.length; i++) values[i] = Math.min(1, Math.max(0, values[i]))
     if (inside) return out.accessor(roundTo(values, 65535, profile.uvBits || 16), { ...attribute, type: 'VEC2', componentType: USHORT, normalized: true })
-    return out.accessor(Float32Array.from(values), { ...attribute, type: 'VEC2', componentType: FLOAT })
+    const step = profile.uvFloatStep || 0
+    const floats = Float32Array.from(values, v => (step ? Math.round(v / step) * step : v))
+    return out.accessor(floats, { ...attribute, type: 'VEC2', componentType: FLOAT })
   }
   const width = WIDTH[a.type]
   const values = Float32Array.from(gather(src.floats(ai), width, keep))
@@ -341,12 +350,36 @@ function writeAttribute(out, src, name, ai, keep, profile) {
   return out.accessor(values, { ...attribute, type: a.type, componentType: FLOAT, minmax: name === 'POSITION' })
 }
 
-function simplifyPrimitive(src, prim, indices, simplify) {
+function simplifyPrimitive(src, prim, indices, simplify, ratio) {
   const positions = src.floats(prim.attributes.POSITION)
-  const target = Math.max(3, Math.floor((indices.length * simplify.ratio) / 3) * 3)
+  const target = Math.max(3, Math.floor((indices.length * ratio) / 3) * 3)
   const flags = simplify.lockBorder ? ['LockBorder'] : []
+  if (prim.attributes.NORMAL != null && simplify.normalWeight) {
+    const normals = src.floats(prim.attributes.NORMAL)
+    const w = simplify.normalWeight
+    const [result] = MeshoptSimplifier.simplifyWithAttributes(Uint32Array.from(indices), positions, 3, normals, 3, [w, w, w], null, target, simplify.error, flags)
+    return result
+  }
   const [result] = MeshoptSimplifier.simplify(Uint32Array.from(indices), positions, 3, target, simplify.error, flags)
   return result
+}
+
+function cacheOrder(indices) {
+  const copy = Uint32Array.from(indices)
+  const [remap, unique] = MeshoptEncoder.reorderMesh(copy, true, false)
+  const inverse = new Uint32Array(unique)
+  for (let v = 0; v < remap.length; v++) if (remap[v] !== 0xffffffff) inverse[remap[v]] = v
+  for (let i = 0; i < copy.length; i++) copy[i] = inverse[copy[i]]
+  return copy
+}
+
+function simplifyRatio(json, src, simplify) {
+  if (!simplify || !simplify.total) return simplify ? simplify.ratio : 1
+  let total = 0
+  for (const mesh of json.meshes || []) {
+    for (const prim of mesh.primitives) if (prim.indices != null && (prim.mode ?? 4) === 4) total += src.json.accessors[prim.indices].count / 3
+  }
+  return Math.min(1, simplify.total / Math.max(1, total))
 }
 
 function writeIndices(out, indices, triangles) {
@@ -363,6 +396,7 @@ function signature(prim) {
 }
 
 function writeMeshes(json, src, out, profile, report) {
+  const ratio = simplifyRatio(json, src, profile.simplify)
   const groups = new Map()
   for (const mesh of json.meshes || []) {
     for (const prim of mesh.primitives) {
@@ -380,10 +414,11 @@ function writeMeshes(json, src, out, profile, report) {
       let indices = Uint32Array.from(src.accessor(prim.indices).array)
       if (triangles) {
         const before = indices.length / 3
-        if (profile.simplify && before > (profile.simplify.minTriangles || 0)) indices = simplifyPrimitive(src, prim, indices, profile.simplify)
+        if (profile.simplify && ratio < 1 && before > (profile.simplify.minTriangles || 0)) indices = simplifyPrimitive(src, prim, indices, profile.simplify, ratio)
         report.triangles[0] += before
         report.triangles[1] += indices.length / 3
       }
+      if (triangles && indices.length >= 3) indices = cacheOrder(indices)
       return { prim, triangles, indices }
     })
     let keep = null
@@ -421,7 +456,7 @@ function writeMeshes(json, src, out, profile, report) {
   }
 }
 
-function sampleTrack(times, values, width, interpolation, grid, quat) {
+export function sampleTrack(times, values, width, interpolation, grid, quat) {
   const n = times.length
   const cubic = interpolation === 'CUBICSPLINE'
   const key = (k, c) => (cubic ? values[(k * 3 + 1) * width + c] : values[k * width + c])
@@ -601,7 +636,7 @@ function textureRoles(json) {
   const mark = (info, role) => {
     if (!info) return
     const tex = json.textures[info.index]
-    const source = tex.extensions?.[WEBP]?.source ?? tex.source
+    const source = tex.extensions?.[WEBP]?.source ?? tex.extensions?.[AVIF]?.source ?? tex.source
     if (source != null && !roles.has(source)) roles.set(source, role)
   }
   for (const m of json.materials || []) {
@@ -614,30 +649,40 @@ function textureRoles(json) {
   return roles
 }
 
-export function imageJob(data, role, profile) {
+export function imageJob(data, role, profile, name = '') {
+  const rule = (profile.imageRules || []).find(([pattern]) => pattern.test(name))
+  const over = rule ? rule[1] : {}
+  const base = { data, format: profile.format || 'avif', speed: profile.speed ?? 2 }
   if (role === 'normal') {
-    if (!profile.normalMax) return { data, flat_normal: true, max: 4, quality: 90 }
-    return { data, max: profile.normalMax, quality: profile.normalQuality ?? profile.quality }
+    const max = over.normalMax ?? profile.normalMax
+    if (!max) return { data, flat_normal: true, max: 4, format: 'webp', quality: 90 }
+    return { ...base, max, quality: over.normalQuality ?? profile.normalQuality ?? profile.quality, subsampling: '4:4:4' }
   }
-  return { data, max: role === 'data' ? profile.dataMax || profile.texMax : profile.texMax, quality: profile.quality, alpha_quality: profile.alphaQuality ?? 80 }
+  if (role === 'data') return { ...base, max: over.max ?? (profile.dataMax || profile.texMax), quality: over.quality ?? profile.dataQuality ?? profile.quality, subsampling: '4:4:4' }
+  return { ...base, max: over.max ?? profile.texMax, quality: over.quality ?? profile.quality, subsampling: profile.subsampling || '4:2:0' }
 }
 
 function writeImages(json, src, out, profile, report) {
   if (!json.images || !json.images.length) return
   const roles = textureRoles(json)
-  const jobs = json.images.map((im, i) => imageJob(src.image(i), roles.get(i) || 'color', profile))
+  const jobs = json.images.map((im, i) => imageJob(src.image(i), roles.get(i) || 'color', profile, im.name || ''))
   const encoded = encodeImages(jobs)
+  const kinds = encoded.map(imageKind)
   json.images.forEach((im, i) => {
     report.images[0] += src.json.bufferViews[im.bufferView].byteLength
     report.images[1] += encoded[i].length
     im.bufferView = out.raw(encoded[i])
-    im.mimeType = 'image/webp'
+    im.mimeType = `image/${kinds[i]}`
     delete im.uri
   })
   for (const tex of json.textures || []) {
-    const source = tex.extensions?.[WEBP]?.source ?? tex.source
+    const source = tex.extensions?.[WEBP]?.source ?? tex.extensions?.[AVIF]?.source ?? tex.source
     delete tex.source
-    tex.extensions = { ...(tex.extensions || {}), [WEBP]: { source } }
+    const ext = { ...(tex.extensions || {}) }
+    delete ext[WEBP]
+    delete ext[AVIF]
+    ext[kinds[source] === 'avif' ? AVIF : WEBP] = { source }
+    tex.extensions = ext
   }
 }
 
@@ -654,18 +699,78 @@ function unrequire(json, name) {
   }
 }
 
+const tidy = v => (Number.isInteger(v) ? v : Number(v.toPrecision(7)))
+
+function tidyJson(json) {
+  for (const node of json.nodes || []) {
+    for (const key of ['translation', 'rotation', 'scale', 'matrix']) if (node[key]) node[key] = node[key].map(tidy)
+  }
+  for (const a of json.accessors || []) {
+    if (a.min) a.min = a.min.map(tidy)
+    if (a.max) a.max = a.max.map(tidy)
+  }
+}
+
+function planJoints(json, src) {
+  const skinOf = new Map()
+  for (const node of json.nodes || []) {
+    if (node.mesh == null || node.skin == null) continue
+    if (skinOf.has(node.mesh) && skinOf.get(node.mesh) !== node.skin) return
+    skinOf.set(node.mesh, node.skin)
+  }
+  const used = new Map()
+  const accessorSkin = new Map()
+  for (const [mi, mesh] of (json.meshes || []).entries()) {
+    if (!skinOf.has(mi)) continue
+    const si = skinOf.get(mi)
+    if (!used.has(si)) used.set(si, new Set())
+    for (const prim of mesh.primitives) {
+      for (const set of [0, 1]) {
+        const ja = prim.attributes[`JOINTS_${set}`]
+        const wa = prim.attributes[`WEIGHTS_${set}`]
+        if (ja == null) continue
+        if (accessorSkin.has(ja) && accessorSkin.get(ja) !== si) return
+        accessorSkin.set(ja, si)
+        const joints = src.accessor(ja).array
+        const weights = wa != null ? src.floats(wa) : null
+        for (let i = 0; i < joints.length; i++) if (!weights || weights[i] > 0) used.get(si).add(joints[i])
+      }
+    }
+  }
+  const remaps = new Map()
+  for (const [si, set] of used) {
+    const remap = []
+    let k = 0
+    for (let j = 0; j < json.skins[si].joints.length; j++) if (set.has(j)) remap[j] = k++
+    remaps.set(si, remap)
+  }
+  src.usedJoints = used
+  src.jointRemap = new Map([...accessorSkin].map(([ja, si]) => [ja, remaps.get(si)]))
+}
+
 export function shrinkGlb(buffer, profile) {
   const { json, bin } = parseGlb(buffer)
   const src = new Reader(structuredClone(json), bin)
   const out = new Writer(profile.meshopt !== false)
+  if (profile.pruneJoints) planJoints(json, src)
   const report = { before: buffer.length, after: 0, triangles: [0, 0], keys: [0, 0], droppedTracks: 0, droppedClips: [], images: [0, 0] }
   writeMeshes(json, src, out, profile, report)
-  for (const skin of json.skins || []) {
-    if (skin.inverseBindMatrices != null) {
-      skin.inverseBindMatrices = out.accessor(Float32Array.from(src.floats(skin.inverseBindMatrices)), { type: 'MAT4', componentType: FLOAT, mode: 'ATTRIBUTES' })
+  for (const [si, skin] of (json.skins || []).entries()) {
+    const used = src.usedJoints && src.usedJoints.get(si)
+    let ibm = skin.inverseBindMatrices != null ? Float32Array.from(src.floats(skin.inverseBindMatrices)) : null
+    if (used) {
+      const kept = skin.joints.map((_, j) => j).filter(j => used.has(j))
+      skin.joints = kept.map(j => skin.joints[j])
+      if (ibm) {
+        const next = new Float32Array(kept.length * 16)
+        kept.forEach((j, k) => next.set(ibm.subarray(j * 16, j * 16 + 16), k * 16))
+        ibm = next
+      }
     }
+    if (ibm) skin.inverseBindMatrices = out.accessor(ibm, { type: 'MAT4', componentType: FLOAT, mode: 'ATTRIBUTES' })
   }
-  writeAnimations(json, src, out, profile, report)
+  if (profile.skipAnimations) delete json.animations
+  else writeAnimations(json, src, out, profile, report)
   out.flush()
   writeImages(json, src, out, profile, report)
   json.accessors = out.accessors
@@ -677,8 +782,12 @@ export function shrinkGlb(buffer, profile) {
     requireExtension(json, MESHOPT)
   }
   if (json.meshes && json.meshes.length) requireExtension(json, QUANT)
-  if (json.images && json.images.length) requireExtension(json, WEBP)
+  unrequire(json, WEBP)
+  unrequire(json, AVIF)
+  const used = new Set((json.textures || []).flatMap(t => Object.keys(t.extensions || {})))
+  for (const name of [WEBP, AVIF]) if (used.has(name)) requireExtension(json, name)
   if (json.asset) delete json.asset.generator
+  tidyJson(json)
   const result = packGlb(json, out.buffer())
   report.after = result.length
   return { buffer: result, report }

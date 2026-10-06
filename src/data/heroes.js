@@ -1,7 +1,7 @@
 export const HEROES = [
   {
     id: 'ricklow',
-    titan: 'quadrax',
+    titan: 'litria',
     model: 'mag018',
     lobby: 'mag018_lob',
     vfx: 'mag018',
@@ -33,12 +33,11 @@ export const HEROES = [
     skills: [
       { key: 's1', name: 'Solar Bolts', cd: 3.5,type: 'volley', fx: 1, dmg: 46, count: 2, timing: { shots: [0.2, 0.83] } },
       { key: 's2', name: 'Sunfall', cd: 5,type: 'nova', fx: 2, at: 'target', dmg: 74, radius: 3.6, timing: { hits: [0.4], at: { B_FX_MAG018_Skill2_Target_Precast_1_1: 0 } } },
-      { key: 's3', name: 'Chain Blaze', cd: 8.5, type: 'nova', fx: 3, at: 'target', dmg: 62, radius: 5, timing: { hits: [0.53], chain: 0.09, at: { B_FX_MAG018_Skill3_Chaining: 0 } } },
     ],
   },
   {
     id: 'ardell',
-    titan: 'keltaur',
+    titan: 'litria',
     model: 'eld037',
     lobby: 'eld037_lob',
     vfx: 'eld037',
@@ -63,12 +62,11 @@ export const HEROES = [
     skills: [
       { key: 's1', name: 'Riverbreaker', cd: 3.5,type: 'nova', fx: 1, dmg: 70, radius: 4, ahead: 2.6 },
       { key: 's2', name: 'Torrent', cd: 5,type: 'nova', fx: 2, dmg: 62, radius: 4.6, ahead: 0.8 },
-      { key: 's3', name: 'Tidecleave', cd: 8.5, type: 'nova', fx: 3, dmg: 88, radius: 4.6, ahead: 3 },
     ],
   },
   {
     id: 'confar',
-    titan: 'sionach',
+    titan: 'litria',
     model: 'eld025',
     lobby: 'eld025_lob',
     vfx: 'eld025',
@@ -98,64 +96,27 @@ export const HEROES = [
     skills: [
       { key: 's1', name: 'Burning Edge', cd: 3.5,type: 'nova', fx: 1, dmg: 64, radius: 3.8, timing: { hits: [0.27] } },
       { key: 's2', name: 'Hawk Cut', cd: 5,type: 'nova', fx: 2, dmg: 80, radius: 4.2, timing: { hits: [0.33] } },
-      { key: 's3', name: 'Blazing Wings', cd: 8.5, type: 'nova', fx: 3, dmg: 96, radius: 5, timing: { hits: [0.6], at: { B_FX_ELD025_Skill3_AOE_Slash: 0.1 } } },
     ],
   },
 ]
 
 export const TITANS = {
-  keltaur: {
-    model: 'animeld005',
-    vfx: 'animeld005',
-    name: 'Keltaur',
-    title: 'The Thundering Crown',
-    color: 0xffb347,
-    speed: 5.4,
-    atkDmg: 380,
-    atkRate: 0.9,
-    atkRange: 10,
-    combo: { hit: [0.15, 0.3, 0.3], next: [0.7, 0.8, 0.8] },
-    radius: 1.6,
-    duration: 14,
-    skills: [
-      { key: 's1', cd: 4, type: 'volley', fx: 1, dmg: 300, count: 4, reach: 14, timing: { shots: [0.7] } },
-      { key: 's2', cd: 6, type: 'nova', fx: 2, at: 'target', dmg: 420, radius: 5.5, reach: 14, timing: { hits: [0.3, 0.9], at: { B_FX_ANIMELD005_Skill2_Target_1: 0 } } },
-    ],
-  },
-  sionach: {
-    model: 'animeld001',
-    vfx: 'animeld001',
-    name: 'Sionach',
-    title: 'The Wildglaive',
-    color: 0x7fd0ff,
-    speed: 5.8,
+  litria: {
+    model: 'animlts004',
+    vfx: 'animlts004',
+    name: 'Litria',
+    title: 'Wings of Serenity',
+    color: 0xffe2a0,
+    speed: 5.6,
     atkDmg: 420,
     atkRate: 0.8,
     atkRange: 5,
-    combo: { hit: [0.2, 0.38, 0.45], next: [0.5, 0.6, 0.8] },
+    combo: { hit: [0.15, 0.3, 0.35], next: [0.4, 0.6, 0.7] },
     radius: 1.8,
     duration: 14,
     skills: [
-      { key: 's1', cd: 4, type: 'nova', fx: 1, dmg: 360, radius: 5.5, timing: { hits: [0.55], at: { B_FX_ANIMELD001_Skill1_Slash: 0.1 } } },
-      { key: 's2', cd: 6, type: 'nova', fx: 2, dmg: 460, radius: 6.5, timing: { hits: [0.28, 0.67] } },
-    ],
-  },
-  quadrax: {
-    model: 'animmag003',
-    vfx: 'animmag003',
-    name: 'Quadrax',
-    title: 'The Cosmic Fist',
-    color: 0xb58cff,
-    speed: 5.2,
-    atkDmg: 420,
-    atkRate: 0.85,
-    atkRange: 5.5,
-    combo: { hit: [0.15, 0.35, 0.4], next: [0.3, 0.4, 0.6] },
-    radius: 1.8,
-    duration: 14,
-    skills: [
-      { key: 's1', cd: 4, type: 'nova', fx: 1, dmg: 340, radius: 5.5, timing: { hits: [0.3, 0.75, 1.35] } },
-      { key: 's2', cd: 6, type: 'nova', fx: 2, dmg: 440, radius: 6, timing: { hits: [0.4, 0.8] } },
+      { key: 's1', cd: 4, type: 'nova', fx: 1, dmg: 360, radius: 5.5, timing: { hits: [0.4] } },
+      { key: 's2', cd: 6, type: 'nova', fx: 2, dmg: 460, radius: 6.5, timing: { hits: [0.5] } },
     ],
   },
 }

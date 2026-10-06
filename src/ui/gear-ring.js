@@ -8,6 +8,8 @@ const GEAR_ART = import.meta.glob('../assets/GENERAL/HUD/gear/*.webp', { eager: 
 const LEFT = ['helmet', 'chestplate', 'belt', 'weapon']
 const RIGHT = ['pauldrons', 'gauntlets', 'boots', 'shield']
 const SLOT_NAME = { helmet: 'Helmet', chestplate: 'Chestplate', belt: 'Belt', weapon: 'Weapon', pauldrons: 'Pauldrons', gauntlets: 'Gauntlets', boots: 'Boots', shield: 'Shield' }
+const WORN_AT = { helmet: 0.93, pauldrons: 0.8, chestplate: 0.66, shield: 0.56, weapon: 0.52, gauntlets: 0.5, belt: 0.47, boots: 0.08 }
+export const GEAR_TOP = 1.08
 const SLOT_MIN = 46
 const SLOT_MAX = 72
 const SLOT_OF_HERO = 0.21
@@ -24,6 +26,12 @@ const COUNT_MS = 650
 const FLY_MS = 360
 const OPEN_MS = 420
 const CLOSE_MS = 200
+const WEAR_MS = 380
+const FRESH_MS = 820
+const FRESH_DELAY = 120
+const FRESH_POP = 0.28
+const WEAR_SIDE = 0.07
+const SHADE_CLEAR = 0.55
 const SPRING = 'cubic-bezier(.18,1.25,.4,1)'
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
 
@@ -67,15 +75,18 @@ export class GearRing {
 
   build() {
     this.el.innerHTML = deferImages(`
+      <i class="shade"></i>
       <i class="halo"></i>
       <div class="plate"><div class="pk">
         <i class="pshadow"></i>
+        <div class="coach"><b></b><span></span></div>
         <span class="plabel">Invoker power</span>
         <div class="pv"><i class="picon"></i><b class="pvalue">0</b><span class="pgoal">/ ${POWER_GOAL.toLocaleString('en-US')}</span></div>
         <div class="gbar"><i class="gfill"></i></div>
         <i class="orn"></i>
         <span class="pdelta"></span>
         <button class="buildchip"><img class="bset" alt="" draggable="false"><span class="bname"></span><span class="pips">${'<i></i>'.repeat(BUILD_PIECES)}</span></button>
+        <span class="bbonus"></span>
         <button class="x" aria-label="Close"><i></i></button>
       </div></div>
       ${[...LEFT, ...RIGHT].map(slotHtml).join('')}
@@ -91,12 +102,19 @@ export class GearRing {
     this.strip = this.el.querySelector('.strip')
     this.items = this.el.querySelector('.items')
     this.halo = this.el.querySelector('.halo')
+    this.shade = this.el.querySelector('.shade')
+    this.coachEl = this.el.querySelector('.coach')
+    this.intro = null
+    this.freshFlying = false
+    this.onWear = null
+    this.hero = null
     this.powerValue = this.el.querySelector('.pvalue')
     this.powerDelta = this.el.querySelector('.pdelta')
     this.autoBtn = this.el.querySelector('.auto')
     this.autoCue = this.el.querySelector('.row > .tapcue')
     this.wantsAutoCue = false
     this.buildChip = this.el.querySelector('.buildchip')
+    this.buildBonus = this.el.querySelector('.bbonus')
     this.slots = Object.fromEntries([...this.el.querySelectorAll('.slot')].map(s => [s.dataset.slot, s]))
     this.el.querySelector('.x').addEventListener('click', () => this.onClose && this.onClose())
     this.autoBtn.addEventListener('click', () => this.autoEquip())
@@ -121,14 +139,17 @@ export class GearRing {
     return this.el.classList.contains('on')
   }
 
-  open(gear, hero) {
+  open(gear, intro = null) {
     const token = ++this.seq
     this.gear = gear
+    this.intro = intro
     gear.unseen = 0
-    this.filter = GEAR_SLOTS.find(s => gear.items.some(it => it.slot === s && gear.isUpgrade(it))) || 'all'
+    this.filter = intro ? intro.slot : GEAR_SLOTS.find(s => gear.items.some(it => it.slot === s && gear.isUpgrade(it))) || 'all'
     this.shownPower = gear.power()
     this.powerValue.textContent = this.shownPower.toLocaleString('en-US')
     this.shownPieces = undefined
+    this.el.classList.toggle('intro', !!intro)
+    this.coach(intro ? 'EQUIP YOUR HERO' : '', intro ? `tap the new ${SLOT_NAME[intro.slot].toLowerCase()}` : '')
     this.el.classList.add('on')
     this.render()
     this.paintGoal(this.shownPower)
@@ -153,10 +174,67 @@ export class GearRing {
     this.plate.firstElementChild.animate([{ transform: 'translateY(30%) scale(.7)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: OPEN_MS, easing: SPRING })
     this.strip.firstElementChild.animate([{ transform: 'translateY(-30%) scale(.8)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: OPEN_MS, delay: 120, easing: SPRING, fill: 'backwards' })
     this.halo.animate([{ opacity: 0, transform: 'translate(-50%, -50%) scale(.3)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' }], { duration: OPEN_MS, easing: 'ease-out' })
+    this.shade.animate([{ opacity: 0 }, { opacity: 1 }], { duration: OPEN_MS, easing: 'ease-out' })
     this.revealItems(200)
+    this.revealFresh()
+  }
+
+  revealFresh() {
+    const first = this.intro && this.items.querySelector('.gi.fresh')
+    if (!first || !this.hero) return
+    first.getAnimations().forEach(a => a.cancel())
+    const ghost = document.createElement('img')
+    ghost.className = `fly ${this.intro.rarity}`
+    ghost.src = first.querySelector('.ic').src
+    ghost.draggable = false
+    Object.assign(ghost.style, { left: '0px', top: '0px', opacity: '0' })
+    this.el.appendChild(ghost)
+    this.freshFlying = true
+    this.placeCue()
+    const start = performance.now() + FRESH_DELAY
+    const finish = cell => {
+      ghost.remove()
+      if (cell) cell.style.opacity = ''
+      this.freshFlying = false
+      if (this.intro) this.placeCue()
+    }
+    const tick = now => {
+      const cell = this.items.querySelector('.gi.fresh')
+      if (!ghost.isConnected || !cell || !this.hero) return finish(cell)
+      cell.style.opacity = '0'
+      const t = clamp((now - start) / FRESH_MS, 0, 1)
+      const r = cell.getBoundingClientRect()
+      const hx = this.hero.x
+      const hy = (this.hero.top + this.hero.bottom) / 2
+      const pop = clamp(t / FRESH_POP, 0, 1)
+      const u = clamp((t - FRESH_POP) / (1 - FRESH_POP), 0, 1)
+      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
+      const x = hx + (r.left + r.width / 2 - hx) * e
+      const y = hy + (r.top + r.height / 2 - hy) * e - Math.sin(Math.PI * e) * r.height * 1.4
+      const scale = u > 0 ? 1.7 + (1 - 1.7) * e : 0.3 + 1.4 * (1 - Math.pow(1 - pop, 3))
+      ghost.style.width = ghost.style.height = `${r.width}px`
+      ghost.style.opacity = String(Math.min(1, pop * 2))
+      ghost.style.transform = `translate(${(x - r.width / 2).toFixed(1)}px, ${(y - r.height / 2).toFixed(1)}px) scale(${scale.toFixed(3)})`
+      if (t < 1) requestAnimationFrame(tick)
+      else finish(cell)
+    }
+    requestAnimationFrame(tick)
+  }
+
+  coach(title, sub) {
+    this.coachEl.querySelector('b').textContent = title
+    this.coachEl.querySelector('span').textContent = sub
+    this.plate.classList.toggle('coached', !!title)
+    if (!title) return
+    this.coachEl.getAnimations().forEach(a => a.cancel())
+    this.coachEl.animate([
+      { opacity: 0, transform: 'scale(1.35)', filter: 'blur(6px)' },
+      { opacity: 1, transform: 'scale(1)', filter: 'blur(0px)' },
+    ], { duration: 360, easing: 'cubic-bezier(.2,.9,.3,1)' })
   }
 
   close() {
+    this.intro = null
     this.cueAuto(false)
     const token = this.seq
     const c = this.center
@@ -169,13 +247,16 @@ export class GearRing {
         { transform: `translate(${dx}px, ${dy}px) scale(.2)`, opacity: 0 },
       ], { duration: CLOSE_MS, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' })
     }
-    for (const part of [this.plate.firstElementChild, this.strip.firstElementChild, this.halo]) {
+    for (const part of [this.plate.firstElementChild, this.strip.firstElementChild, this.halo, this.shade]) {
       part.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CLOSE_MS, fill: 'forwards' })
     }
     setTimeout(() => {
       if (token !== this.seq) return
       this.el.classList.remove('on')
       this.el.querySelectorAll('*').forEach(n => n.getAnimations().forEach(a => a.cancel()))
+      this.el.querySelectorAll('.fly, .wearfly, .wearfx, .gainfx').forEach(n => n.remove())
+      this.el.querySelectorAll('.slot .item').forEach(n => { n.style.opacity = '' })
+      this.freshFlying = false
     }, CLOSE_MS)
   }
 
@@ -194,6 +275,8 @@ export class GearRing {
     const cy = (top + bottom) / 2
     const half = step * 1.5 + s / 2
     this.center = { x, y: cy }
+    this.hero = { x: cx, top, bottom, side: heroH * WEAR_SIDE }
+    this.placeShade(x, cy, off + s * 0.1, half + s * 0.15)
     const put = (type, side, i) => {
       const t = (i - 1.5) / 1.5
       const sx = x + side * (off + bulge * (1 - t * t))
@@ -214,6 +297,59 @@ export class GearRing {
     this.halo.style.left = `${x.toFixed(1)}px`
     this.halo.style.top = `${bottom.toFixed(1)}px`
     this.halo.style.width = `${(off * 2 + s * 1.6).toFixed(1)}px`
+  }
+
+  placeShade(x, y, rx, ry) {
+    const vars = { '--hx': x, '--hy': y, '--rx': rx / SHADE_CLEAR, '--ry': ry / SHADE_CLEAR }
+    for (const [k, v] of Object.entries(vars)) {
+      const px = `${Math.round(v)}px`
+      if (this.shade.style.getPropertyValue(k) !== px) this.shade.style.setProperty(k, px)
+    }
+  }
+
+  wornAt(item) {
+    const h = this.hero
+    if (!h) return null
+    const side = LEFT.includes(item.slot) ? -1 : 1
+    return { x: h.x + side * h.side, y: h.bottom - (h.bottom - h.top) * (WORN_AT[item.slot] || 0.5) / GEAR_TOP }
+  }
+
+  wear(item) {
+    const from = this.spots[item.slot]
+    const to = this.wornAt(item)
+    const icon = this.slots[item.slot].querySelector('.item .ic')
+    if (!from || !to || !icon) return
+    const size = icon.getBoundingClientRect().width
+    const ghost = document.createElement('img')
+    ghost.className = `wearfly ${item.rarity}`
+    ghost.src = icon.src
+    ghost.draggable = false
+    Object.assign(ghost.style, { left: `${from.x - size / 2}px`, top: `${from.y - size / 2}px`, width: `${size}px`, height: `${size}px` })
+    this.el.appendChild(ghost)
+    const dx = to.x - from.x
+    const dy = to.y - from.y
+    ghost.animate([
+      { transform: 'translate(0, 0) scale(1)', opacity: 0.95 },
+      { transform: `translate(${dx * 0.3}px, ${dy * 0.3 - size * 0.35}px) scale(.9)`, opacity: 1, offset: 0.35 },
+      { transform: `translate(${dx}px, ${dy}px) scale(.22)`, opacity: 0.6 },
+    ], { duration: WEAR_MS, easing: 'cubic-bezier(.55,0,.75,.4)' }).onfinish = () => {
+      ghost.remove()
+      this.ripple(to, item.rarity)
+      if (this.onWear) this.onWear(item)
+    }
+  }
+
+  ripple(at, rarity) {
+    const ring = document.createElement('i')
+    ring.className = `wearfx ${rarity || ''}`
+    ring.style.left = `${at.x}px`
+    ring.style.top = `${at.y}px`
+    this.el.appendChild(ring)
+    ring.animate([
+      { opacity: 1, transform: 'translate(-50%, -50%) scale(.2)' },
+      { opacity: 0.9, transform: 'translate(-50%, -50%) scale(1)', offset: 0.35 },
+      { opacity: 0, transform: 'translate(-50%, -50%) scale(1.7)' },
+    ], { duration: 620, easing: 'ease-out' }).onfinish = () => ring.remove()
   }
 
   setFilter(filter) {
@@ -246,6 +382,10 @@ export class GearRing {
     const icon = cell.querySelector('.ic')
     const from = icon.getBoundingClientRect()
     const src = icon.src
+    if (this.intro) {
+      this.intro = null
+      this.el.classList.remove('intro')
+    }
     this.change(() => this.gear.equip(item), 'equip')
     this.fly(src, from, item)
   }
@@ -280,6 +420,7 @@ export class GearRing {
   landed(item) {
     this.pop(item.slot, true, item.rarity)
     this.floatText(item.slot, `+${formatStat(item.stat, item.value)} ${STAT_LABEL[item.stat]}`)
+    this.wear(item)
   }
 
   floatText(type, text) {
@@ -313,7 +454,18 @@ export class GearRing {
 
   cueAuto(on) {
     this.wantsAutoCue = on
-    this.autoCue.classList.toggle('on', on && this.autoBtn.classList.contains('ready'))
+    this.placeCue()
+  }
+
+  placeCue() {
+    const fresh = this.intro && this.items.querySelector(`.gi[data-id="${this.intro.id}"]`)
+    if (fresh) fresh.classList.add('fresh')
+    const target = fresh || (this.wantsAutoCue && this.autoBtn.classList.contains('ready') ? this.autoBtn : null)
+    this.autoCue.classList.toggle('on', !!target && !(fresh && this.freshFlying))
+    if (!target) return
+    const scroll = fresh ? this.items.scrollLeft : 0
+    this.autoCue.style.left = `${(target.offsetLeft - scroll + target.offsetWidth / 2).toFixed(1)}px`
+    this.autoCue.style.top = `${(target.offsetTop + target.offsetHeight / 2).toFixed(1)}px`
   }
 
   autoEquip() {
@@ -321,7 +473,12 @@ export class GearRing {
     const before = { ...this.gear.equipped }
     this.change(() => this.gear.autoEquip(), 'auto')
     const changed = GEAR_SLOTS.filter(s => this.gear.equipped[s] && this.gear.equipped[s] !== before[s])
-    changed.forEach((type, i) => setTimeout(() => this.pop(type, true, this.gear.equipped[type].rarity), i * 90))
+    changed.forEach((type, i) => setTimeout(() => {
+      const item = this.gear.equipped[type]
+      if (!item) return
+      this.pop(type, true, item.rarity)
+      this.wear(item)
+    }, i * 90))
     this.autoBtn.animate([{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: 240, easing: SPRING })
   }
 
@@ -343,9 +500,7 @@ export class GearRing {
       slot.querySelector('.item').innerHTML = it ? itemHtml(it, false, g.isBuild(it)) : ''
     }
     this.paintBuild()
-    const upgrades = g.items.some(it => g.isUpgrade(it))
-    this.autoBtn.classList.toggle('ready', upgrades)
-    this.autoCue.classList.toggle('on', this.wantsAutoCue && upgrades)
+    this.autoBtn.classList.toggle('ready', g.hasUpgrade())
     const shown = it => this.filter === 'all' || it.slot === this.filter || (this.filter === 'build' && g.isBuild(it))
     const list = g.items.filter(shown).sort((a, b) => Number(g.isUpgrade(b)) - Number(g.isUpgrade(a)) || b.rank - a.rank || b.value - a.value)
     this.items.innerHTML = list.length
@@ -355,17 +510,21 @@ export class GearRing {
     label.querySelector('b').textContent = this.filter === 'all' ? 'All gear' : this.filter === 'build' && g.build ? `${SET_NAME[g.build.set]} set` : SLOT_NAME[this.filter] || ''
     const eq = g.equipped[this.filter]
     label.querySelector('span').textContent = eq ? `equipped ${formatStat(eq.stat, eq.value)} ${STAT_LABEL[eq.stat]} · tap slot to remove` : `${list.length} item${list.length === 1 ? '' : 's'}`
+    this.placeCue()
   }
 
   paintBuild() {
     const g = this.gear
     const build = g.build
     this.buildChip.style.display = build ? '' : 'none'
+    this.buildBonus.style.display = build ? '' : 'none'
     if (!build) return
     const count = g.buildCount()
     const full = count >= BUILD_PIECES
     this.buildChip.querySelector('.bset').src = art(`set-${build.set}`)
-    this.buildChip.querySelector('.bname').textContent = full ? `${SET_NAME[build.set]} · ${build.bonusText}` : `${SET_NAME[build.set]} set`
+    this.buildChip.querySelector('.bname').textContent = full ? `${SET_NAME[build.set]} set active` : `${SET_NAME[build.set]} set`
+    this.buildBonus.textContent = full ? build.bonusText : `${BUILD_PIECES} set pieces: ${build.bonusText}`
+    this.buildBonus.classList.toggle('on', full)
     this.buildChip.classList.toggle('on', full)
     this.buildChip.classList.toggle('picked', this.filter === 'build')
     const pips = this.buildChip.querySelectorAll('.pips i')

@@ -1,36 +1,26 @@
 import { CardBorderFx } from './card-fx.js'
 import { HEROES, LOOT } from '../data/heroes.js'
 import playNowImg from '../assets/GENERAL/BUTTONS/play-now.webp'
+import attackSwordImg from '../assets/GENERAL/HUD/buttons/attack-sword.webp'
+import attackSpearImg from '../assets/GENERAL/HUD/buttons/attack-spear.webp'
+import attackArcanaImg from '../assets/GENERAL/HUD/buttons/attack-arcana.webp'
 import eld037Skill1 from '../assets/GENERAL/HUD/skills/eld037-1.webp'
 import eld037Skill2 from '../assets/GENERAL/HUD/skills/eld037-2.webp'
-import eld037Skill3 from '../assets/GENERAL/HUD/skills/eld037-3.webp'
 import eld037Ult from '../assets/GENERAL/HUD/skills/eld037-ult.webp'
 import mag018Skill1 from '../assets/GENERAL/HUD/skills/mag018-1.webp'
 import mag018Skill2 from '../assets/GENERAL/HUD/skills/mag018-2.webp'
-import mag018Skill3 from '../assets/GENERAL/HUD/skills/mag018-3.webp'
 import mag018Ult from '../assets/GENERAL/HUD/skills/mag018-ult.webp'
 import eld025Skill1 from '../assets/GENERAL/HUD/skills/eld025-1.webp'
 import eld025Skill2 from '../assets/GENERAL/HUD/skills/eld025-2.webp'
-import eld025Skill3 from '../assets/GENERAL/HUD/skills/eld025-3.webp'
 import eld025Ult from '../assets/GENERAL/HUD/skills/eld025-ult.webp'
 import eld037Portrait from '../assets/GENERAL/HUD/heroes/eld037-large.webp'
 import mag018Portrait from '../assets/GENERAL/HUD/heroes/mag018-large.webp'
 import eld025Portrait from '../assets/GENERAL/HUD/heroes/eld025-large.webp'
-import animeld005Skill1 from '../assets/GENERAL/HUD/skills/animeld005-1.webp'
-import animeld005Skill2 from '../assets/GENERAL/HUD/skills/animeld005-2.webp'
-import animeld001Skill1 from '../assets/GENERAL/HUD/skills/animeld001-1.webp'
-import animeld001Skill2 from '../assets/GENERAL/HUD/skills/animeld001-2.webp'
-import animmag003Skill1 from '../assets/GENERAL/HUD/skills/animmag003-1.webp'
-import animmag003Skill2 from '../assets/GENERAL/HUD/skills/animmag003-2.webp'
-import animeld005Portrait from '../assets/GENERAL/HUD/heroes/animeld005-large.webp'
-import animeld001Portrait from '../assets/GENERAL/HUD/heroes/animeld001-large.webp'
-import animmag003Portrait from '../assets/GENERAL/HUD/heroes/animmag003-large.webp'
-import elementWindImg from '../assets/GENERAL/HUD/icons/element-wind.webp'
+import animlts004Skill1 from '../assets/GENERAL/HUD/skills/animlts004-1.webp'
+import animlts004Skill2 from '../assets/GENERAL/HUD/skills/animlts004-2.webp'
+import animlts004Portrait from '../assets/GENERAL/HUD/heroes/animlts004-large.webp'
 import elementFireImg from '../assets/GENERAL/HUD/icons/element-fire.webp'
-import elementDarkImg from '../assets/GENERAL/HUD/icons/element-dark.webp'
-import elementLightImg from '../assets/GENERAL/HUD/icons/element-light.webp'
 import elementWaterImg from '../assets/GENERAL/HUD/icons/element-water.webp'
-import elementEarthImg from '../assets/GENERAL/HUD/icons/element-earth.webp'
 import lootWeaponImg from '../assets/GENERAL/HUD/icons/loot-weapon.webp'
 import lootGemsImg from '../assets/GENERAL/HUD/icons/loot-gems.webp'
 import lootChestImg from '../assets/GENERAL/HUD/icons/loot-chest.webp'
@@ -38,20 +28,20 @@ import lootAnimaImg from '../assets/GENERAL/HUD/icons/loot-anima.webp'
 import classRangedImg from '../assets/GENERAL/HUD/select/class-ranged.webp'
 import classMeleeImg from '../assets/GENERAL/HUD/select/class-melee.webp'
 import classTankImg from '../assets/GENERAL/HUD/select/class-tank.webp'
-import classSupportImg from '../assets/GENERAL/HUD/select/class-support.webp'
 import { Outcome } from './outcome.js'
 import { GearRing } from './gear-ring.js'
 import { deferImages, whenReleased, releaseImages } from './lazy.js'
 import { FINGER, TAP } from './tapcue.js'
 import powerIconImg from '../assets/GENERAL/HUD/gear/power-icon.webp'
+import bossBadgeImg from '../assets/GENERAL/HUD/wave/boss.webp'
+
+const BANNER_ICONS = {
+  boss: bossBadgeImg,
+}
 
 export const ELEMENT_ART = {
-  wind: elementWindImg,
   fire: elementFireImg,
-  dark: elementDarkImg,
-  light: elementLightImg,
   water: elementWaterImg,
-  earth: elementEarthImg,
 }
 
 const RELIC_ART = import.meta.glob('../assets/GENERAL/HUD/loot/relic-*.webp', { eager: true, import: 'default' })
@@ -75,28 +65,29 @@ const LOOT_ART = {
 }
 
 const SKILL_ART = {
-  eld037: [eld037Skill1, eld037Skill2, eld037Skill3, eld037Ult],
-  mag018: [mag018Skill1, mag018Skill2, mag018Skill3, mag018Ult],
-  eld025: [eld025Skill1, eld025Skill2, eld025Skill3, eld025Ult],
-  animeld005: [animeld005Skill1, animeld005Skill2],
-  animeld001: [animeld001Skill1, animeld001Skill2],
-  animmag003: [animmag003Skill1, animmag003Skill2],
+  eld037: [eld037Skill1, eld037Skill2, eld037Ult],
+  mag018: [mag018Skill1, mag018Skill2, mag018Ult],
+  eld025: [eld025Skill1, eld025Skill2, eld025Ult],
+  animlts004: [animlts004Skill1, animlts004Skill2],
+}
+
+const ATTACK_ART = {
+  sword: attackSwordImg,
+  spear: attackSpearImg,
+  arcana: attackArcanaImg,
 }
 
 const PORTRAIT_ART = {
   eld037: eld037Portrait,
   mag018: mag018Portrait,
   eld025: eld025Portrait,
-  animeld005: animeld005Portrait,
-  animeld001: animeld001Portrait,
-  animmag003: animmag003Portrait,
+  animlts004: animlts004Portrait,
 }
 
 const CLASS_ART = {
   ranged: classRangedImg,
   melee: classMeleeImg,
   tank: classTankImg,
-  support: classSupportImg,
 }
 
 const RARITY_LABEL = {
@@ -126,11 +117,14 @@ const APPEAR_FADE_MS = 300
 const CARD_DELAY_MS = 120
 const CARD_STAGGER_MS = 70
 const PICK_LAG_MS = 150
-const TAP_DELAY_MS = 800
+const TOUR_DELAY_MS = 800
+const TOUR_PRESS_MS = 333
+const TOUR_LIFT_MS = 840
+const TOUR_TAP_MS = 1400
+const TOUR_ORDER = HEROES.map((h, i) => i).concat(HEROES.map((h, i) => i).slice(1, -1).reverse())
 const LEAVE_MS = 220
 const VEIL_IN_MS = 350
 const VEIL_OUT_MS = 450
-const WAVE_FULL_HOLD = 0.8
 const LOOT_ROW_MS = 2600
 const LOOT_HIDE_MS = 250
 const LOOT_ROWS = 2
@@ -147,7 +141,8 @@ const APPEAR_FRAMES = Array.from({ length: 25 }, (_, n) => {
 
 const JOYSTICK_TUTORIAL = `<div class="joy"><i class="ring a"></i><i class="ring b"></i><i class="jbase"></i><i class="jknob"></i>${FINGER}</div>`
 const HINT_TEXT = {
-  move: ['DRAG TO MOVE', 'LET GO · AUTO ATTACK'],
+  move: ['DRAG TO MOVE', 'OR TAP THE GROUND'],
+  attack: ['TAP TO ATTACK', 'HOLD TO KEEP HITTING'],
   skill: ['TAP TO CAST', ''],
   titan: ['TAP TO TRANSFORM', ''],
 }
@@ -175,19 +170,6 @@ export class UI {
         <div class="cards"></div>
       </div>
 
-      <div id="fuse" class="screen">
-        <h2 class="title-ornate">MATCH &amp; FUSE</h2>
-        <p class="hint">drag anima into the invoker</p>
-        <div class="fuse-row">
-          <div class="fuse-src"></div>
-          <div class="fuse-target">
-            <div class="fuse-slots"><div class="s"></div><div class="s"></div><div class="s"></div><div class="s"></div></div>
-            <div class="syn">SYNERGY</div>
-          </div>
-        </div>
-        <button class="btn-gold" id="fusego">BATTLE</button>
-      </div>
-
       <div id="hud" class="screen">
         <div id="hpbars"></div>
         <div id="topbar">
@@ -196,10 +178,10 @@ export class UI {
             <div class="nums"><img class="ico" src="${powerIconImg}" alt="" draggable="false"><b class="now">0</b><span class="goal"></span></div>
             <div class="bar"><i class="back"></i><div class="clip"><i class="fill"></i></div></div>
           </button>
-          <div id="waveinfo"><b></b>
-            <div class="wavebar"><i class="back"></i><div class="track"><i class="fill"></i><i class="start"></i><i class="end"></i><i class="marker"></i></div></div>
+          <div id="waveinfo"><b class="label"></b>
+            <div class="wavebar"><i class="back"></i><div class="track"><i class="fill"></i><i class="glint"></i></div><div class="stops"></div></div>
           </div>
-          <div class="tip"></div>
+          <div class="tip"><i class="plate"></i><img class="ico" src="${powerIconImg}" alt="" draggable="false"><span></span></div>
         </div>
         <div id="titantimer"><div class="c">TITAN</div><div class="t"><i class="back"></i><i class="fill"></i></div></div>
         <div id="stick">
@@ -224,6 +206,7 @@ export class UI {
         <div id="gesturehint"><div class="g-main"></div><div class="g-sub"></div><div class="g-hand">${JOYSTICK_TUTORIAL}</div></div>
         <div id="herocue">${TAP}</div>
         <div id="skills">
+          <div class="skill attack" data-k="attack"><img class="art" alt="" draggable="false"><span class="cd"></span><span class="press"></span></div>
           <div class="skill s1" data-k="s1"><img class="icon" alt="" draggable="false"><span class="cd"></span><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
           <div class="skill s2" data-k="s2"><img class="icon" alt="" draggable="false"><span class="cd"></span><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
           <div id="ultbtn">
@@ -249,7 +232,7 @@ export class UI {
       <div id="powerpop"><i class="orn"></i><img class="ico" src="${powerIconImg}" alt="" draggable="false"><b>0</b><span>+0</span></div>
       <div id="gearring"></div>
 
-      <div id="banner"><i class="bk"></i><div class="t"></div><div class="s"></div></div>
+      <div id="banner"><i class="bk"></i><img class="ic" alt="" draggable="false"><div class="t"></div><div class="s"></div></div>
       <div id="veil"></div>
 
       <div id="fail" class="screen">
@@ -295,13 +278,16 @@ export class UI {
     this.heroBarState = { k: 1, max: 0, shown: false }
     this.cooldownState = {}
     this.topBar = this.root.querySelector('#topbar')
-    this.topTip = this.topBar.querySelector('.tip')
+    this.topTip = this.topBar.querySelector('.tip span')
     this.waveInfo = this.root.querySelector('#waveinfo')
+    this.waveLabel = this.waveInfo.querySelector('.label')
     this.waveBar = this.waveInfo.querySelector('.wavebar')
-    this.waveK = 0
+    this.waveStops = []
+    this.waveCalled = 0
     this.wavePainted = -1
-    this.waveHold = 0
     this.ultBtn = this.root.querySelector('#ultbtn')
+    this.attackBtn = this.root.querySelector('.skill.attack')
+    this.attackArt = this.attackBtn.querySelector('.art')
     this.ultIcon = this.ultBtn.querySelector('.icon')
     this.ultPct = this.ultBtn.querySelector('.pct b')
     this.ultReady = false
@@ -322,12 +308,12 @@ export class UI {
     whenReleased(() => {
       Object.values(PORTRAIT_ART).forEach(src => { new Image().src = src })
       Object.values(SKILL_ART).flat().forEach(src => { new Image().src = src })
+      Object.values(ATTACK_ART).forEach(src => { new Image().src = src })
     })
     this.banner = this.root.querySelector('#banner')
     this.veil = this.root.querySelector('#veil')
     this.end = this.root.querySelector('#end')
     this.fail = this.root.querySelector('#fail')
-    this.fuse = this.root.querySelector('#fuse')
     this.loot = this.end.querySelector('.loot')
     this.lootFeed = this.root.querySelector('#lootfeed')
     this.lootBig = this.lootFeed.querySelector('.big')
@@ -387,8 +373,12 @@ export class UI {
   }
 
   setTip(text) {
+    const was = this.topBar.classList.contains('tipped')
     this.topBar.classList.toggle('tipped', !!text)
-    if (text) this.topTip.textContent = text
+    if (!text) return
+    const fresh = !was || this.topTip.textContent !== text
+    this.topTip.textContent = text
+    if (fresh) this.replayClass(this.topTip.parentNode, 'pop')
   }
 
   fitHud() {
@@ -405,6 +395,9 @@ export class UI {
 
   release() {
     this.root.classList.remove('booting')
+  }
+
+  releaseImages() {
     releaseImages(this.root)
   }
 
@@ -417,7 +410,7 @@ export class UI {
   }
 
   show(name, on) {
-    const map = { select: this.select, hud: this.hud, end: this.end, fail: this.fail, fuse: this.fuse }
+    const map = { select: this.select, hud: this.hud, end: this.end, fail: this.fail }
     map[name].classList.toggle('on', on)
   }
 
@@ -450,50 +443,46 @@ export class UI {
       this.cardEls.push(slot)
       this.cards.appendChild(slot)
     })
-    const tap = el(TAP)
-    this.cards.appendChild(tap)
-    this.tap = tap
-    this.handTarget = null
+    this.tap = el(TAP)
+    this.cards.appendChild(this.tap)
   }
 
-  pointAtCard(i) {
-    this.handTarget = { node: '.card', i, x: 0.5, y: 0.4 }
-    this.placeHand()
-  }
-
-  pointAtPick(i) {
-    this.handTarget = { node: '.pick', i, x: 0.7, y: 0.64 }
-    this.placeHand()
-  }
-
-  placeHand() {
-    if (!this.tap || !this.cardEls || !this.handTarget) return
-    const { node, i, x, y } = this.handTarget
+  pointAtPick(i, glide) {
     const slot = this.cardEls[i]
-    const target = slot.querySelector(node)
-    const left = slot.offsetLeft + target.offsetLeft + target.offsetWidth * x
-    this.tap.style.left = `${left}px`
-    this.tap.style.top = `${slot.offsetTop + target.offsetTop + target.offsetHeight * y}px`
+    const pick = slot.querySelector('.pick')
+    const left = slot.offsetLeft + pick.offsetLeft + pick.offsetWidth * 0.7
+    this.tap.classList.toggle('still', !glide)
     this.tap.classList.toggle('flip', left > this.cards.offsetWidth * 0.62)
+    this.tap.style.left = `${left}px`
+    this.tap.style.top = `${slot.offsetTop + pick.offsetTop + pick.offsetHeight * 0.64}px`
   }
 
-  setChosen(on) {
-    const was = this.select.classList.contains('chosen')
-    this.select.classList.toggle('chosen', on)
-    this.select.querySelector('.head p').textContent = on ? 'The arena is under attack' : 'Tap a hero to preview'
-    const picked = this.cardEls && this.cardEls.find(c => c.classList.contains('sel'))
-    if (on && !was && picked) this.appear(picked.querySelector('.pick'), 0)
+  startTour() {
+    this.stopTour()
+    this.pointAtPick(TOUR_ORDER[0], false)
+    void this.tap.offsetWidth
+    this.tap.classList.add('on')
+    const start = performance.now()
+    const hop = k => {
+      const at = start + TOUR_PRESS_MS + TOUR_LIFT_MS + k * TOUR_TAP_MS
+      this.tourTimer = setTimeout(() => {
+        this.pointAtPick(TOUR_ORDER[(k + 1) % TOUR_ORDER.length], true)
+        hop(k + 1)
+      }, Math.max(0, at - performance.now()))
+    }
+    hop(0)
+  }
+
+  stopTour() {
+    clearTimeout(this.tourTimer)
+    clearTimeout(this.tourDelay)
+    this.tap.classList.remove('on')
   }
 
   selectCard(i) {
-    const prev = this.cardEls.findIndex(c => c.classList.contains('sel'))
     this.cardEls.forEach((c, k) => c.classList.toggle('sel', k === i))
     this.cardFx = this.cardFx || new CardBorderFx()
     this.cardFx.attach(this.cardEls[i], HEROES[i].rarity)
-    this.placeHand()
-    if (prev === i || !this.select.classList.contains('chosen')) return
-    const settle = (this.introAt || 0) + CARD_DELAY_MS + i * CARD_STAGGER_MS + PICK_LAG_MS - performance.now()
-    this.appear(this.cardEls[i].querySelector('.pick'), Math.max(0, settle))
   }
 
   appear(node, delay) {
@@ -506,22 +495,16 @@ export class UI {
     this.select.classList.remove('leaving', 'intro')
     void this.select.offsetWidth
     this.select.classList.add('intro')
-    const chosen = this.select.classList.contains('chosen')
     this.cardEls.forEach((slot, i) => {
       this.appear(slot, CARD_DELAY_MS + i * CARD_STAGGER_MS)
-      if (chosen && slot.classList.contains('sel')) this.appear(slot.querySelector('.pick'), CARD_DELAY_MS + i * CARD_STAGGER_MS + PICK_LAG_MS)
+      this.appear(slot.querySelector('.pick'), CARD_DELAY_MS + i * CARD_STAGGER_MS + PICK_LAG_MS)
     })
-    this.tap.classList.remove('on')
-    clearTimeout(this.tapTimer)
-    this.tapTimer = setTimeout(() => {
-      this.placeHand()
-      this.tap.classList.add('on')
-    }, TAP_DELAY_MS)
+    this.stopTour()
+    this.tourDelay = setTimeout(() => this.startTour(), TOUR_DELAY_MS)
   }
 
   leaveSelect(duration) {
-    clearTimeout(this.tapTimer)
-    this.tap.classList.remove('on')
+    this.stopTour()
     this.select.classList.add('leaving')
     this.cardEls.forEach(slot => {
       const picked = slot.classList.contains('sel')
@@ -547,9 +530,10 @@ export class UI {
   }
 
   setHud(hero) {
+    this.attackArt.src = ATTACK_ART[hero.attack] || ATTACK_ART.sword
     const art = SKILL_ART[hero.model] || SKILL_ART.mag018
     this.skillIcons.forEach((img, i) => { img.src = art[i] })
-    this.ultIcon.src = art[3]
+    this.ultIcon.src = art[2]
   }
 
   setTitanHud(titan) {
@@ -689,28 +673,47 @@ export class UI {
     }
   }
 
-  setWave(label) {
-    this.waveInfo.querySelector('b').textContent = label
+  setWaves(bosses) {
+    for (const stop of this.waveStops) stop.remove()
+    const row = this.waveBar.querySelector('.stops')
+    const last = Math.max(1, bosses.length - 1)
+    this.waveStops = bosses.map((boss, i) => {
+      const stop = el(boss ? '<i class="stop boss"><i class="gem"></i></i>' : `<i class="stop"><i class="gem"></i><b>${i + 1}</b></i>`)
+      stop.style.setProperty('--at', (i / last).toFixed(4))
+      row.appendChild(stop)
+      return stop
+    })
+    this.paintWave(0, true)
   }
 
-  setWaveProgress(k, fresh = false) {
-    this.waveK = Math.max(0, Math.min(1, k))
-    if (fresh) {
-      clearTimeout(this.waveHold)
-      const hold = this.wavePainted >= 1 ? WAVE_FULL_HOLD : 0
-      this.waveHold = setTimeout(() => { this.waveHold = 0; this.paintWave(true) }, hold * 1000)
-    } else if (!this.waveHold) {
-      this.paintWave(false)
-    }
+  setWave(index) {
+    const stop = this.waveStops[index]
+    this.waveLabel.textContent = `Wave ${index + 1}/${this.waveStops.length}`
+    this.waveStops.forEach((s, i) => {
+      s.classList.toggle('done', i < index)
+      s.classList.toggle('now', i === index)
+    })
+    if (stop) this.replayClass(stop, 'reached')
+    this.waveInfo.classList.toggle('bosswave', !!stop && stop.classList.contains('boss'))
   }
 
-  paintWave(snap) {
-    if (this.waveK === this.wavePainted) return
+  callBossStop(secs) {
+    const boss = this.waveStops.find(s => s.classList.contains('boss'))
+    if (!boss) return
+    clearTimeout(this.waveCalled)
+    boss.classList.add('call')
+    this.waveCalled = setTimeout(() => boss.classList.remove('call'), secs * 1000)
+  }
+
+  setWaveProgress(k) {
+    this.paintWave(Math.max(0, Math.min(1, k)), false)
+  }
+
+  paintWave(k, snap) {
+    if (k === this.wavePainted && !snap) return
     this.waveBar.classList.toggle('snap', snap)
-    this.waveBar.style.setProperty('--k', this.waveK.toFixed(4))
-    if (this.waveK >= 1 && !snap) this.replayClass(this.waveBar, 'done')
-    if (snap) this.waveBar.classList.remove('done')
-    this.wavePainted = this.waveK
+    this.waveBar.style.setProperty('--k', k.toFixed(4))
+    this.wavePainted = k
   }
 
   cooldown(key, k, secs) {
@@ -731,14 +734,28 @@ export class UI {
     }
   }
 
-  showBanner(title, sub, dur = 1.6) {
+  showBanner(title, sub, dur = 1.6, icon = null) {
     const t = this.banner.querySelector('.t')
     const s = this.banner.querySelector('.s')
     const bk = this.banner.querySelector('.bk')
-    for (const node of [t, s, bk]) node.getAnimations().forEach(a => a.cancel())
+    const ic = this.banner.querySelector('.ic')
+    for (const node of [t, s, bk, ic]) node.getAnimations().forEach(a => a.cancel())
     t.textContent = title
     s.textContent = sub || ''
     this.banner.classList.toggle('subbed', !!sub)
+    this.banner.classList.toggle('iconed', !!icon)
+    if (icon) {
+      ic.src = BANNER_ICONS[icon]
+      ic.animate(
+        [
+          { opacity: 0, transform: 'scale(2.2)', easing: BANNER_IN },
+          { opacity: 1, transform: 'scale(1)', offset: Math.min(0.24, 0.4 / dur) },
+          { opacity: 1, transform: 'scale(1.04)', offset: 1 - Math.min(0.16, 0.3 / dur), easing: EASE_IN },
+          { opacity: 0, transform: 'scale(1.12)' },
+        ],
+        { duration: dur * 1000 }
+      )
+    }
     bk.animate(
       [{ opacity: 0 }, { opacity: 1, offset: 0.16 }, { opacity: 1, offset: 0.82 }, { opacity: 0 }],
       { duration: dur * 1000 }
@@ -760,8 +777,8 @@ export class UI {
     )
   }
 
-  openGear(gear, hero) {
-    this.gearRing.open(gear, hero)
+  openGear(gear, intro) {
+    this.gearRing.open(gear, intro)
     this.hud.classList.add('gearmode')
   }
 

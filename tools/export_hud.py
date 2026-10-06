@@ -153,6 +153,7 @@ SPRITES = {
     "wave/end": (BATTLE_HUD_BUNDLE, "S_HUD_LevelProgressionDecor_02"),
     "wave/marker": (BATTLE_HUD_BUNDLE, "S_HUD_LevelProgressionSlider"),
     "wave/enemies": (BATTLE_HUD_BUNDLE, "S_HUD_EnemyCounter"),
+    "wave/boss": (BATTLE_HUD_BUNDLE, "S_HUD_BossBadge"),
     "loot/background": (BATTLE_HUD_BUNDLE, "S_HUD_LootBackground"),
     "loot/flash": (BATTLE_HUD_BUNDLE, "S_HUD_HorizontalTwoSidedGradient"),
     "loot/star": (LOBBY_UI_BUNDLE, "S_Default_Star"),

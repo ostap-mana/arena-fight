@@ -73,7 +73,7 @@ export async function buildArena(scene, id = pickLocation()) {
     group.add(mesh)
   }
 
-  const floorY = measureFloor(group)
+  const floorY = meta.floorY ?? measureFloor(group)
   group.position.y = -floorY
   group.updateMatrixWorld(true)
 

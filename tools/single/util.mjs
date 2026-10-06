@@ -7,15 +7,15 @@ export const ROOT = path.resolve(import.meta.dirname, '..', '..')
 export const CACHE = path.join(ROOT, 'node_modules', '.cache', 'single')
 fs.mkdirSync(CACHE, { recursive: true })
 
-let python = null
+let pythonPath = null
 
-function findPython() {
-  if (python) return python
+export function python() {
+  if (pythonPath) return pythonPath
   const candidates = [process.env.PYTHON, 'python', 'python3', 'py'].filter(Boolean)
   for (const candidate of candidates) {
     try {
-      python = execFileSync(candidate, ['-c', 'import sys, PIL; print(sys.executable)'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
-      return python
+      pythonPath = execFileSync(candidate, ['-c', 'import sys, PIL; print(sys.executable)'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+      return pythonPath
     } catch {}
   }
   throw new Error('no python with Pillow found; set PYTHON')
@@ -38,8 +38,8 @@ export function cached(key, ext, make) {
 export function encodeImages(jobs) {
   const todo = []
   const results = jobs.map(job => {
-    const key = hash('img4', job.data, { ...job, data: undefined })
-    const out = path.join(CACHE, `${key}.webp`)
+    const key = hash('img6', job.data, { ...job, data: undefined })
+    const out = path.join(CACHE, `${key}.img`)
     if (!fs.existsSync(out) && !todo.some(t => t.out === out)) {
       const src = path.join(CACHE, `${key}.src`)
       fs.writeFileSync(src, job.data)
@@ -50,11 +50,18 @@ export function encodeImages(jobs) {
   if (todo.length) {
     const list = path.join(CACHE, `jobs-${process.pid}-${Date.now()}.json`)
     fs.writeFileSync(list, JSON.stringify(todo))
-    execFileSync(findPython(), [path.join(import.meta.dirname, 'images.py'), list], { stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 64 << 20 })
+    execFileSync(python(), [path.join(import.meta.dirname, 'images.py'), list], { stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 64 << 20 })
     fs.rmSync(list)
     for (const job of todo) fs.rmSync(job.src)
   }
   return results.map(file => fs.readFileSync(file))
+}
+
+export function imageKind(data) {
+  if (data.length > 12 && data.toString('ascii', 4, 8) === 'ftyp') return 'avif'
+  if (data.length > 12 && data.toString('ascii', 0, 4) === 'RIFF') return 'webp'
+  if (data.length > 8 && data.readUInt32BE(0) === 0x89504e47) return 'png'
+  return 'jpeg'
 }
 
 export const kb = n => `${(n / 1024).toFixed(0)}K`

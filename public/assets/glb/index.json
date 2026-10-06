@@ -2930,5 +2930,155 @@
   "size": 4215976,
   "root": "MDL_LOB_ELD025",
   "name": "Confar the Burnished (lobby)"
+ },
+ {
+  "id": "ANIMLTS004",
+  "file": "animlts004.glb",
+  "bones": 88,
+  "meshes": [
+   "MESH_Body",
+   "MESH_Body_VFX_2",
+   "MESH_Body_VFX_3",
+   "MESH_Weapon_VFX_1",
+   "MESH_Body_VFX_1",
+   "MESH_Weapon"
+  ],
+  "textures": [
+   "T_ING_ANIMLTS004_Body_VFX_AlbedoAO",
+   "T_ING_ANIMLTS004_Body_Albedo",
+   "T_ING_ANIMLTS004_Body_NM",
+   "T_FX_Noise_40_1",
+   "T_FX_Noise_32_1",
+   "T_FX_Noise_32_1_R_270",
+   "T_FX_Noise_41_1",
+   "T_ING_ANIMLTS004_Weapon_Albedo",
+   "T_ING_ANIMLTS004_Weapon_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_0",
+    "duration": 0.8333,
+    "bones": 237,
+    "channels": 106
+   },
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.0,
+    "bones": 237,
+    "channels": 106
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 1.6667,
+    "bones": 237,
+    "channels": 108
+   },
+   {
+    "name": "FX_A_ANIMLTS004_Girl_1_1_TurnOn_Off",
+    "duration": 1.25,
+    "bones": 0,
+    "channels": 1,
+    "static": true
+   },
+   {
+    "name": "Girl_anim",
+    "duration": 1.1667,
+    "bones": 137,
+    "channels": 90
+   },
+   {
+    "name": "Idle",
+    "duration": 3.3,
+    "bones": 237,
+    "channels": 101
+   },
+   {
+    "name": "IdleBreakLOB_1",
+    "duration": 8.5667,
+    "bones": 237,
+    "channels": 134
+   },
+   {
+    "name": "IdleLOB",
+    "duration": 3.3333,
+    "bones": 237,
+    "channels": 111
+   },
+   {
+    "name": "IdleTeamLOB",
+    "duration": 3.3333,
+    "bones": 240,
+    "channels": 112
+   },
+   {
+    "name": "IntroLOB",
+    "duration": 4.9,
+    "bones": 237,
+    "channels": 133
+   },
+   {
+    "name": "Morph",
+    "duration": 1.5,
+    "bones": 240,
+    "channels": 102
+   },
+   {
+    "name": "Morph_EndCast",
+    "duration": 0.4333,
+    "bones": 240,
+    "channels": 99
+   },
+   {
+    "name": "RevealLOB",
+    "duration": 7.2667,
+    "bones": 237,
+    "channels": 135
+   },
+   {
+    "name": "Run",
+    "duration": 0.9333,
+    "bones": 237,
+    "channels": 98
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.0,
+    "bones": 237,
+    "channels": 98
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.0,
+    "bones": 237,
+    "channels": 113
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 1.4,
+    "bones": 237,
+    "channels": 96
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 1.0,
+    "bones": 237,
+    "channels": 102
+   },
+   {
+    "name": "UnMorph",
+    "duration": 0.5,
+    "bones": 237,
+    "channels": 101
+   },
+   {
+    "name": "UnMorph_EndCast",
+    "duration": 1.1667,
+    "bones": 237,
+    "channels": 96
+   }
+  ],
+  "size": 1811824,
+  "root": "MDL_ING_ANIMLTS004",
+  "name": "ANIMLTS004"
  }
 ]

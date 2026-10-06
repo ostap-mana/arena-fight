@@ -147,6 +147,10 @@ export class Gear {
     return best[item.slot] === item && this.equipped[item.slot] !== item
   }
 
+  hasUpgrade() {
+    return this.items.some(it => this.isUpgrade(it))
+  }
+
   equip(item) {
     const i = this.items.indexOf(item)
     if (i < 0) return

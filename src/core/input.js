@@ -1,13 +1,13 @@
 import * as THREE from 'three'
 
-const IGNORED = '#animacard, #gearring, button, .card, .chip, .store, .replay'
+const IGNORED = '#animacard, #gearring, button, .card, .store, .replay'
 const CONTROLS = '.skill, #ultbtn'
-const DRAG_THROUGH_QUERY = matchMedia('(max-aspect-ratio: 5/6)')
-const TAP_TIME = 260
+const TAP_TIME = 500
 const TAP_SLOP = 14
 const FLICK_TIME = 320
 const FLICK_DIST = 46
 const STICK_RANGE = 100 / 216
+const STICK_DEAD = 0.2
 
 export class Input {
   constructor(root) {
@@ -89,7 +89,6 @@ export class Input {
       const t = e.target
       if (t.closest && t.closest(IGNORED)) return
       const onControl = !!(t.closest && t.closest(CONTROLS)) || this.overControls(e.clientX, e.clientY)
-      if (onControl && !DRAG_THROUGH_QUERY.matches) return
       this.pointerId = e.pointerId
       this.fromControl = onControl
       this.radius = this.stickRadius()
@@ -101,7 +100,6 @@ export class Input {
       if (this.knob) this.knob.style.transform = 'translate(0,0)'
       if (onControl) return
       this.placeStick()
-      if (this.stick) this.stick.classList.add('held')
     }
     const move = e => {
       if (e.pointerId !== this.pointerId) return
@@ -114,9 +112,11 @@ export class Input {
         if (this.travel <= TAP_SLOP) return
         this.fromControl = false
         this.placeStick()
-        if (this.stick) this.stick.classList.add('held')
       }
-      if (this.travel > TAP_SLOP && this.onSteer) this.onSteer()
+      if (this.travel > TAP_SLOP) {
+        if (this.stick) this.stick.classList.add('held')
+        if (this.onSteer) this.onSteer()
+      }
       let dx = e.clientX - this.origin.x
       let dy = e.clientY - this.origin.y
       const len = Math.hypot(dx, dy)
@@ -154,9 +154,18 @@ export class Input {
     addEventListener('pointercancel', up, { passive: true })
   }
 
+  tapOn(pointerId) {
+    return this.enabled && this.pointerId === pointerId && this.fromControl
+  }
+
+  stickAxis() {
+    const len = Math.hypot(this.move.x, this.move.y)
+    if (len < STICK_DEAD) return [0, 0]
+    return [this.move.x / len, this.move.y / len]
+  }
+
   axis() {
-    let x = this.move.x
-    let y = this.move.y
+    let [x, y] = this.stickAxis()
     const k = this.keys
     if (k.has('KeyA') || k.has('ArrowLeft')) x -= 1
     if (k.has('KeyD') || k.has('ArrowRight')) x += 1

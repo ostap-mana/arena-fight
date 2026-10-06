@@ -280,6 +280,12 @@ function dressMaterial(source, opts) {
   return m
 }
 
+function presetBounds(mesh) {
+  const geometry = mesh.geometry
+  if (!geometry.boundingSphere) geometry.computeBoundingSphere()
+  mesh.boundingSphere = geometry.boundingSphere.clone()
+}
+
 export function buildModel(data, opts = {}) {
   const { footY, height } = measure(data)
   const root = cloneSkinned(data.scene)
@@ -294,7 +300,10 @@ export function buildModel(data, opts = {}) {
     o.frustumCulled = false
     o.castShadow = !!opts.castShadow
     o.receiveShadow = false
-    if (o.isSkinnedMesh) skins.push(o)
+    if (o.isSkinnedMesh) {
+      skins.push(o)
+      presetBounds(o)
+    }
   })
   const model = {
     root,

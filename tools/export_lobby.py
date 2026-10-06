@@ -247,7 +247,7 @@ def export_code(glb, Exporter, code):
     info = ex.run(smr_list, skel, clips)
     info["root"] = name
     info["size"] = optimize_glb.optimize(out_path)
-    optimize_glb.optimize(out_path, out_path[:-4] + "_m.glb", max_tex=1024)
+    optimize_glb.optimize(out_path, out_path[:-4] + "_m.glb", max_tex=1024, ext_max=optimize_glb.MOBILE_TEX_MAX)
     log("  wrote %s %d KB, %d clips" % (out_path, info["size"] // 1024, len(info["clips"])))
     return info
 
