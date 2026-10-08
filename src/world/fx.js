@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { Flipbooks } from './flipbook.js'
 import { stream } from '../core/rng.js'
+import { LOW_TIER } from '../core/tier.js'
 
 const random = stream('fx')
 
@@ -12,7 +13,7 @@ export function T(file, srgb = true) {
   if (cache.has(key)) return cache.get(key)
   const t = loader.load(`assets/fx/${file}.webp`)
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace
-  t.anisotropy = 16
+  t.anisotropy = LOW_TIER ? 4 : 16
   t.minFilter = THREE.LinearMipmapLinearFilter
   t.magFilter = THREE.LinearFilter
   cache.set(key, t)
@@ -540,6 +541,7 @@ export class FX {
       this.sBase[k] = this.sSize[k] = size * (0.6 + random() * 0.8)
     }
     this.sAwake = true
+    this.sColorDirty = true
   }
 
   decal(x, z, size, color, life, texture, spin = 0) {
@@ -731,7 +733,10 @@ export class FX {
   }
 
   updateSparks(dt) {
-    if (!this.sAwake) return
+    if (!this.sAwake) {
+      this.sparks.visible = false
+      return
+    }
     const P = this.sPos
     const V = this.sVel
     let alive = 0
@@ -755,18 +760,21 @@ export class FX {
     }
     this.sparkGeo.attributes.position.needsUpdate = true
     this.sparkGeo.attributes.size.needsUpdate = true
-    this.sparkGeo.attributes.color.needsUpdate = true
+    if (this.sColorDirty) {
+      this.sColorDirty = false
+      this.sparkGeo.attributes.color.needsUpdate = true
+    }
     if (!alive) this.sAwake = false
+    this.sparks.visible = this.sAwake
   }
 
-  update(dt, camera) {
+  update(dt, camera, bufferHeight = 720) {
     if (this.warmed) {
       for (const [p, o] of this.warmed) if (p.free.includes(o)) o.visible = false
       this.warmed = null
     }
     if (camera) this.camPos.copy(camera.position)
-    const px = (typeof innerHeight === 'number' ? innerHeight : 720) * Math.min((typeof devicePixelRatio === 'number' && devicePixelRatio) || 1, 2)
-    this.sparkMat.uniforms.uScale.value = 320 * px / 720
+    this.sparkMat.uniforms.uScale.value = 320 * bufferHeight / 720
     this.updateSparks(dt)
     if (camera) this.books.update(dt, camera, this.scene.fog)
 

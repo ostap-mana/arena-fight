@@ -19,12 +19,16 @@ import { Input } from './input.js'
 import { Gear } from './gear.js'
 import { BUILDS, POWER_GOAL } from '../data/builds.js'
 import { UI } from '../ui/ui.js'
+import { FloatText } from '../ui/float-text.js'
 import { GEAR_TOP } from '../ui/gear-ring.js'
 import { stream, seed } from './rng.js'
 import { wireBus, sayOnce, sayProgress, openStore, stepDoor, tellState, bootMark } from '../net/bus.js'
 import { prefetchProgress } from './fetch.js'
 import { compileFor } from './compile.js'
 import { ResolutionGovernor } from './governor.js'
+import { view } from './viewport.js'
+import { COARSE, FORCED_QUALITY } from './tier.js'
+import { prewarmObject, texturesOf, uploadTexturesNow } from './prewarm.js'
 
 const random = stream('sim')
 
@@ -158,6 +162,14 @@ const STATE_KEYS = { KeyV: 'victory', KeyD: 'defeat', KeyR: 'restart' }
 const RETRY_DELAY = 160
 const BOOT_PROGRESS = { fetch: 0.8, parse: 0.15 }
 const SELECT_TEXTURE_WAIT = 4000
+const PIXEL_BUDGET = { low: 1.1e6, high: 3.7e6 }
+const MOBILE_MIN_RATIO = 0.75
+const SWINGS = new Set(['attack', 'attack2'])
+const ROOTING = new Set(['cast', 'morph', 'unmorph'])
+const BUSY_STATES = new Set(['attack', 'attack2', 'cast', 'morph', 'unmorph', 'roar'])
+const _axis = [0, 0]
+const _steer = [0, 0]
+const _still = [0, 0]
 const _camVel = new THREE.Vector3()
 const _dampA = new THREE.Vector3()
 const _dampB = new THREE.Vector3()
@@ -184,6 +196,10 @@ function enemyModel(def) {
   return def.wings ? loadWingedModel(def.model, def.wings) : loadModelData(def.model)
 }
 
+function settled(promise) {
+  return Promise.race([promise, null]).catch(() => null)
+}
+
 function soundCode(def) {
   return def.sfx || def.model
 }
@@ -201,6 +217,7 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas
     this.ui = new UI('ui')
+    this.floats = new FloatText(this.ui.root)
     this.state = 'boot'
     this.t = 0
     this.timeScale = 1
@@ -228,6 +245,9 @@ export class Game {
     this.heroIndex = 0
     this.cooldowns = { s1: 0, s2: 0, dash: 0, attack: 0 }
     this.selectActors = []
+    this.modelSpares = new Map()
+    this.warmedModels = new WeakSet()
+    this.warmedFx = new Set()
     this.renderHold = 0
     this.revealing = null
     this.hintTimers = []
@@ -293,9 +313,7 @@ export class Game {
       powerPreference: 'high-performance',
       stencil: false,
     })
-    r.setPixelRatio(Math.min(devicePixelRatio, 2))
-    r.setSize(innerWidth, innerHeight)
-    this.governor = new ResolutionGovernor(r.getPixelRatio())
+    r.debug.checkShaderErrors = !import.meta.env.PROD
     this.contextLost = false
     this.canvas.addEventListener('webglcontextlost', () => { this.contextLost = true })
     this.canvas.addEventListener('webglcontextrestored', () => { this.contextLost = false })
@@ -307,7 +325,7 @@ export class Game {
     this.scene = new THREE.Scene()
     this.scene.fog = new THREE.FogExp2(0x070c1a, 0.018)
 
-    this.camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.4, 220)
+    this.camera = new THREE.PerspectiveCamera(46, view.w / view.h, 0.4, 220)
     this.camera.position.set(0, 13, 13)
     this.camera.lookAt(0, 1.2, 0)
     this.camOffset = new THREE.Vector3(0, 7.8, 7.4)
@@ -323,9 +341,8 @@ export class Game {
     const soft = /swiftshader|llvmpipe|software|basic render/i.test(gpu)
     this.softGPU = soft
     this.gpuName = gpu
-    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-    const q = new URLSearchParams(location.search).get('q')
-    this.quality = q === 'low' || q === 'high' ? q : soft || coarse ? 'low' : 'high'
+    this.quality = FORCED_QUALITY || (soft || COARSE ? 'low' : 'high')
+    this.setupResolution(COARSE)
     r.shadowMap.enabled = true
     r.shadowMap.type = THREE.PCFShadowMap
     SHADOW_MODE.projected = false
@@ -338,6 +355,7 @@ export class Game {
       mipmapBlur: true,
       radius: 0.7,
     })
+    if (this.quality === 'low') this.bloom.luminancePass.resolution.scale = 0.5
     this.chroma = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0004, 0.0004) })
     this.vignette = new VignetteEffect({ offset: 0.3, darkness: BATTLE_POST.vignette })
     this.battleGrade = new HueSaturationEffect({ saturation: BATTLE_POST.saturation })
@@ -352,6 +370,16 @@ export class Game {
     addEventListener('resize', () => this.resize())
   }
 
+  setupResolution(coarse) {
+    const dpr = Math.min(devicePixelRatio || 1, 2)
+    const floor = Math.min(1, dpr)
+    const fit = Math.sqrt(PIXEL_BUDGET[this.quality] / (view.w * view.h))
+    const start = clamp(Math.min(dpr, fit), floor, dpr)
+    this.governor = new ResolutionGovernor({ start, min: coarse ? Math.min(floor, MOBILE_MIN_RATIO) : floor, max: dpr })
+    this.renderer.setPixelRatio(start)
+    this.renderer.setSize(view.w, view.h)
+  }
+
   buildLobbyPost() {
     const cam = this.camera
     this.lobbyBloom = new BloomEffect({
@@ -361,6 +389,7 @@ export class Game {
       mipmapBlur: true,
       radius: 0.82,
     })
+    if (this.quality === 'low') this.lobbyBloom.luminancePass.resolution.scale = 0.5
     this.lobbySat = new HueSaturationEffect({ saturation: LOBBY_POST.saturation })
     this.lobbyContrast = new BrightnessContrastEffect({ contrast: LOBBY_POST.contrast })
     this.lobbyVignette = new VignetteEffect({ offset: 0.3, darkness: LOBBY_POST.vignette })
@@ -368,7 +397,7 @@ export class Game {
     this.lobbySharpen = new FocusSharpenEffect()
     const effects = [this.lobbySharpen, this.lobbyGrade, this.lobbyBloom, this.lobbySat, this.lobbyContrast, this.lobbyVignette]
     this.lobbyPasses = []
-    if (!this.softGPU) {
+    if (!this.softGPU && this.quality === 'high') {
       this.lobbyDof = new DepthOfFieldEffect(cam, { focusDistance: 8, focusRange: LOBBY_POST.focusRange, bokehScale: LOBBY_POST.bokeh, resolutionScale: 0.5 })
       this.lobbyDof.target = new THREE.Vector3()
       effects.unshift(this.lobbyDof)
@@ -425,10 +454,10 @@ export class Game {
   }
 
   resize() {
-    this.camera.aspect = innerWidth / innerHeight
+    this.camera.aspect = view.w / view.h
     this.fitCamera()
-    this.renderer.setSize(innerWidth, innerHeight)
-    this.composer.setSize(innerWidth, innerHeight)
+    this.renderer.setSize(view.w, view.h)
+    this.composer.setSize(view.w, view.h)
     if (this.ui.cardEls) this.ui.selectCard(this.heroIndex)
     if (this.state === 'select') this.fitSelectCamera()
   }
@@ -570,17 +599,25 @@ export class Game {
     await this.vfx.preload(vfxIds)
     await this.quiet()
     for (const id of vfxIds) this.heroFx.preloadModels(id)
+    await this.vfx.warm(this.renderer, this.camera, this.lobbyFxNames(), this.composer.inputBuffer, true)
     this.attachSelectSkins()
-    await this.vfx.warm(this.renderer, this.camera, this.lobbyFxNames(), this.composer.inputBuffer)
+    await this.quiet()
+    await this.vfx.warm(this.renderer, this.camera, [], this.composer.inputBuffer)
     audio.fetch(['music_battle', 'amb_battle', 'common', 'enemies'])
     audio.fetchSfx()
+    audio.fetch(['music_titan', 'music_victory', 'music_endcard'])
     for (const id of [...new Set(HEROES.map(h => h.model))]) {
       await this.quiet()
-      await loadModelData(id).catch(() => null)
+      await this.warmModel(await loadModelData(id).catch(() => null))
     }
-    for (const def of [...new Set(WAVES.flatMap(w => w.spawns.map(([type]) => ENEMIES[type])))]) {
+    for (const def of this.enemyDefs()) {
       await this.quiet()
-      await enemyModel(def).catch(() => null)
+      await this.warmModel(await enemyModel(def).catch(() => null))
+    }
+    for (const def of [...new Set(HEROES.map(h => TITANS[h.titan]).filter(Boolean))]) {
+      await this.quiet()
+      await this.warmModel(await loadModelData(def.model).catch(() => null))
+      if (def.vfx) await this.vfx.preload([def.vfx]).catch(() => null)
     }
     await this.quiet()
     await Promise.all([
@@ -591,18 +628,17 @@ export class Game {
     const enemyVfx = [...new Set(WAVES.flatMap(w => w.spawns.map(([type]) => ENEMIES[type].vfx)).filter(Boolean))]
     if (enemyVfx.length) await this.vfx.preload(enemyVfx)
     this.vfx.warm(this.renderer, this.camera, [...this.loot.fxNames(), MOVE_MARK], this.composer.inputBuffer)
-    audio.fetch(['music_titan', 'music_victory', 'music_endcard'])
   }
 
   tapOnHero(x, y) {
     const h = this.hero
     if (this.state !== 'battle' || !h || h.dead || !this.gear) return false
     _v.set(h.pos.x, h.pos.y, h.pos.z).project(this.camera)
-    const footX = (_v.x * 0.5 + 0.5) * innerWidth
-    const footY = (-_v.y * 0.5 + 0.5) * innerHeight
+    const footX = (_v.x * 0.5 + 0.5) * view.w
+    const footY = (-_v.y * 0.5 + 0.5) * view.h
     _v.set(h.pos.x, h.pos.y + h.height, h.pos.z).project(this.camera)
-    const headX = (_v.x * 0.5 + 0.5) * innerWidth
-    const headY = (-_v.y * 0.5 + 0.5) * innerHeight
+    const headX = (_v.x * 0.5 + 0.5) * view.w
+    const headY = (-_v.y * 0.5 + 0.5) * view.h
     const half = Math.max(30, (footY - headY) * HERO_TAP_WIDTH)
     return Math.abs(x - (footX + headX) / 2) <= half && y >= headY - HERO_TAP_PAD && y <= footY + HERO_TAP_PAD
   }
@@ -626,7 +662,7 @@ export class Game {
     this.gearSpan = null
     if (!this.heroLocked()) this.hero.rig.play('idle', { force: true, fade: 0.2 })
     const span = this.placeGear()
-    if (this.gearK < 0.01) this.gearDist = clamp(span / (innerHeight * GEAR_HERO_SHARE), GEAR_NEAREST, 1)
+    if (this.gearK < 0.01) this.gearDist = clamp(span / (view.h * GEAR_HERO_SHARE), GEAR_NEAREST, 1)
     this.ui.openGear(this.gear, intro)
     if (!intro && this.underpowered() && this.gear.bestPower() >= POWER_GOAL) this.ui.gearRing.cueAuto(true)
     gsap.to(this, { gearK: 1, duration: GEAR_IN, ease: 'power2.out', overwrite: true })
@@ -677,10 +713,10 @@ export class Game {
     if (!h) return 0
     this.camera.updateMatrixWorld()
     _v.set(h.pos.x, h.pos.y, h.pos.z).project(this.camera)
-    const footX = (_v.x * 0.5 + 0.5) * innerWidth
-    const bottom = (-_v.y * 0.5 + 0.5) * innerHeight
+    const footX = (_v.x * 0.5 + 0.5) * view.w
+    const bottom = (-_v.y * 0.5 + 0.5) * view.h
     _v2.set(h.pos.x, h.pos.y + h.height * GEAR_TOP, h.pos.z).project(this.camera)
-    const span = { x: (footX + (_v2.x * 0.5 + 0.5) * innerWidth) / 2, top: (-_v2.y * 0.5 + 0.5) * innerHeight, bottom }
+    const span = { x: (footX + (_v2.x * 0.5 + 0.5) * view.w) / 2, top: (-_v2.y * 0.5 + 0.5) * view.h, bottom }
     const s = this.gearSpan || span
     for (const k of ['x', 'top', 'bottom']) s[k] += (span[k] - s[k]) * (this.gearSpan ? GEAR_SMOOTH : 1)
     this.gearSpan = s
@@ -789,6 +825,71 @@ export class Game {
 
   lobbyFxNames() {
     return HEROES.flatMap(h => [...(h.intro || []).map(([, name]) => name), ...(h.lobbySkin === false ? [] : this.heroFx.skinNames(h.vfx, true))])
+  }
+
+  enemyDefs() {
+    return [...new Set(WAVES.flatMap(w => w.spawns.map(([type]) => ENEMIES[type])))]
+  }
+
+  takeModel(data) {
+    const spare = this.modelSpares.get(data)
+    const model = spare && spare.pop()
+    if (model) {
+      model.skins.forEach((s, i) => {
+        s.material.transparent = model.fade[i][0]
+        s.material.opacity = model.fade[i][1]
+      })
+      return model
+    }
+    const fresh = buildModel(data, { castShadow: true })
+    fresh.data = data
+    fresh.fade = fresh.skins.map(s => [s.material.transparent, s.material.opacity])
+    return fresh
+  }
+
+  spareModel(model) {
+    if (!model || !model.data) return
+    model.root.removeFromParent()
+    const spare = this.modelSpares.get(model.data) || []
+    spare.push(model)
+    this.modelSpares.set(model.data, spare)
+  }
+
+  retireActor(actor) {
+    actor.flash = 0
+    actor.tint(0)
+    actor.rig.mixer.stopAllAction()
+    actor.rig.mixer.uncacheRoot(actor.root)
+    this.spareModel(actor.model)
+  }
+
+  async warmModel(data) {
+    if (!data || this.warmedModels.has(data)) return
+    this.warmedModels.add(data)
+    const model = this.takeModel(data)
+    await prewarmObject(this.renderer, model.root, this.camera, this.scene, this.composer.inputBuffer)
+    this.spareModel(model)
+  }
+
+  async stageBattle(hero) {
+    const datas = []
+    for (const def of this.enemyDefs()) datas.push(await settled(enemyModel(def)))
+    const titan = TITANS[hero.titan]
+    if (titan) datas.push(await settled(loadModelData(titan.model)))
+    const staged = []
+    for (const data of datas) {
+      if (!data) continue
+      const model = this.takeModel(data)
+      model.root.position.set(0, -40, 0)
+      this.scene.add(model.root)
+      staged.push(model)
+    }
+    return () => staged.forEach(m => this.spareModel(m))
+  }
+
+  battleVfxIds(hero) {
+    const titan = TITANS[hero.titan]
+    return [hero.vfx, titan && titan.vfx, ...this.enemyDefs().map(d => d.vfx)].filter(id => id && this.vfx.library(id))
   }
 
   attachSelectSkins() {
@@ -945,7 +1046,7 @@ export class Game {
       this.renderHold--
     }
     await this.settleFrames()
-    for (const inst of warm) inst.stop()
+    for (const inst of warm) this.vfx.kill(inst)
     this.ui.progress(1)
     this.ui.hideBoot()
     this.ui.playSelectIntro()
@@ -989,15 +1090,20 @@ export class Game {
 
   async warmBattleFx(ids, withLoot = false, veiled = false) {
     const hidden = new THREE.Vector3(0, -40, 0)
-    const warm = ids.filter(Boolean).flatMap(id => this.heroFx.warmSkills(id, hidden))
+    const fresh = ids.filter(id => id && !this.warmedFx.has(id))
+    fresh.forEach(id => this.warmedFx.add(id))
+    const warm = fresh.flatMap(id => this.heroFx.warmSkills(id, hidden))
     const probe = withLoot && this.loot.ready ? this.loot.warmProbe(LOOT_WARM_AT, LOOT_WARM_SCALE) : null
-    if (veiled) await this.compileHidden()
-    else {
+    if (veiled) {
+      await this.compileHidden()
+      uploadTexturesNow(this.renderer, [...texturesOf(this.scene), ...this.vfx.textures(ids)])
+      this.composer.render()
+    } else {
       await new Promise(r => requestAnimationFrame(r))
       await this.compileScene()
     }
     await new Promise(r => requestAnimationFrame(r))
-    for (const inst of warm) inst.stop()
+    for (const inst of warm) this.vfx.kill(inst)
     if (probe) probe.removeFromParent()
   }
 
@@ -1087,7 +1193,7 @@ export class Game {
   }
 
   fitSelectCamera() {
-    const h = innerHeight
+    const h = view.h
     const titleBottom = this.ui.select.querySelector('.head').getBoundingClientRect().bottom
     const feetPx = this.ui.cards.getBoundingClientRect().top - SELECT_CARD_LIFT - h * 0.035
     const headPx = Math.max(titleBottom + h * 0.1, feetPx - h * 0.42)
@@ -1171,7 +1277,7 @@ export class Game {
     }
     this.selectActors = []
     const [battleModel] = await Promise.all([loadModelData(hero.model), hero.vfx ? this.vfx.preload([hero.vfx]).then(() => this.heroFx.preloadModels(hero.vfx)) : null])
-    this.hero = new Actor(buildModel(battleModel, { castShadow: true }), { targetHeight: 1.9 })
+    this.hero = new Actor(this.takeModel(battleModel), { targetHeight: 1.9 })
     this.hero.rig.retimeCombo(hero.combo)
     this.scene.add(this.hero.root)
     if (hero.vfx) this.heroFx.attachSkin(hero.vfx, this.hero)
@@ -1202,7 +1308,9 @@ export class Game {
     this.camLook.set(0, BATTLE_LOOK_Y, 0)
     this.fitCamera()
     this.camSnap = true
-    await this.warmBattleFx([hero.vfx], true, true)
+    const unstage = await this.stageBattle(hero)
+    await this.warmBattleFx(this.battleVfxIds(hero), true, true)
+    unstage()
 
     audio.track('music_battle')
     audio.layer('amb_battle', true)
@@ -1285,7 +1393,7 @@ export class Game {
     this.spawning--
     if (!loaded || this.state === 'end') return
     const [data] = loaded
-    const a = new Actor(buildModel(data, { castShadow: true }), {
+    const a = new Actor(this.takeModel(data), {
       targetHeight: 1.78 * def.scale,
       hp: def.hp * (1 + this.waveIndex * 0.12),
       radius: 0.72 * def.scale,
@@ -1473,25 +1581,13 @@ export class Game {
 
   damageNumber(x, y, z, value, color, big) {
     _v.set(x, y, z).project(this.camera)
-    const sx = (_v.x * 0.5 + 0.5) * innerWidth
-    const sy = (-_v.y * 0.5 + 0.5) * innerHeight
-    const d = document.createElement('div')
-    d.className = 'dmg'
-    d.textContent = Math.round(value)
-    d.style.left = `${sx}px`
-    d.style.top = `${sy}px`
-    d.style.color = color
-    d.style.fontSize = big ? '34px' : '19px'
-    this.ui.root.appendChild(d)
+    const at = `translate(${((_v.x * 0.5 + 0.5) * view.w).toFixed(1)}px, ${((-_v.y * 0.5 + 0.5) * view.h).toFixed(1)}px)`
     const dx = (random() - 0.5) * 70
-    d.animate(
-      [
-        { transform: 'translate(-50%,-50%) scale(.4)', opacity: 0 },
-        { transform: `translate(calc(-50% + ${dx * 0.3}px), -78%) scale(${big ? 1.5 : 1.12})`, opacity: 1, offset: 0.2 },
-        { transform: `translate(calc(-50% + ${dx}px), -180%) scale(${big ? 1.1 : 0.86})`, opacity: 0 },
-      ],
-      { duration: big ? 1000 : 760, easing: 'cubic-bezier(.15,.8,.3,1)' }
-    ).onfinish = () => d.remove()
+    this.floats.show('dmg', String(Math.round(value)), [
+      { transform: `${at} translate(-50%, -50%) scale(.4)`, opacity: 0 },
+      { transform: `${at} translate(calc(-50% + ${(dx * 0.3).toFixed(1)}px), -78%) scale(${big ? 1.5 : 1.12})`, opacity: 1, offset: 0.2 },
+      { transform: `${at} translate(calc(-50% + ${dx.toFixed(1)}px), -180%) scale(${big ? 1.1 : 0.86})`, opacity: 0 },
+    ], { duration: big ? 1000 : 760, easing: 'cubic-bezier(.15,.8,.3,1)' }, { color, fontSize: big ? '34px' : '19px' })
   }
 
   useSkill(key) {
@@ -1653,7 +1749,7 @@ export class Game {
   }
 
   groundAt(x, y) {
-    _ndc.set(x / innerWidth * 2 - 1, 1 - y / innerHeight * 2)
+    _ndc.set(x / view.w * 2 - 1, 1 - y / view.h * 2)
     _ray.setFromCamera(_ndc, this.camera)
     _ground.constant = -this.hero.pos.y
     const point = _ray.ray.intersectPlane(_ground, new THREE.Vector3())
@@ -1680,7 +1776,9 @@ export class Game {
       this.moveTarget = null
       return axis
     }
-    return [dx / d, dz / d]
+    _steer[0] = dx / d
+    _steer[1] = dz / d
+    return _steer
   }
 
   passMoveTarget(ax, az, dt) {
@@ -2002,20 +2100,12 @@ export class Game {
 
   floatText(x, y, z, text) {
     _v.set(x, y, z).project(this.camera)
-    const d = document.createElement('div')
-    d.className = 'dmg immune'
-    d.textContent = text
-    d.style.left = `${(_v.x * 0.5 + 0.5) * innerWidth}px`
-    d.style.top = `${(-_v.y * 0.5 + 0.5) * innerHeight}px`
-    this.ui.root.appendChild(d)
-    d.animate(
-      [
-        { transform: 'translate(-50%,-50%) scale(.5)', opacity: 0 },
-        { transform: 'translate(-50%,-80%) scale(1.15)', opacity: 1, offset: 0.25 },
-        { transform: 'translate(-50%,-170%) scale(1)', opacity: 0 },
-      ],
-      { duration: 900, easing: 'cubic-bezier(.15,.8,.3,1)' }
-    ).onfinish = () => d.remove()
+    const at = `translate(${((_v.x * 0.5 + 0.5) * view.w).toFixed(1)}px, ${((-_v.y * 0.5 + 0.5) * view.h).toFixed(1)}px)`
+    this.floats.show('dmg immune', text, [
+      { transform: `${at} translate(-50%, -50%) scale(.5)`, opacity: 0 },
+      { transform: `${at} translate(-50%, -80%) scale(1.15)`, opacity: 1, offset: 0.25 },
+      { transform: `${at} translate(-50%, -170%) scale(1)`, opacity: 0 },
+    ], { duration: 900, easing: 'cubic-bezier(.15,.8,.3,1)' }, { color: '', fontSize: '' })
   }
 
   addTitan(v) {
@@ -2157,7 +2247,7 @@ export class Game {
     const { data, land } = await this.titanLoad
     if (epoch !== this.epoch) return
     this.summoning = false
-    const model = buildModel(data, { castShadow: true })
+    const model = this.takeModel(data)
     const titan = new Actor(model, { targetHeight: model.height * h.scale, radius: def.radius })
     titan.setPos(h.pos.x, h.pos.z)
     titan.targetFacing = titan.facing = h.facing
@@ -2237,6 +2327,7 @@ export class Game {
     h.hp = Math.max(h.maxHp * 0.55, h.hp)
     h.rig.play('unmorph', { force: true })
     this.scene.remove(t.root)
+    this.retireActor(t)
     this.scene.add(h.root)
     this.hero = h
     this.input.enabled = true
@@ -2262,8 +2353,6 @@ export class Game {
     const epoch = this.epoch
     this.ui.show('hud', false)
     this.shake(0.4, 0.5)
-    gsap.to(this.camOffset, { x: 0.6, y: 2.6, z: 5.2, duration: 2.2, ease: 'power2.inOut' })
-    gsap.to(this.camLook, { y: 1.5, duration: 2.2 })
     if (this.hero) this.hero.rig.play('roar', { force: true })
     for (let i = 0; i < 5; i++) {
       setTimeout(() => {
@@ -2344,13 +2433,16 @@ export class Game {
       e.dead = true
       this.heroFx.detachSkin(e)
       this.scene.remove(e.root)
+      this.retireActor(e)
     }
     this.enemies = []
     this.ui.pruneEnemyBars([])
+    this.floats.clear()
     for (const a of [this.hero, this.heroBase]) {
       if (!a) continue
       this.heroFx.detachSkin(a)
       this.scene.remove(a.root)
+      this.retireActor(a)
     }
     this.hero = this.heroBase = this.boss = null
     this.pending = []
@@ -2395,11 +2487,11 @@ export class Game {
     const def = this.activeDef()
     const steer = this.steerAxis()
     const hold = this.gearOpen && !steer[0] && !steer[1]
-    const [ax, az] = hold ? [0, 0] : steer
+    const [ax, az] = hold ? _still : steer
     if (hold) h.targetFacing = this.camYaw
     const dashing = this.dashT > 0
-    const committed = ['attack', 'attack2'].includes(h.rig.state) && !h.rig.oneShotDone && !!h.pendingHit
-    const rooted = committed || (['cast', 'morph', 'unmorph'].includes(h.rig.state) && !h.rig.oneShotDone)
+    const committed = SWINGS.has(h.rig.state) && !h.rig.oneShotDone && !!h.pendingHit
+    const rooted = committed || (ROOTING.has(h.rig.state) && !h.rig.oneShotDone)
     const moving = (ax || az) && !dashing && !rooted
 
     if (dashing) {
@@ -2423,9 +2515,9 @@ export class Game {
       h.pos.z *= lim / r
     }
 
-    const swinging = ['attack', 'attack2'].includes(h.rig.state) && !h.rig.oneShotDone
+    const swinging = SWINGS.has(h.rig.state) && !h.rig.oneShotDone
     if (moving && swinging) h.pendingHit = null
-    const busy = ['attack', 'attack2', 'cast', 'morph', 'unmorph', 'roar'].includes(h.rig.state) && !h.rig.oneShotDone && !(moving && swinging)
+    const busy = BUSY_STATES.has(h.rig.state) && !h.rig.oneShotDone && !(moving && swinging)
     if (this.dashT > 0) { /* dash pose active */ }
     else if (!busy && (moving || h.rig.finished)) h.rig.play(moving ? 'run' : 'idle', moving ? { speed: this.runRate(h, def) } : {})
 
@@ -2481,6 +2573,7 @@ export class Game {
       if (e.dead) {
         if (e.dying > 1.5) {
           this.scene.remove(e.root)
+          this.retireActor(e)
           this.enemies.splice(i, 1)
         } else {
           const k = clamp(1 - (e.dying - 0.8) / 0.7, 0, 1)
@@ -2686,7 +2779,7 @@ export class Game {
 
   phoneLandscapeAmount() {
     const [small, large] = PHONE_SHORT_SIDE
-    const short = Math.min(innerWidth, innerHeight)
+    const short = Math.min(view.w, view.h)
     return clamp((large - short) / (large - small), 0, 1) * (1 - this.portraitAmount())
   }
 
@@ -2727,14 +2820,16 @@ export class Game {
   }
 
   moveAxis() {
-    const [ax, az] = this.input.axis()
-    return this.screenAxis(ax, az)
+    const raw = this.input.axis()
+    return this.screenAxis(raw[0], raw[1])
   }
 
   screenAxis(ax, az) {
     const c = Math.cos(this.camYaw)
     const s = Math.sin(this.camYaw)
-    return [ax * c + az * s, az * c - ax * s]
+    _axis[0] = ax * c + az * s
+    _axis[1] = az * c - ax * s
+    return _axis
   }
 
   cameraFocus() {
@@ -2747,7 +2842,7 @@ export class Game {
 
   updateCamera(dt) {
     const p = this.portraitAmount()
-    const playing = this.state === 'battle' || this.state === 'intro' || this.titanMode
+    const playing = this.state === 'battle' || this.state === 'intro' || this.state === 'end' || this.titanMode
     const zoom = playing ? p : 0
     const follow = THREE.MathUtils.lerp(0.72 + 0.28 * p, 1, this.gearK)
     const target = this.cameraFocus()
@@ -2790,12 +2885,12 @@ export class Game {
     if (!this.renderHold && !this.contextLost) this.composer.render()
   }
 
-  govern(elapsed) {
+  govern(elapsed, work) {
     if (this.renderHold || this.contextLost || (this.state !== 'select' && this.state !== 'battle')) {
-      this.governor.reset()
+      this.governor.hold()
       return
     }
-    const ratio = this.governor.sample(elapsed)
+    const ratio = this.governor.sample(elapsed, work)
     if (ratio === null) return
     this.renderer.setPixelRatio(ratio)
     this.resize()
@@ -2805,6 +2900,7 @@ export class Game {
     let last = performance.now()
     bootMark('loop')
     const frame = now => {
+      const begin = performance.now()
       requestAnimationFrame(frame)
       const elapsed = (now - last) / 1000
       let dt = stepDoor(Math.min(0.05, elapsed))
@@ -2816,7 +2912,7 @@ export class Game {
       this.t += dt
       this.step(dt)
       this.render()
-      this.govern(elapsed)
+      this.govern(elapsed, performance.now() - begin)
     }
     requestAnimationFrame(frame)
   }
@@ -2826,7 +2922,7 @@ export class Game {
     const heroDt = this.gearK > 0 ? THREE.MathUtils.lerp(dt, this.realDt, this.gearK) : dt
     this.ui.tick(dt)
     if (this.arena) this.arena.update(dt, this.t)
-    if (this.fx) this.fx.update(dt, this.camera)
+    if (this.fx) this.fx.update(dt, this.camera, this.renderer.domElement.height)
     tickCharacters(heroDt)
     if (this.lights) this.updateLights(heroDt)
 
@@ -2918,10 +3014,10 @@ export class Game {
     }
     _v.set(h.pos.x, h.pos.y + h.height * 1.08 + 0.55, h.pos.z).project(this.camera)
     const visible = !h.dead && !this.gearOpen && _v.z < 1 && Math.abs(_v.x) < 1.2 && Math.abs(_v.y) < 1.2
-    this.ui.placeHeroBar((_v.x * 0.5 + 0.5) * innerWidth, (-_v.y * 0.5 + 0.5) * innerHeight, visible)
+    this.ui.placeHeroBar((_v.x * 0.5 + 0.5) * view.w, (-_v.y * 0.5 + 0.5) * view.h, visible)
     if (!this.heroCueOn) return
     _v.set(h.pos.x, h.pos.y + h.height * 0.5, h.pos.z).project(this.camera)
-    this.ui.placeHeroCue((_v.x * 0.5 + 0.5) * innerWidth, (-_v.y * 0.5 + 0.5) * innerHeight, visible)
+    this.ui.placeHeroCue((_v.x * 0.5 + 0.5) * view.w, (-_v.y * 0.5 + 0.5) * view.h, visible)
   }
 
   updateEnemyBars() {
@@ -2930,7 +3026,7 @@ export class Game {
     for (const e of this.enemies) {
       _v.set(e.pos.x, e.pos.y + e.height * 1.08 + 0.3, e.pos.z).project(this.camera)
       const visible = _v.z < 1 && Math.abs(_v.x) < 1.2 && Math.abs(_v.y) < 1.2
-      this.ui.placeEnemyBar(e, (_v.x * 0.5 + 0.5) * innerWidth, (-_v.y * 0.5 + 0.5) * innerHeight, visible)
+      this.ui.placeEnemyBar(e, (_v.x * 0.5 + 0.5) * view.w, (-_v.y * 0.5 + 0.5) * view.h, visible)
     }
   }
 

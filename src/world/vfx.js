@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import { uploadTextures } from '../core/prewarm.js'
+import { LOW_TIER } from '../core/tier.js'
 import { stream } from '../core/rng.js'
 import { fetchJson } from '../core/fetch.js'
 import { compileFor } from '../core/compile.js'
@@ -39,6 +41,10 @@ const _flat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0)
 const _col = [1, 1, 1, 1]
 const _col2 = [1, 1, 1, 1]
 const _basis = new THREE.Matrix4()
+const _euler = new THREE.Euler()
+const _trailPos = new THREE.Vector3()
+const WHITE4 = [1, 1, 1, 1]
+const EMITTER_FIELDS = [['pos', 3], ['vel', 3], ['age', 1], ['life', 1], ['size', 3], ['rot', 3], ['col', 4], ['rnd', 4], ['frame', 1], ['pid', 1], ['birthAcc', 1]]
 
 const WHITE = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1)
 WHITE.needsUpdate = true
@@ -183,12 +189,21 @@ class ColorSource {
   }
 }
 
-function copy4(src, out) {
-  out[0] = src[0]
-  out[1] = src[1]
-  out[2] = src[2]
-  out[3] = src[3]
+function copy4(src, out, at = 0) {
+  out[0] = src[at]
+  out[1] = src[at + 1]
+  out[2] = src[at + 2]
+  out[3] = src[at + 3]
   return out
+}
+
+function markRange(attribute, count) {
+  attribute.addUpdateRange(0, count)
+  attribute.needsUpdate = true
+}
+
+function moveSlot(arr, width, from, to) {
+  for (let k = 0; k < width; k++) arr[to * width + k] = arr[from * width + k]
 }
 
 function unityEulerQuat(x, y, z, out) {
@@ -1033,19 +1048,22 @@ class Emitter {
     const n = def.capacity
     this.cap = n
     this.count = 0
-    this.pos = new Float32Array(n * 3)
-    this.vel = new Float32Array(n * 3)
-    this.age = new Float32Array(n)
-    this.life = new Float32Array(n)
-    this.size = new Float32Array(n * 3)
-    this.rot = new Float32Array(n * 3)
-    this.col = new Float32Array(n * 4)
-    this.rnd = new Float32Array(n * 4)
-    this.frame = new Float32Array(n)
-    this.pid = new Uint32Array(n)
-    this.birthAcc = new Float32Array(n)
-    this.curCol = new Float32Array(n * 4)
-    this.curSize = new Float32Array(n)
+    this.spare = takeSpare(def)
+    const store = this.spare ? this.spare.store : makeStore(n)
+    this.store = store
+    this.pos = store.pos
+    this.vel = store.vel
+    this.age = store.age
+    this.life = store.life
+    this.size = store.size
+    this.rot = store.rot
+    this.col = store.col
+    this.rnd = store.rnd
+    this.frame = store.frame
+    this.pid = store.pid
+    this.birthAcc = store.birthAcc
+    this.curCol = store.curCol
+    this.curSize = store.curSize
     this.nextId = 1
     this.t = -def.delay.get(0, random())
     this.emitting = true
@@ -1067,6 +1085,20 @@ class Emitter {
   build() {
     const def = this.def
     const n = this.cap
+    const spare = this.spare && this.spare.mesh ? this.spare : null
+    if (spare) {
+      const mesh = spare.mesh
+      this.aCol = spare.aCol
+      this.aUv = spare.aUv
+      this.aCust = spare.aCust
+      mesh.material = def.material
+      mesh.count = 0
+      mesh.visible = false
+      mesh.renderOrder = def.order
+      this.mesh = mesh
+      this.inst.world.add(mesh)
+      return
+    }
     const mesh = new THREE.InstancedMesh(def.geometry, def.material, n)
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     this.aCol = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4).setUsage(THREE.DynamicDrawUsage)
@@ -1077,6 +1109,7 @@ class Emitter {
     mesh.geometry.setAttribute('iUv', this.aUv)
     mesh.geometry.setAttribute('iCust', this.aCust)
     mesh.count = 0
+    mesh.visible = false
     mesh.frustumCulled = false
     mesh.renderOrder = def.order
     mesh.matrixAutoUpdate = false
@@ -1261,20 +1294,7 @@ class Emitter {
     const last = --this.count
     if (this.def.deathSubs.length) this.fireSubs(i, 2)
     if (i === last) return
-    const copy = (arr, w) => {
-      for (let k = 0; k < w; k++) arr[i * w + k] = arr[last * w + k]
-    }
-    copy(this.pos, 3)
-    copy(this.vel, 3)
-    copy(this.age, 1)
-    copy(this.life, 1)
-    copy(this.size, 3)
-    copy(this.rot, 3)
-    copy(this.col, 4)
-    copy(this.rnd, 4)
-    copy(this.frame, 1)
-    copy(this.pid, 1)
-    copy(this.birthAcc, 1)
+    for (const [field, width] of EMITTER_FIELDS) moveSlot(this[field], width, last, i)
   }
 
   worldPosOf(i, out) {
@@ -1363,7 +1383,7 @@ class Emitter {
         const oz = v.oz ? v.oz.get(t, r) * dt : 0
         _v.set(P[j], P[j + 1], P[j + 2])
         if (ox || oy || oz) {
-          _q.setFromEuler(new THREE.Euler(ox, oy, oz))
+          _q.setFromEuler(_euler.set(ox, oy, oz))
           _v.applyQuaternion(_q)
         }
         if (v.radial) {
@@ -1419,6 +1439,7 @@ class Emitter {
     const mesh = this.mesh
     const n = this.count
     mesh.count = n
+    mesh.visible = n > 0
     if (!n) return
     const im = mesh.instanceMatrix.array
     const C = this.aCol.array
@@ -1463,7 +1484,7 @@ class Emitter {
         }
       }
       _m.toArray(im, i * 16)
-      copy4(this.col.subarray(i * 4, i * 4 + 4), _col)
+      copy4(this.col, _col, i * 4)
       if (def.colLife) {
         def.colLife.get(t, r, _col2)
         _col[0] *= _col2[0]
@@ -1488,10 +1509,10 @@ class Emitter {
       }
       this.customOf(i, t, r, X)
     }
-    mesh.instanceMatrix.needsUpdate = true
-    this.aCol.needsUpdate = true
-    this.aUv.needsUpdate = true
-    this.aCust.needsUpdate = true
+    markRange(mesh.instanceMatrix, n * 16)
+    markRange(this.aCol, n * 4)
+    markRange(this.aUv, n * 4)
+    markRange(this.aCust, n * 4)
   }
 
   stretchedMatrix(i, sx, sy, sz) {
@@ -1619,12 +1640,46 @@ class Emitter {
 
   dispose() {
     if (this.trails) this.trails.dispose()
-    if (!this.mesh) return
-    this.inst.world.remove(this.mesh)
-    this.mesh.geometry.dispose()
-    this.mesh.dispose()
+    const mesh = this.mesh
+    if (mesh) this.inst.world.remove(mesh)
     this.mesh = null
+    const kept = giveSpare(this.def, { store: this.store, mesh, aCol: this.aCol, aUv: this.aUv, aCust: this.aCust })
+    if (!kept && mesh) {
+      mesh.geometry.dispose()
+      mesh.dispose()
+    }
   }
+}
+
+const SPARES_PER_DEF = 6
+
+function makeStore(n) {
+  return {
+    pos: new Float32Array(n * 3),
+    vel: new Float32Array(n * 3),
+    age: new Float32Array(n),
+    life: new Float32Array(n),
+    size: new Float32Array(n * 3),
+    rot: new Float32Array(n * 3),
+    col: new Float32Array(n * 4),
+    rnd: new Float32Array(n * 4),
+    frame: new Float32Array(n),
+    pid: new Uint32Array(n),
+    birthAcc: new Float32Array(n),
+    curCol: new Float32Array(n * 4),
+    curSize: new Float32Array(n),
+  }
+}
+
+function takeSpare(def) {
+  return def.spares && def.spares.length ? def.spares.pop() : null
+}
+
+function giveSpare(def, spare) {
+  const list = def.spares || (def.spares = [])
+  if (list.length >= SPARES_PER_DEF) return false
+  list.push(spare)
+  return true
 }
 
 class ParticleTrails {
@@ -1635,6 +1690,21 @@ class ParticleTrails {
     this.seen = new Set()
     this.perTrail = 14
     this.maxPts = Math.min(1600, em.cap * this.perTrail)
+    const def = em.def
+    const spare = def.trailSpares && def.trailSpares.pop()
+    if (spare) {
+      this.aPos = spare.aPos
+      this.aUvs = spare.aUvs
+      this.aCol = spare.aCol
+      this.idx = spare.idx
+      this.mesh = spare.mesh
+      this.mesh.material = def.trailMaterial
+      this.mesh.renderOrder = def.order
+      this.mesh.visible = false
+      this.mesh.geometry.setDrawRange(0, 0)
+      em.inst.world.add(this.mesh)
+      return
+    }
     const n = this.maxPts * 2
     const g = new THREE.BufferGeometry()
     this.aPos = new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage)
@@ -1671,17 +1741,22 @@ class ParticleTrails {
         tr = { pts: [], dead: false, life: Math.max(0.02, d.life.get(t, em.rnd[i * 4]) * em.life[i]), col: [1, 1, 1, 1], w: 1 }
         this.map.set(id, tr)
       }
-      const p = em.worldPosOf(i, new THREE.Vector3())
+      const p = em.worldPosOf(i, _trailPos)
       const last = tr.pts[tr.pts.length - 1]
       if (!last || last.p.distanceTo(p) >= d.minDist * scale) {
-        tr.pts.push({ p, age: 0 })
-        if (tr.pts.length > this.perTrail) tr.pts.shift()
+        const recycled = tr.pts.length >= this.perTrail ? tr.pts.shift() : null
+        if (recycled) {
+          recycled.p.copy(p)
+          recycled.age = 0
+          tr.pts.push(recycled)
+        } else tr.pts.push({ p: p.clone(), age: 0 })
       } else {
         last.p.copy(p)
       }
-      const base = d.inheritCol ? em.curCol.subarray(i * 4, i * 4 + 4) : [1, 1, 1, 1]
+      const base = d.inheritCol ? em.curCol : WHITE4
+      const at = d.inheritCol ? i * 4 : 0
       d.colLife.get(t, em.rnd[i * 4 + 1], _col2)
-      for (let c = 0; c < 4; c++) tr.col[c] = base[c] * _col2[c]
+      for (let c = 0; c < 4; c++) tr.col[c] = base[at + c] * _col2[c]
       tr.w = d.sizeW ? em.curSize[i] : scale
     }
     for (const [id, tr] of this.map) {
@@ -1749,11 +1824,13 @@ class ParticleTrails {
       }
       v += n
     }
-    this.aPos.needsUpdate = true
-    this.aUvs.needsUpdate = true
-    this.aCol.needsUpdate = true
-    this.idx.needsUpdate = true
+    this.mesh.visible = ii > 0
     this.mesh.geometry.setDrawRange(0, ii)
+    if (!ii) return
+    markRange(this.aPos, v * 6)
+    markRange(this.aUvs, v * 4)
+    markRange(this.aCol, v * 8)
+    markRange(this.idx, ii)
   }
 
   get alive() {
@@ -1762,9 +1839,15 @@ class ParticleTrails {
 
   dispose() {
     this.em.inst.world.remove(this.mesh)
-    this.mesh.geometry.dispose()
+    const def = this.em.def
+    const list = def.trailSpares || (def.trailSpares = [])
+    if (list.length < SPARES_PER_DEF) list.push({ aPos: this.aPos, aUvs: this.aUvs, aCol: this.aCol, idx: this.idx, mesh: this.mesh })
+    else this.mesh.geometry.dispose()
   }
 }
+
+const ribbonSpares = []
+const RIBBON_SPARES = 24
 
 class Ribbon {
   constructor(inst, node, d) {
@@ -1785,6 +1868,18 @@ class Ribbon {
   }
 
   build() {
+    const spare = ribbonSpares.pop()
+    if (spare) {
+      this.aPos = spare.aPos
+      this.aUvs = spare.aUvs
+      this.aCol = spare.aCol
+      this.mesh = spare.mesh
+      this.mesh.material = this.material
+      this.mesh.visible = false
+      this.mesh.geometry.setDrawRange(0, 0)
+      this.inst.world.add(this.mesh)
+      return
+    }
     const n = this.cap * 2
     const g = new THREE.BufferGeometry()
     this.aPos = new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage)
@@ -1827,14 +1922,19 @@ class Ribbon {
       const last = pts[pts.length - 1]
       const minD = this.d.minDist * this.inst.scale
       if (!last || last.p.distanceTo(_v) >= minD) {
-        pts.push({ p: _v.clone(), age: 0 })
-        if (pts.length > this.cap) pts.shift()
+        const recycled = pts.length >= this.cap ? pts.shift() : null
+        if (recycled) {
+          recycled.p.copy(_v)
+          recycled.age = 0
+          pts.push(recycled)
+        } else pts.push({ p: _v.clone(), age: 0 })
       } else {
         last.p.copy(_v)
       }
     }
     if (!this.mesh) return
     const n = pts.length
+    this.mesh.visible = n >= 2
     if (n < 2) {
       this.mesh.geometry.setDrawRange(0, 0)
       return
@@ -1881,16 +1981,17 @@ class Ribbon {
         C[k * 4 + 4 + c] = v
       }
     }
-    this.aPos.needsUpdate = true
-    this.aUvs.needsUpdate = true
-    this.aCol.needsUpdate = true
+    markRange(this.aPos, n * 6)
+    markRange(this.aUvs, n * 4)
+    markRange(this.aCol, n * 8)
     this.mesh.geometry.setDrawRange(0, (n - 1) * 6)
   }
 
   dispose() {
     if (!this.mesh) return
     this.inst.world.remove(this.mesh)
-    this.mesh.geometry.dispose()
+    if (ribbonSpares.length < RIBBON_SPARES) ribbonSpares.push({ aPos: this.aPos, aUvs: this.aUvs, aCol: this.aCol, mesh: this.mesh })
+    else this.mesh.geometry.dispose()
     this.mesh = null
   }
 }
@@ -2040,21 +2141,15 @@ function prefabMaterials(lib, name) {
   return out.filter(Boolean)
 }
 
-const UPLOAD_BUDGET_MS = 4
+const WARM_SLICE_MS = 6
+const WARM_BATCH = 24
 
-async function uploadTextures(renderer, materials) {
+function uploadMaterialTextures(renderer, materials) {
   const textures = new Set()
   for (const m of materials) {
     for (const u of Object.values(m.uniforms)) if (u.value && u.value.isTexture && u.value !== WHITE) textures.add(u.value)
   }
-  if (!textures.size) return
-  await vfxTexturesReady()
-  const queue = [...textures].filter(t => t.image)
-  while (queue.length) {
-    await new Promise(r => requestAnimationFrame(r))
-    const start = performance.now()
-    while (queue.length && performance.now() - start < UPLOAD_BUDGET_MS) renderer.initTexture(queue.shift())
-  }
+  if (textures.size) uploadTextures(renderer, textures)
 }
 
 export function loadVfx(id) {
@@ -2086,6 +2181,18 @@ export class Vfx {
 
   library(id) {
     return this.libs.get(id) || null
+  }
+
+  textures(ids) {
+    const out = new Set()
+    for (const id of ids) {
+      const lib = this.libs.get(id)
+      if (!lib) continue
+      for (const m of lib.materialsInUse()) {
+        for (const u of Object.values(m.uniforms)) if (u.value && u.value.isTexture && u.value !== WHITE) out.add(u.value)
+      }
+    }
+    return out
   }
 
   has(id, name) {
@@ -2127,8 +2234,8 @@ export class Vfx {
     return inst
   }
 
-  async warm(renderer, camera, names = [], target = null) {
-    maxAnisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 1)
+  async warm(renderer, camera, names = [], target = null, onlyNamed = false) {
+    maxAnisotropy = Math.min(LOW_TIER ? 4 : 16, renderer.capabilities.getMaxAnisotropy() || 1)
     for (const tex of textureCache.values()) {
       if (tex.anisotropy === maxAnisotropy) continue
       tex.anisotropy = maxAnisotropy
@@ -2137,43 +2244,51 @@ export class Vfx {
     const wanted = new Set(names)
     const mats = new Set()
     const upload = new Set()
+    let sliceStart = performance.now()
     for (const lib of this.libs.values()) {
       for (const name of Object.keys(lib.prefabs)) {
         const named = wanted.has(name)
-        if (!named && !/^B_FX_/.test(name)) continue
+        if (!named && (onlyNamed || !/^B_FX_/.test(name))) continue
         for (const m of prefabMaterials(lib, name)) {
           mats.add(m)
           if (named) upload.add(m)
         }
+        if (performance.now() - sliceStart > WARM_SLICE_MS) {
+          await new Promise(r => requestAnimationFrame(r))
+          sliceStart = performance.now()
+        }
       }
-      for (const m of lib.materialsInUse()) mats.add(m)
+      if (!onlyNamed) for (const m of lib.materialsInUse()) mats.add(m)
     }
-    const probe = new THREE.Group()
+    uploadMaterialTextures(renderer, upload)
     const geo = quadGeometry()
-    for (const m of mats) {
-      const mesh = new THREE.Mesh(geo, m)
-      mesh.frustumCulled = false
-      probe.add(mesh)
-      const inst = new THREE.InstancedMesh(geo, m, 1)
-      inst.frustumCulled = false
-      inst.geometry = geo.clone()
-      inst.geometry.setAttribute('iCol', new THREE.InstancedBufferAttribute(new Float32Array(4), 4))
-      inst.geometry.setAttribute('iUv', new THREE.InstancedBufferAttribute(new Float32Array(4), 4))
-      inst.geometry.setAttribute('iCust', new THREE.InstancedBufferAttribute(new Float32Array(4), 4))
-      probe.add(inst)
-    }
-    const stage = new THREE.Scene()
-    stage.fog = this.scene.fog
-    stage.add(probe)
-    await compileFor(renderer, stage, camera, target)
-    stage.remove(probe)
-    probe.traverse(o => {
-      if (o.isInstancedMesh) {
-        o.geometry.dispose()
-        o.dispose()
+    const list = [...mats]
+    for (let i = 0; i < list.length; i += WARM_BATCH) {
+      const probe = new THREE.Group()
+      for (const m of list.slice(i, i + WARM_BATCH)) {
+        const mesh = new THREE.Mesh(geo, m)
+        mesh.frustumCulled = false
+        probe.add(mesh)
+        const inst = new THREE.InstancedMesh(geo, m, 1)
+        inst.frustumCulled = false
+        inst.geometry = geo.clone()
+        inst.geometry.setAttribute('iCol', new THREE.InstancedBufferAttribute(new Float32Array(4), 4))
+        inst.geometry.setAttribute('iUv', new THREE.InstancedBufferAttribute(new Float32Array(4), 4))
+        inst.geometry.setAttribute('iCust', new THREE.InstancedBufferAttribute(new Float32Array(4), 4))
+        probe.add(inst)
       }
-    })
-    uploadTextures(renderer, upload)
+      const stage = new THREE.Scene()
+      stage.fog = this.scene.fog
+      stage.add(probe)
+      await compileFor(renderer, stage, camera, target)
+      stage.remove(probe)
+      probe.traverse(o => {
+        if (o.isInstancedMesh) {
+          o.geometry.dispose()
+          o.dispose()
+        }
+      })
+    }
   }
 
   update(dt, camera) {
@@ -2191,6 +2306,13 @@ export class Vfx {
         this.items.splice(i, 1)
       }
     }
+  }
+
+  kill(inst) {
+    const i = this.items.indexOf(inst)
+    if (i < 0) return
+    this.items.splice(i, 1)
+    inst.dispose()
   }
 
   clear() {

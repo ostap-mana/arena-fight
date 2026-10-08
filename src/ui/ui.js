@@ -32,6 +32,7 @@ import { Outcome } from './outcome.js'
 import { GearRing } from './gear-ring.js'
 import { deferImages, whenReleased, releaseImages } from './lazy.js'
 import { FINGER, TAP } from './tapcue.js'
+import { view } from '../core/viewport.js'
 import powerIconImg from '../assets/GENERAL/HUD/gear/power-icon.webp'
 import bossBadgeImg from '../assets/GENERAL/HUD/wave/boss.webp'
 
@@ -117,11 +118,6 @@ const APPEAR_FADE_MS = 300
 const CARD_DELAY_MS = 120
 const CARD_STAGGER_MS = 70
 const PICK_LAG_MS = 150
-const TOUR_DELAY_MS = 800
-const TOUR_PRESS_MS = 333
-const TOUR_LIFT_MS = 840
-const TOUR_TAP_MS = 1400
-const TOUR_ORDER = HEROES.map((h, i) => i).concat(HEROES.map((h, i) => i).slice(1, -1).reverse())
 const LEAVE_MS = 220
 const VEIL_IN_MS = 350
 const VEIL_OUT_MS = 450
@@ -156,6 +152,8 @@ export function el(html) {
 export class UI {
   constructor(rootId) {
     this.root = document.getElementById(rootId)
+    this.frame = 0
+    this.deferred = []
     this.build()
   }
 
@@ -258,6 +256,7 @@ export class UI {
         <div class="dim"></div>
         <div class="scrim"></div>
         <div class="bloom"></div>
+        <img class="crown" alt="" draggable="false">
         <div class="band"><img class="verdict" alt="" draggable="false"></div>
         <button class="control"><img class="plate" alt="" draggable="false"><span class="label">RETRY</span></button>
         <div class="flash"></div>
@@ -357,7 +356,7 @@ export class UI {
     cue.style.left = `${btn.offsetLeft + btn.offsetWidth / 2}px`
     cue.style.top = `${btn.offsetTop + btn.offsetHeight / 2}px`
     const r = btn.getBoundingClientRect()
-    cue.classList.toggle('flip', r.left + r.width / 2 > innerWidth * 0.62)
+    cue.classList.toggle('flip', r.left + r.width / 2 > view.w * 0.62)
     cue.classList.add('on')
   }
 
@@ -366,10 +365,21 @@ export class UI {
   }
 
   placeHeroCue(x, y, visible) {
-    this.heroCue.style.visibility = visible ? 'visible' : 'hidden'
+    if (visible !== this.heroCueShown) {
+      this.heroCueShown = visible
+      this.heroCue.style.visibility = visible ? 'visible' : 'hidden'
+    }
     if (!visible) return
-    this.heroCue.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
-    this.heroCueTap.classList.toggle('flip', x > innerWidth * 0.62)
+    const t = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
+    if (t !== this.heroCueAt) {
+      this.heroCueAt = t
+      this.heroCue.style.transform = t
+    }
+    const flip = x > view.w * 0.62
+    if (flip !== this.heroCueFlip) {
+      this.heroCueFlip = flip
+      this.heroCueTap.classList.toggle('flip', flip)
+    }
   }
 
   setTip(text) {
@@ -378,13 +388,13 @@ export class UI {
     if (!text) return
     const fresh = !was || this.topTip.textContent !== text
     this.topTip.textContent = text
-    if (fresh) this.replayClass(this.topTip.parentNode, 'pop')
+    if (fresh) this.deferClass(this.topTip.parentNode, 'pop')
   }
 
   fitHud() {
-    const short = Math.min(innerWidth, innerHeight)
-    const long = Math.max(innerWidth, innerHeight)
-    const portrait = innerHeight > innerWidth
+    const short = Math.min(view.w, view.h)
+    const long = Math.max(view.w, view.h)
+    const portrait = view.h > view.w
     this.hudScale = Math.min(1.8, Math.max(portrait ? 0.92 : 0.8, Math.min(short / 410, long / 730)))
     document.documentElement.style.setProperty('--hud-scale', this.hudScale.toFixed(3))
   }
@@ -443,40 +453,6 @@ export class UI {
       this.cardEls.push(slot)
       this.cards.appendChild(slot)
     })
-    this.tap = el(TAP)
-    this.cards.appendChild(this.tap)
-  }
-
-  pointAtPick(i, glide) {
-    const slot = this.cardEls[i]
-    const pick = slot.querySelector('.pick')
-    const left = slot.offsetLeft + pick.offsetLeft + pick.offsetWidth * 0.7
-    this.tap.classList.toggle('still', !glide)
-    this.tap.classList.toggle('flip', left > this.cards.offsetWidth * 0.62)
-    this.tap.style.left = `${left}px`
-    this.tap.style.top = `${slot.offsetTop + pick.offsetTop + pick.offsetHeight * 0.64}px`
-  }
-
-  startTour() {
-    this.stopTour()
-    this.pointAtPick(TOUR_ORDER[0], false)
-    void this.tap.offsetWidth
-    this.tap.classList.add('on')
-    const start = performance.now()
-    const hop = k => {
-      const at = start + TOUR_PRESS_MS + TOUR_LIFT_MS + k * TOUR_TAP_MS
-      this.tourTimer = setTimeout(() => {
-        this.pointAtPick(TOUR_ORDER[(k + 1) % TOUR_ORDER.length], true)
-        hop(k + 1)
-      }, Math.max(0, at - performance.now()))
-    }
-    hop(0)
-  }
-
-  stopTour() {
-    clearTimeout(this.tourTimer)
-    clearTimeout(this.tourDelay)
-    this.tap.classList.remove('on')
   }
 
   selectCard(i) {
@@ -499,12 +475,9 @@ export class UI {
       this.appear(slot, CARD_DELAY_MS + i * CARD_STAGGER_MS)
       this.appear(slot.querySelector('.pick'), CARD_DELAY_MS + i * CARD_STAGGER_MS + PICK_LAG_MS)
     })
-    this.stopTour()
-    this.tourDelay = setTimeout(() => this.startTour(), TOUR_DELAY_MS)
   }
 
   leaveSelect(duration) {
-    this.stopTour()
     this.select.classList.add('leaving')
     this.cardEls.forEach(slot => {
       const picked = slot.classList.contains('sel')
@@ -573,7 +546,7 @@ export class UI {
     bar.k = k
     this.heroBar.classList.toggle('snap', reset)
     this.heroBar.style.setProperty('--k', k)
-    if (hit) this.replayClass(this.heroBar, 'hit')
+    if (hit) this.deferClass(this.heroBar, 'hit')
   }
 
   placeHeroBar(x, y, visible) {
@@ -582,10 +555,17 @@ export class UI {
       bar.shown = visible
       this.heroBar.style.visibility = visible ? 'visible' : 'hidden'
     }
-    if (visible) this.heroBar.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${this.hudScale})`
+    if (!visible) return
+    const t = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${this.hudScale})`
+    if (t !== bar.at) {
+      bar.at = t
+      this.heroBar.style.transform = t
+    }
   }
 
   tick(dt) {
+    this.frame++
+    this.flushDeferred()
     if (this.cardFx && this.select.classList.contains('on')) this.cardFx.tick(dt)
   }
 
@@ -593,10 +573,18 @@ export class UI {
     const v = Math.max(0, Math.min(1, k))
     const was = this.ultReady
     this.ultReady = ready
-    this.ultBtn.classList.toggle('on', ready)
-    this.ultBtn.style.setProperty('--k', v)
-    this.ultPct.textContent = Math.floor(v * 100)
-    if (ready && !was) this.replayClass(this.ultBtn, 'charged')
+    if (ready !== was) this.ultBtn.classList.toggle('on', ready)
+    const shown = v.toFixed(3)
+    if (shown !== this.ultShownK) {
+      this.ultShownK = shown
+      this.ultBtn.style.setProperty('--k', shown)
+    }
+    const pct = String(Math.floor(v * 100))
+    if (pct !== this.ultShownPct) {
+      this.ultShownPct = pct
+      this.ultPct.textContent = pct
+    }
+    if (ready && !was) this.deferClass(this.ultBtn, 'charged')
   }
 
   fireUlt() {
@@ -611,15 +599,23 @@ export class UI {
   setTitan(k, ready, secondsLeft) {
     const v = Math.max(0, Math.min(1, k))
     const card = this.animaCard
-    card.style.setProperty('--r', 1 - v)
+    const r = (1 - v).toFixed(3)
+    if (r !== this.animaShownR) {
+      this.animaShownR = r
+      card.style.setProperty('--r', r)
+    }
     const secs = Math.max(0, secondsLeft)
-    this.animaCooldown.textContent = secs >= 10 ? Math.ceil(secs) : secs.toFixed(1)
+    const text = secs >= 10 ? String(Math.ceil(secs)) : secs.toFixed(1)
+    if (text !== this.animaShownText) {
+      this.animaShownText = text
+      this.animaCooldown.textContent = text
+    }
     const was = this.animaReady
     this.animaReady = ready
     card.classList.toggle('ready', ready)
     if (ready && !was) {
-      this.replayClass(card, 'appear')
-      this.replayClass(card, 'charged')
+      this.deferClass(card, 'appear')
+      this.deferClass(card, 'charged')
     }
   }
 
@@ -628,17 +624,40 @@ export class UI {
   }
 
   setTitanTimer(k, on) {
-    this.titanTimer.classList.toggle('on', on)
-    this.hud.classList.toggle('titan', on)
-    this.animaCard.classList.toggle('active', on)
-    this.animaCard.style.setProperty('--d', Math.max(0, k))
-    this.titanTimer.style.setProperty('--k', Math.max(0, k).toFixed(4))
+    if (on !== this.titanTimerOn) {
+      this.titanTimerOn = on
+      this.titanTimer.classList.toggle('on', on)
+      this.hud.classList.toggle('titan', on)
+      this.animaCard.classList.toggle('active', on)
+    }
+    const d = Math.max(0, k).toFixed(3)
+    if (d === this.titanTimerShown) return
+    this.titanTimerShown = d
+    this.animaCard.style.setProperty('--d', d)
+    this.titanTimer.style.setProperty('--k', d)
   }
 
   replayClass(node, cls) {
     node.classList.remove(cls)
     void node.offsetWidth
     node.classList.add(cls)
+  }
+
+  deferClass(node, cls) {
+    node.classList.remove(cls)
+    this.deferred.push({ node, cls, at: this.frame })
+  }
+
+  flushDeferred() {
+    const list = this.deferred
+    if (!list.length) return
+    let keep = 0
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i]
+      if (this.frame - d.at >= 2) d.node.classList.add(d.cls)
+      else list[keep++] = d
+    }
+    list.length = keep
   }
 
   trackEnemy(actor, kind) {
@@ -655,17 +674,29 @@ export class UI {
       bar.el.style.visibility = visible ? 'visible' : 'hidden'
     }
     if (!visible) return
-    bar.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${this.hudScale})`
+    const t = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${this.hudScale})`
+    if (t !== bar.at) {
+      bar.at = t
+      bar.el.style.transform = t
+    }
     const k = actor.dead ? 0 : Math.max(0, actor.hp / actor.maxHp)
     if (k !== bar.k) {
       bar.k = k
       bar.el.style.setProperty('--k', k)
       bar.el.style.setProperty('--g', k)
     }
-    if (actor.dead && !bar.el.classList.contains('gone')) bar.el.classList.add('gone')
+    if (actor.dead && !bar.gone) {
+      bar.gone = true
+      bar.el.classList.add('gone')
+    }
   }
 
   pruneEnemyBars(alive) {
+    if (this.enemyBars.size <= alive.length) {
+      let missing = false
+      for (const actor of this.enemyBars.keys()) if (!alive.includes(actor)) { missing = true; break }
+      if (!missing) return
+    }
     for (const [actor, bar] of this.enemyBars) {
       if (alive.includes(actor)) continue
       bar.el.remove()
@@ -693,7 +724,7 @@ export class UI {
       s.classList.toggle('done', i < index)
       s.classList.toggle('now', i === index)
     })
-    if (stop) this.replayClass(stop, 'reached')
+    if (stop) this.deferClass(stop, 'reached')
     this.waveInfo.classList.toggle('bosswave', !!stop && stop.classList.contains('boss'))
   }
 
@@ -717,21 +748,36 @@ export class UI {
   }
 
   cooldown(key, k, secs) {
-    const s = this.hud.querySelector(`.skill[data-k="${key}"]`)
+    let c = this.cooldownState[key]
+    if (!c) {
+      const el = this.hud.querySelector(`.skill[data-k="${key}"]`)
+      c = this.cooldownState[key] = { el, num: el && el.querySelector('.cdn'), k: 0, shownK: '', text: '', lit: false }
+    }
+    const s = c.el
     if (!s) return
-    const prev = this.cooldownState[key] || 0
-    this.cooldownState[key] = k
-    s.style.setProperty('--k', k)
-    const n = s.querySelector('.cdn')
+    const prev = c.k
+    c.k = k
+    const shownK = k > 0 ? k.toFixed(3) : '0'
+    if (shownK !== c.shownK) {
+      c.shownK = shownK
+      s.style.setProperty('--k', shownK)
+    }
+    const n = c.num
     if (n) {
-      if (k > 0.01) { n.style.opacity = '1'; n.textContent = secs >= 1 ? Math.ceil(secs) : secs.toFixed(1) }
-      else n.style.opacity = '0'
+      const lit = k > 0.01
+      if (lit !== c.lit) {
+        c.lit = lit
+        n.style.opacity = lit ? '1' : '0'
+      }
+      if (lit) {
+        const text = secs >= 1 ? String(Math.ceil(secs)) : secs.toFixed(1)
+        if (text !== c.text) {
+          c.text = text
+          n.textContent = text
+        }
+      }
     }
-    if (prev > 0.01 && k <= 0.01 && key !== 'attack') {
-      s.classList.remove('charged')
-      void s.offsetWidth
-      s.classList.add('charged')
-    }
+    if (prev > 0.01 && k <= 0.01 && key !== 'attack') this.deferClass(s, 'charged')
   }
 
   showBanner(title, sub, dur = 1.6, icon = null) {

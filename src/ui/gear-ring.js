@@ -2,6 +2,7 @@ import { BUILD_PIECES, formatStat, GEAR_SLOTS, STAT_LABEL } from '../core/gear.j
 import { POWER_GOAL, SET_NAME } from '../data/builds.js'
 import { deferImages } from './lazy.js'
 import { TAP } from './tapcue.js'
+import { view } from '../core/viewport.js'
 
 const RELIC_ART = import.meta.glob('../assets/GENERAL/HUD/loot/relic-*.webp', { eager: true, import: 'default' })
 const GEAR_ART = import.meta.glob('../assets/GENERAL/HUD/gear/*.webp', { eager: true, import: 'default' })
@@ -140,6 +141,7 @@ export class GearRing {
   }
 
   open(gear, intro = null) {
+    this.plateH = null
     const token = ++this.seq
     this.gear = gear
     this.intro = intro
@@ -225,6 +227,7 @@ export class GearRing {
     this.coachEl.querySelector('b').textContent = title
     this.coachEl.querySelector('span').textContent = sub
     this.plate.classList.toggle('coached', !!title)
+    this.plateH = null
     if (!title) return
     this.coachEl.getAnimations().forEach(a => a.cancel())
     this.coachEl.animate([
@@ -261,11 +264,16 @@ export class GearRing {
   }
 
   place(cx, top, bottom) {
-    const W = innerWidth
-    const H = innerHeight
+    const W = view.w
+    const H = view.h
     const heroH = Math.max(40, bottom - top)
     const s = clamp(heroH * SLOT_OF_HERO, SLOT_MIN, SLOT_MAX)
-    this.el.style.setProperty('--s', `${s.toFixed(1)}px`)
+    const size = `${s.toFixed(1)}px`
+    if (size !== this.shownSize) {
+      this.shownSize = size
+      this.el.style.setProperty('--s', size)
+      this.plateH = null
+    }
     const bulge = s * BULGE
     let off = heroH * HERO_HALF + s * 0.5 + COLUMN_GAP
     const room = Math.min(cx, W - cx) - EDGE - s / 2 - bulge
@@ -282,21 +290,25 @@ export class GearRing {
       const sx = x + side * (off + bulge * (1 - t * t))
       const sy = cy + t * step * 1.5
       this.spots[type] = { x: sx, y: sy }
-      this.slots[type].style.transform = `translate3d(${(sx - s / 2).toFixed(1)}px, ${(sy - s / 2).toFixed(1)}px, 0)`
+      setStyle(this.slots[type], 'transform', `translate3d(${(sx - s / 2).toFixed(1)}px, ${(sy - s / 2).toFixed(1)}px, 0)`)
     }
     LEFT.forEach((type, i) => put(type, -1, i))
     RIGHT.forEach((type, i) => put(type, 1, i))
     const plateW = Math.min(W - EDGE * 2, s * PLATE_W)
-    const plateY = Math.min(top, cy - half) - STACK_GAP - this.plate.offsetHeight
-    this.plate.style.width = `${plateW.toFixed(1)}px`
-    this.plate.style.transform = `translate3d(${clamp(x - plateW / 2, EDGE, W - plateW - EDGE).toFixed(1)}px, ${Math.max(EDGE, plateY).toFixed(1)}px, 0)`
     const stripW = Math.min(W - EDGE * 2, s * STRIP_CELL * (STRIP_SLOTS + 1.3) + s * 0.6)
+    setStyle(this.plate, 'width', `${plateW.toFixed(1)}px`)
+    setStyle(this.strip, 'width', `${stripW.toFixed(1)}px`)
+    if (this.plateH == null) {
+      this.plateH = this.plate.offsetHeight
+      this.stripH = this.strip.offsetHeight
+    }
+    const plateY = Math.min(top, cy - half) - STACK_GAP - this.plateH
+    setStyle(this.plate, 'transform', `translate3d(${clamp(x - plateW / 2, EDGE, W - plateW - EDGE).toFixed(1)}px, ${Math.max(EDGE, plateY).toFixed(1)}px, 0)`)
     const stripY = Math.max(bottom, cy + half) + STACK_GAP
-    this.strip.style.width = `${stripW.toFixed(1)}px`
-    this.strip.style.transform = `translate3d(${clamp(x - stripW / 2, EDGE, W - stripW - EDGE).toFixed(1)}px, ${Math.min(H - this.strip.offsetHeight - EDGE, stripY).toFixed(1)}px, 0)`
-    this.halo.style.left = `${x.toFixed(1)}px`
-    this.halo.style.top = `${bottom.toFixed(1)}px`
-    this.halo.style.width = `${(off * 2 + s * 1.6).toFixed(1)}px`
+    setStyle(this.strip, 'transform', `translate3d(${clamp(x - stripW / 2, EDGE, W - stripW - EDGE).toFixed(1)}px, ${Math.min(H - this.stripH - EDGE, stripY).toFixed(1)}px, 0)`)
+    setStyle(this.halo, 'left', `${x.toFixed(1)}px`)
+    setStyle(this.halo, 'top', `${bottom.toFixed(1)}px`)
+    setStyle(this.halo, 'width', `${(off * 2 + s * 1.6).toFixed(1)}px`)
   }
 
   placeShade(x, y, rx, ry) {
@@ -369,6 +381,7 @@ export class GearRing {
   }
 
   refresh(fresh) {
+    this.plateH = null
     if (!this.gear) return
     this.gear.unseen = 0
     this.render()
@@ -566,4 +579,14 @@ export class GearRing {
     this.powerValue.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.18)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: COUNT_MS })
     this.el.querySelector('.picon').animate([{ transform: 'rotate(0) scale(1)' }, { transform: 'rotate(200deg) scale(1.25)', offset: 0.5 }, { transform: 'rotate(360deg) scale(1)' }], { duration: COUNT_MS, easing: 'ease-out' })
   }
+}
+
+const written = new WeakMap()
+
+function setStyle(node, key, value) {
+  let cache = written.get(node)
+  if (!cache) written.set(node, cache = {})
+  if (cache[key] === value) return
+  cache[key] = value
+  node.style[key] = value
 }

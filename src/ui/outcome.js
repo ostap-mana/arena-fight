@@ -3,9 +3,15 @@ import victoryBandUrl from '../assets/GENERAL/lose-win/victory-band.webp'
 import defeatBandUrl from '../assets/GENERAL/lose-win/defeat-band.webp'
 import playNowUrl from '../assets/GENERAL/BUTTONS/play-now.webp'
 import retryPlateUrl from '../assets/GENERAL/BUTTONS/retry-plate.webp'
+import crownUrl from '../assets/GENERAL/lose-win/victory-crown.webp'
 import { whenReleased } from './lazy.js'
 
 const VERDICT_ART = { w: 816, h: 266 }
+const CROWN_ART = { w: 720, h: 441 }
+const CROWN_W = { portrait: 0.5, landscape: 0.6 }
+const CROWN_SEAT = 0.1
+const CROWN_DROP = { at: 0.34, duration: 0.62, lift: 0.55, scale: 1.18 }
+const CROWN_BOB = { rate: 1.4, px: 2.2 }
 const PLAY_ART = { w: 640, h: 164 }
 const RETRY_ART = { w: 472, h: 128 }
 
@@ -96,6 +102,9 @@ export class Outcome {
     this.bloom = root.querySelector('.bloom')
     this.band = root.querySelector('.band')
     this.verdict = root.querySelector('.verdict')
+    this.crown = root.querySelector('.crown')
+    this.crownH = 0
+    this.ui = 1
     this.control = root.querySelector('.control')
     this.plate = root.querySelector('.plate')
     this.label = root.querySelector('.label')
@@ -108,7 +117,10 @@ export class Outcome {
     this.onRetry = null
     this.onCta = null
     this.warm = []
-    whenReleased(() => { this.warm = Object.values(SIDE).flatMap(s => [s.band, s.plate]).map(warmImage) })
+    whenReleased(() => {
+      this.warm = [...Object.values(SIDE).flatMap(s => [s.band, s.plate]), crownUrl].map(warmImage)
+      this.crown.src = crownUrl
+    })
     document.fonts?.load('500 20px Hitzone').catch(() => {})
     this.tick = this.tick.bind(this)
     this.control.addEventListener('click', e => {
@@ -142,6 +154,14 @@ export class Outcome {
     }
 
     place(this.band, cx - pw / 2, cy - ph / 2, pw, ph)
+
+    const crownW = pw * CROWN_W[key]
+    const crownH = (crownW * CROWN_ART.h) / CROWN_ART.w
+    const crownTop = Math.max(4 * ui, cy - ph / 2 + ph * CROWN_SEAT - crownH)
+    place(this.crown, cx - crownW / 2, crownTop, crownW, crownH)
+    this.crownH = crownH
+    this.ui = ui
+    this.crown.style.setProperty('--crown-glow', `${Math.round(10 * ui)}px`)
 
     const bw = Math.max(80, pw * 0.62)
     const bh = Math.max(80, ph * 3.4)
@@ -190,7 +210,8 @@ export class Outcome {
     this.root.classList.add('on')
     this.layout()
 
-    const parts = [this.flash, this.band, this.bloom, this.control]
+    if (!this.crown.getAttribute('src')) this.crown.src = crownUrl
+    const parts = [this.flash, this.band, this.bloom, this.control, this.crown]
     gsap.killTweensOf(parts)
     this.t = 0
     this.armed = false
@@ -200,6 +221,11 @@ export class Outcome {
     gsap.set(this.flash, { opacity: 1 })
     gsap.set(this.band, { opacity: 0, scaleX: UNFURL.slitW, scaleY: UNFURL.slitH })
     gsap.set([this.bloom, this.control], { opacity: 0 })
+    gsap.set(this.crown, { opacity: 0, y: -this.crownH * CROWN_DROP.lift, scale: CROWN_DROP.scale })
+    if (!this.defeat) {
+      gsap.to(this.crown, { opacity: 1, duration: 0.2, delay: CROWN_DROP.at, ease: 'power1.out' })
+      gsap.to(this.crown, { y: 0, scale: 1, duration: CROWN_DROP.duration, delay: CROWN_DROP.at, ease: 'back.out(2.2)' })
+    }
 
     gsap.delayedCall(ARM_AFTER, () => { this.armed = true })
     gsap.to(this.flash, { opacity: 0, duration: FLASH_FADE, delay: FLASH_HOLD, ease: 'power2.out' })
@@ -220,7 +246,7 @@ export class Outcome {
 
   hide() {
     gsap.ticker.remove(this.tick)
-    gsap.killTweensOf([this.flash, this.band, this.bloom, this.control])
+    gsap.killTweensOf([this.flash, this.band, this.bloom, this.control, this.crown])
     this.armed = false
     this.introducing = false
     this.root.classList.remove('on', 'defeat')
@@ -232,6 +258,8 @@ export class Outcome {
     if (this.introducing) return
     this.bloom.style.opacity = this.side.idle + Math.sin(this.t * 1.8) * 0.08
     if (this.defeat) return
+    const sway = Math.max(0, this.t - CROWN_DROP.at - CROWN_DROP.duration)
+    gsap.set(this.crown, { y: Math.sin(sway * Math.PI * CROWN_BOB.rate) * CROWN_BOB.px * this.ui })
     const phase = (this.t * PLAY_BEAT.rate) % 1
     const beat = phase < PLAY_BEAT.attack
       ? phase / PLAY_BEAT.attack

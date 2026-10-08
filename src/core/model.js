@@ -286,6 +286,23 @@ function presetBounds(mesh) {
   mesh.boundingSphere = geometry.boundingSphere.clone()
 }
 
+function sameSkeleton(a, b) {
+  if (a.bones.length !== b.bones.length) return false
+  for (let i = 0; i < a.bones.length; i++) {
+    if (a.bones[i] !== b.bones[i] || !a.boneInverses[i].equals(b.boneInverses[i])) return false
+  }
+  return true
+}
+
+function shareSkeletons(skins) {
+  const shared = []
+  for (const mesh of skins) {
+    const twin = shared.find(s => sameSkeleton(s, mesh.skeleton))
+    if (twin) mesh.skeleton = twin
+    else shared.push(mesh.skeleton)
+  }
+}
+
 export function buildModel(data, opts = {}) {
   const { footY, height } = measure(data)
   const root = cloneSkinned(data.scene)
@@ -305,6 +322,7 @@ export function buildModel(data, opts = {}) {
       presetBounds(o)
     }
   })
+  shareSkeletons(skins)
   const model = {
     root,
     bones,

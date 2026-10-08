@@ -95,7 +95,7 @@ class Audio {
   silence(reason, on) {
     if (on) this.silencers.add(reason)
     else this.silencers.delete(reason)
-    Howler.mute(this.silencers.size > 0)
+    if (Howler.ctx) Howler.mute(this.silencers.size > 0)
   }
 
   probe() {
@@ -105,6 +105,7 @@ class Audio {
 
   prime() {
     Howler.volume()
+    Howler.mute(this.silencers.size > 0)
   }
 
   unlocked() {

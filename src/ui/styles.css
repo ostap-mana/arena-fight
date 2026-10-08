@@ -59,6 +59,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   transition: opacity .35s ease, visibility .35s;
 }
 .screen.on { opacity: 1; visibility: visible; }
+.screen:not(.on) *, .screen:not(.on) *::before, .screen:not(.on) *::after { animation-play-state: paused; }
 
 .title-ornate {
   font-family: var(--display);
@@ -214,14 +215,14 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   opacity: 0; transform: translateX(-178%); mix-blend-mode: screen;
 }
 .pick span { position: relative; }
-#select .slot .pick { opacity: 1; pointer-events: auto; animation: pickidle 3s linear .45s infinite; }
+#select .slot .pick { opacity: 1; pointer-events: auto; animation: pickpulse 1.2s cubic-bezier(.45, 0, .55, 1) .45s infinite; }
 #select .slot .pick .sweep i { animation: picksweep 3s linear .45s infinite; }
+#select .slot.sel .pick, #select .slot.sel .pick .sweep i { animation: none; }
 #select .slot .pick:active { transform: scale(.95); }
 #select .slot .pick:active .plate { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .55)) brightness(1.1); }
-@keyframes pickidle {
-  0% { scale: 1; animation-timing-function: cubic-bezier(.3, .15, .6, 1); }
-  16.667% { scale: 1.02; animation-timing-function: cubic-bezier(.4, 0, .7, .85); }
-  33.333%, 100% { scale: 1; }
+@keyframes pickpulse {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.1; }
 }
 @keyframes picksweep {
   0% { opacity: 0; transform: translateX(-178%); animation-timing-function: cubic-bezier(.333, 0, .667, 1); }
@@ -241,10 +242,6 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   transition: opacity .2s cubic-bezier(.45, 0, .55, 1), left .4s cubic-bezier(.45, 0, .25, 1), top .4s cubic-bezier(.45, 0, .25, 1);
 }
 .tapcue.on { opacity: 1; }
-.tapcue.still { transition: opacity .2s cubic-bezier(.45, 0, .55, 1); }
-.cards .tapcue { --tap: calc(46 * var(--cu)); }
-.cards .tapcue .finger { transition: rotate .4s cubic-bezier(.45, 0, .25, 1), scale .4s cubic-bezier(.45, 0, .25, 1); }
-#select.leaving .cards .tapcue { opacity: 0; transition-duration: .12s; }
 .tapcue .ring {
   position: absolute; left: calc(-128 * var(--tu)); top: calc(-128 * var(--tu)); width: calc(256 * var(--tu)); height: calc(256 * var(--tu));
   background: url('../assets/GENERAL/HUD/select/tap-circle.webp') center / contain no-repeat; opacity: 0;
@@ -803,6 +800,11 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   mix-blend-mode: screen; mix-blend-mode: plus-lighter; pointer-events: none;
 }
 #outcome .band { pointer-events: none; }
+#outcome .crown {
+  pointer-events: none; user-select: none; transform-origin: 50% 100%;
+  filter: drop-shadow(0 0 calc(var(--crown-glow, 12px)) rgba(255, 196, 90, .5)) drop-shadow(0 4px 6px rgba(0, 0, 0, .55));
+}
+#outcome.defeat .crown { display: none; }
 #outcome .verdict { display: block; width: 100%; height: 100%; user-select: none; }
 #outcome .control {
   padding: 0; border: none; background: none; cursor: pointer;
@@ -816,7 +818,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 }
 #outcome.defeat .label { display: block; }
 
-.dmg { position: absolute; font-family: var(--damage); font-weight: 700; pointer-events: none; text-shadow: 0 2px 5px rgba(0,0,0,.85); will-change: transform, opacity; z-index: 5; white-space: nowrap; }
+.dmg { position: absolute; left: 0; top: 0; opacity: 0; font-family: var(--damage); font-weight: 700; pointer-events: none; text-shadow: 0 2px 5px rgba(0,0,0,.85); z-index: 5; white-space: nowrap; contain: layout style; }
 
 .hidden { display: none !important; }
 

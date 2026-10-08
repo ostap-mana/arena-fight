@@ -159,21 +159,34 @@ export class Input {
   }
 
   stickAxis() {
+    const out = this.stickOut || (this.stickOut = [0, 0])
     const len = Math.hypot(this.move.x, this.move.y)
-    if (len < STICK_DEAD) return [0, 0]
-    return [this.move.x / len, this.move.y / len]
+    if (len < STICK_DEAD) {
+      out[0] = out[1] = 0
+      return out
+    }
+    out[0] = this.move.x / len
+    out[1] = this.move.y / len
+    return out
   }
 
   axis() {
-    let [x, y] = this.stickAxis()
+    const out = this.axisOut || (this.axisOut = [0, 0])
+    const stick = this.stickAxis()
+    let x = stick[0]
+    let y = stick[1]
     const k = this.keys
-    if (k.has('KeyA') || k.has('ArrowLeft')) x -= 1
-    if (k.has('KeyD') || k.has('ArrowRight')) x += 1
-    if (k.has('KeyW') || k.has('ArrowUp')) y -= 1
-    if (k.has('KeyS') || k.has('ArrowDown')) y += 1
+    if (k.size) {
+      if (k.has('KeyA') || k.has('ArrowLeft')) x -= 1
+      if (k.has('KeyD') || k.has('ArrowRight')) x += 1
+      if (k.has('KeyW') || k.has('ArrowUp')) y -= 1
+      if (k.has('KeyS') || k.has('ArrowDown')) y += 1
+    }
     const len = Math.hypot(x, y)
     if (len > 1) { x /= len; y /= len }
-    return [x, y]
+    out[0] = x
+    out[1] = y
+    return out
   }
 
   consume(name) {

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { DYN_LIGHTS, DYN_LIGHTS_GLSL } from './lights.js'
 import { LOCATIONS, DEFAULT_LOCATION } from '../data/locations.js'
 import { fetchBuffer, fetchJson } from '../core/fetch.js'
@@ -56,21 +57,17 @@ export async function buildArena(scene, id = pickLocation()) {
     batches.get(key).items.push({ matrix: o.matrixWorld.clone(), st: info.lightmapST || [1, 1, 0, 0] })
   })
 
+  const byMaterial = new Map()
   for (const b of batches.values()) {
     const lightmap = b.lm >= 0 ? lightmaps[b.lm] : null
     const material = await makeMaterial(b.material, lightmap, b.mirrored)
-    const geometry = shareGeometry(b.geometry)
-    const st = new Float32Array(b.items.length * 4)
-    b.items.forEach((it, i) => st.set(it.st, i * 4))
-    geometry.setAttribute('lmST', new THREE.InstancedBufferAttribute(st, 4))
-    const mesh = new THREE.InstancedMesh(geometry, material, b.items.length)
-    b.items.forEach((it, i) => mesh.setMatrixAt(i, it.matrix))
-    mesh.instanceMatrix.needsUpdate = true
-    mesh.computeBoundingSphere()
-    mesh.matrixAutoUpdate = false
-    mesh.receiveShadow = false
-    mesh.castShadow = false
-    group.add(mesh)
+    if (!byMaterial.has(material)) byMaterial.set(material, [])
+    byMaterial.get(material).push(b)
+  }
+  for (const [material, list] of byMaterial) {
+    const merged = mergeBatches(list)
+    if (merged) group.add(staticMesh(new THREE.Mesh(merged, material)))
+    else for (const b of list) group.add(staticMesh(instancedBatch(b, material)))
   }
 
   const floorY = meta.floorY ?? measureFloor(group)
@@ -112,9 +109,66 @@ export async function buildArena(scene, id = pickLocation()) {
   }
 }
 
+function staticMesh(mesh) {
+  mesh.matrixAutoUpdate = false
+  mesh.receiveShadow = false
+  mesh.castShadow = false
+  return mesh
+}
+
+function instancedBatch(b, material) {
+  const geometry = shareGeometry(b.geometry)
+  const st = new Float32Array(b.items.length * 4)
+  b.items.forEach((it, i) => st.set(it.st, i * 4))
+  geometry.setAttribute('lmST', new THREE.InstancedBufferAttribute(st, 4))
+  const mesh = new THREE.InstancedMesh(geometry, material, b.items.length)
+  b.items.forEach((it, i) => mesh.setMatrixAt(i, it.matrix))
+  mesh.instanceMatrix.needsUpdate = true
+  mesh.computeBoundingSphere()
+  return mesh
+}
+
+function floatAttribute(attr) {
+  const n = attr.count
+  const size = attr.itemSize
+  if (!attr.isInterleavedBufferAttribute && attr.array.length === n * size) {
+    if (attr.array instanceof Float32Array) return new THREE.BufferAttribute(attr.array.slice(), size)
+    const src = attr.array
+    const out = new Float32Array(src.length)
+    if (attr.normalized) for (let i = 0; i < src.length; i++) out[i] = THREE.MathUtils.denormalize(src[i], src)
+    else for (let i = 0; i < src.length; i++) out[i] = src[i]
+    return new THREE.BufferAttribute(out, size)
+  }
+  const out = new Float32Array(n * size)
+  for (let i = 0; i < n; i++) for (let c = 0; c < size; c++) out[i * size + c] = attr.getComponent(i, c)
+  return new THREE.BufferAttribute(out, size)
+}
+
+function mergeBatches(list) {
+  const parts = []
+  for (const b of list) {
+    for (const it of b.items) {
+      const g = new THREE.BufferGeometry()
+      for (const name in b.geometry.attributes) g.setAttribute(name, floatAttribute(b.geometry.attributes[name]))
+      if (b.geometry.index) g.setIndex(new THREE.BufferAttribute(Uint32Array.from(b.geometry.index.array), 1))
+      g.applyMatrix4(it.matrix)
+      const n = g.attributes.position.count
+      const st = new Float32Array(n * 4)
+      for (let i = 0; i < n; i++) st.set(it.st, i * 4)
+      g.setAttribute('lmST', new THREE.BufferAttribute(st, 4))
+      parts.push(g)
+    }
+  }
+  const merged = parts.length === 1 ? parts[0] : mergeGeometries(parts, false)
+  if (!merged) return null
+  merged.computeBoundingSphere()
+  merged.computeBoundingBox()
+  return merged
+}
+
 function measureFloor(group) {
   group.updateMatrixWorld(true)
-  const meshes = group.children.filter(o => o.isInstancedMesh)
+  const meshes = group.children.filter(o => o.isMesh)
   const ray = new THREE.Raycaster()
   const down = new THREE.Vector3(0, -1, 0)
   const origin = new THREE.Vector3()

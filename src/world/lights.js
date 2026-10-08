@@ -1,6 +1,7 @@
 import * as THREE from 'three'
+import { LOW_TIER } from '../core/tier.js'
 
-const COUNT = 8
+const COUNT = LOW_TIER ? 4 : 8
 
 export const DYN_LIGHTS = {
   uDynPos: { value: Array.from({ length: COUNT }, () => new THREE.Vector4(0, -100, 0, 0)) },
@@ -65,7 +66,8 @@ export class DynamicLights {
   }
 
   update(dt) {
-    this.slots.forEach((s, i) => {
+    for (let i = 0; i < COUNT; i++) {
+      const s = this.slots[i]
       const p = DYN_LIGHTS.uDynPos.value[i]
       const c = DYN_LIGHTS.uDynCol.value[i]
       let k = 0
@@ -80,11 +82,11 @@ export class DynamicLights {
       }
       if (k <= 0.001) {
         p.w = 0
-        return
+        continue
       }
       _c.copy(s.color).convertSRGBToLinear()
       p.set(s.pos.x, s.pos.y, s.pos.z, s.radius)
       c.set(_c.r * k, _c.g * k, _c.b * k)
-    })
+    }
   }
 }
