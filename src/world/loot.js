@@ -69,7 +69,7 @@ function dress(mesh) {
     const src = o.material
     const extras = src.userData && src.userData.character
     o.material = extras ? characterMaterial(src, extras) : src.clone()
-    o.castShadow = true
+    o.castShadow = false
     o.receiveShadow = false
     o.frustumCulled = false
   })

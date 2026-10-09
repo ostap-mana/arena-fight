@@ -113,6 +113,19 @@ The HUD scales with the screen through `--hud-scale`. The battle camera uses the
 the character. `tools/glb_jobs.json` lists which bundle each model comes from; to re-export a
 subset run `python tools/export_glb.py "" tools/glb_jobs.json LTS019 OGR013`.
 
+The shipped files are then compressed with `node tools/compress_glb.mjs <file.glb|dir>`. The
+compressor writes stock glTF that three's `GLTFLoader` and `MeshoptDecoder` read with no extra
+setup:
+- `EXT_meshopt_compression` with the QUATERNION, EXPONENTIAL and OCTAHEDRAL filters, plus
+  `KHR_mesh_quantization`;
+- animations resampled onto each clip's own frame grid (24/30 fps), with shared time streams;
+- constant tracks at the rest pose removed, and unused skin joints pruned;
+- clips the game never plays dropped (the per-file rules are in `PROFILES`);
+- battle normal maps capped at 512 px.
+
+It skips files it has already compressed (`asset.extras.compressed`), so run it again after
+any re-export.
+
 Unity is left-handed, so the exporter mirrors Z on positions, normals, quaternions and
 bind matrices, and reverses triangle winding. Weapons are not re-parented: the clips animate
 `WeaponRoot_L/R` directly.

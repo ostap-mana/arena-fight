@@ -147,6 +147,13 @@ export class CardBorderFx {
     this.row = 0
     this.def = null
     this.ready = false
+    this.box = null
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(entries => {
+        const r = entries[entries.length - 1].contentRect
+        this.box = { w: r.width, h: r.height }
+      }).observe(this.canvas)
+    }
     const gl = this.canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false })
     this.gl = gl
     if (!gl) return
@@ -244,8 +251,9 @@ export class CardBorderFx {
     this.ignite = Math.min(1, this.ignite + dt / IGNITE_TIME)
     const k = 1 - (1 - this.ignite) ** 3
     const dpr = Math.min(devicePixelRatio, 2)
-    const w = Math.max(1, Math.round(this.canvas.clientWidth * dpr))
-    const h = Math.max(1, Math.round(this.canvas.clientHeight * dpr))
+    const box = this.box || { w: this.canvas.clientWidth, h: this.canvas.clientHeight }
+    const w = Math.max(1, Math.round(box.w * dpr))
+    const h = Math.max(1, Math.round(box.h * dpr))
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w
       this.canvas.height = h

@@ -322,7 +322,12 @@ export class Showcase {
       }
     }
     const s = this.stands[this.picked]
-    if (s && !s.fx && STAND_BOOKS.some(n => this.books.has(n))) this.startStandFx(s)
+    if (s && !s.fx && this.standBooksReady()) this.startStandFx(s)
+  }
+
+  standBooksReady() {
+    for (let i = 0; i < STAND_BOOKS.length; i++) if (this.books.has(STAND_BOOKS[i])) return true
+    return false
   }
 
   startStandFx(s) {
@@ -384,7 +389,8 @@ export class Showcase {
     const standScale = 1 + (PORTRAIT_STAND - 1) * portrait
     const idleGain = 1 + (PORTRAIT_IDLE - 1) * portrait
     const shown = this.showPick(selected, portrait)
-    this.stands.forEach((s, i) => {
+    for (let i = 0; i < this.stands.length; i++) {
+      const s = this.stands[i]
       const goal = i === shown ? 1 : 0
       s.focus = Math.max(0, Math.min(1, s.focus + Math.sign(goal - s.focus) * dt / FOCUS_TIME))
       if (Math.abs(goal - s.focus) < 1e-3) s.focus = goal
@@ -408,7 +414,7 @@ export class Showcase {
         r.uStandDim.value = IDLE_DIM + (PICKED_GAIN - IDLE_DIM) * w
         r.uStandRimColor.value.copy(IDLE_RIM_COLOR).lerp(s.color, w)
       }
-    })
+    }
     this.ambient.update(dt, this.camera, Math.min(1, t / 1.5))
     this.syncStandFx(shown)
     if (this.camera) this.books.update(dt, this.camera, this.scene.fog)

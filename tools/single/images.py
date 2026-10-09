@@ -52,7 +52,7 @@ def encode(job):
     alpha = has_alpha(img)
     img = img.convert("RGBA" if alpha else "RGB")
     img = fit(img, job.get("max", 0), job.get("scale", 1.0))
-    fmt = job.get("format", "avif")
+    fmt = job.get("format", "webp")
     data = None
     if fmt in ("avif", "auto") and not job.get("lossless"):
         gray = is_gray(img)

@@ -127,14 +127,14 @@ def save_tex(t, outdir, seen):
     if t is None:
         return None
     nm = re.sub(r"[^A-Za-z0-9_]+", "_", t.m_Name)
-    fn = nm + ".png"
+    fn = nm + ".webp"
     p = os.path.join(outdir, fn)
     if fn not in seen:
         try:
             img = t.image
             if max(img.size) > 1024:
                 img = img.resize((min(1024, img.width), min(1024, img.height)))
-            img.save(p)
+            img.save(p, "WEBP", lossless=True, quality=100, method=6, exact=True)
             seen.add(fn)
         except Exception as e:
             print("  texerr", t.m_Name, e, file=sys.stderr)

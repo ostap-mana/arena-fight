@@ -161,7 +161,10 @@ class Audio {
   }
 
   listen(x, z, yaw) {
-    this.listener = { x, z, yaw }
+    const l = this.listener || (this.listener = { x: 0, z: 0, yaw: 0 })
+    l.x = x
+    l.z = z
+    l.yaw = yaw
   }
 
   play(name, opts = {}) {
@@ -195,11 +198,16 @@ class Audio {
     const slot = opts.slot || key
     const now = performance.now() / 1000
     if (opts.gap && now - (this.lastAt[slot] ?? -Infinity) < opts.gap) return
-    const live = (this.voices[slot] || []).filter(v => v.h.playing(v.id))
+    const live = this.voices[slot] || (this.voices[slot] = [])
+    let keep = 0
+    for (let i = 0; i < live.length; i++) {
+      const v = live[i]
+      if (v.h.playing(v.id)) live[keep++] = v
+    }
+    live.length = keep
     if (opts.max && live.length >= opts.max) return
     const id = h.play(`${key}#${(random() * s.n) | 0}`)
     live.push({ h, id, key })
-    this.voices[slot] = live
     this.lastAt[slot] = now
     let vol = (opts.volume ?? 1) * (GROUP_VOLUME[s.g] ?? 1)
     if (opts.at && this.listener) {

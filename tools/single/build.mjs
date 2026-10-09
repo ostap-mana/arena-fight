@@ -9,7 +9,7 @@ import { encodeAnimations } from './anim.mjs'
 import { encodeVfxMeshes } from './vfxmesh.js'
 import { encodeImages, imageKind, cached, hash, python, ROOT, CACHE, kb, mb } from './util.mjs'
 import { bytesToText, lzma } from './pack.mjs'
-import { GLB, IMAGE, HUD, AUDIO, profileFor } from './profiles.mjs'
+import { GLB, IMAGE, HUD, AUDIO, ALPHA_QUALITY, profileFor } from './profiles.mjs'
 import { HEROES, TITANS, ENEMIES, WAVES } from '../../src/data/heroes.js'
 
 const LIMIT = 5000000
@@ -150,7 +150,7 @@ function processGlb(file) {
   const data = readPublic(file)
   const profile = profileFor(GLB, file)
   if (!profile) throw new Error(`no glb profile for ${file}`)
-  const key = hash('glb8', data, keyOf(profile))
+  const key = hash('glb9', data, keyOf(profile))
   const anim = profile.anim && /"animations"/.test(data.subarray(0, 20 + data.readUInt32LE(12)).toString('utf8'))
   const animFile = path.join(CACHE, `${key}.anim`)
   const out = cached(key, '.glb', () => {
@@ -178,7 +178,7 @@ function processGlb(file) {
 function processImages(files, table, group) {
   const jobs = files.map(file => {
     const profile = Array.isArray(table) ? profileFor(table, file.name) || {} : table
-    return { data: file.data, format: 'avif', speed: 1, ...profile }
+    return { data: file.data, format: 'webp', alpha_quality: ALPHA_QUALITY, ...profile }
   })
   const encoded = encodeImages(jobs)
   return files.map((file, i) => {

@@ -59,7 +59,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   transition: opacity .35s ease, visibility .35s;
 }
 .screen.on { opacity: 1; visibility: visible; }
-.screen:not(.on) *, .screen:not(.on) *::before, .screen:not(.on) *::after { animation-play-state: paused; }
+.screen:not(.on) *, .screen:not(.on) *::before, .screen:not(.on) *::after { animation-play-state: paused !important; }
 
 .title-ornate {
   font-family: var(--display);
@@ -630,8 +630,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 .skill:active { transform: scale(.92); }
 .skill > * { pointer-events: none; }
 .skill .cd {
-  position: absolute; inset: 5.5%; border-radius: 50%;
-  background: conic-gradient(rgba(0,0,0,.85) calc(var(--k) * 360deg), transparent 0);
+  position: absolute; left: 5.5%; top: 5.5%; width: 89%; height: 89%; border-radius: 50%; opacity: .85;
 }
 .skill .cdn {
   position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display);
@@ -646,7 +645,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 .skill.attack::before { content: ''; position: absolute; inset: -18%; border-radius: 50%; background: radial-gradient(circle, rgba(0,0,0,.55) 45%, transparent 70%); }
 .skill.attack::after { content: ''; position: absolute; inset: -12px; border-radius: 50%; }
 .skill.attack .art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0,0,0,.6)); }
-.skill.attack .cd { inset: 7%; background: conic-gradient(rgba(0,0,0,.35) calc(var(--k) * 360deg), transparent 0); }
+.skill.attack .cd { left: 7%; top: 7%; width: 86%; height: 86%; opacity: .35; }
 .skill.attack.held { transform: scale(.92); }
 .skill.attack.held .press { opacity: 1; transition: none; }
 .skill.s1, .skill.s2 { width: 60px; height: 60px; }
@@ -670,6 +669,11 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   mask: url('../assets/GENERAL/HUD/fx/ult-ring-mask.webp') center / contain no-repeat;
   background: rgba(13, 41, 174, .87); opacity: .8; transition: opacity .3s ease;
 }
+#ultbtn .aura .flame {
+  position: absolute; inset: -50%; opacity: 0;
+  background: url('../assets/GENERAL/HUD/fx/ult-noise.webp') 0 0 / 35% 35% repeat;
+  mix-blend-mode: multiply;
+}
 #ultbtn .icon { inset: 3%; width: 94%; height: 94%; border-radius: 50%; object-fit: cover; }
 #ultbtn .dim { inset: 3.5%; border-radius: 50%; background: rgba(0, 0, 0, .72); transition: opacity .3s ease; }
 #ultbtn .ring {
@@ -686,6 +690,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 }
 #ultbtn .swirl.a { -webkit-mask-image: url('../assets/GENERAL/HUD/fx/ult-swirl-a.webp'); mask-image: url('../assets/GENERAL/HUD/fx/ult-swirl-a.webp'); background: #ff7c3b; animation: ultspin 2.6s linear infinite; }
 #ultbtn .swirl.b { -webkit-mask-image: url('../assets/GENERAL/HUD/fx/ult-swirl-b.webp'); mask-image: url('../assets/GENERAL/HUD/fx/ult-swirl-b.webp'); background: #ffe2a0; animation: ultspin 3.8s linear infinite reverse; }
+#ultbtn:not(.on) .swirl { animation-play-state: paused; }
 #ultbtn .pct {
   inset: 0; display: flex; align-items: center; justify-content: center; padding-left: 3px;
   font-family: var(--display); color: #fff; font-size: 23px; line-height: 1;
@@ -699,11 +704,10 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #ultbtn.on .swirl { opacity: .95; }
 #ultbtn.on .aura {
   opacity: 1;
-  background: url('../assets/GENERAL/HUD/fx/ult-noise.webp') 0 0 / 70% 70% repeat, #ff7c3b;
-  background-blend-mode: multiply, normal;
-  animation: ultflame 1.6s linear infinite;
+  background: #ff7c3b;
   filter: brightness(1.9) saturate(1.2);
 }
+#ultbtn.on .aura .flame { opacity: 1; animation: ultflame 1.6s linear infinite; }
 #ultbtn.on { animation: ultpulse 1.2s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(255, 140, 60, .75)); }
 #ultbtn.on:active { transform: scale(.92); }
 #ultbtn:active .press { opacity: 1; transition: none; }
@@ -712,7 +716,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #ultbtn.fire .press { animation: ultring .7s ease-out; }
 #hud.titan #ultbtn { opacity: 0; pointer-events: none; }
 @keyframes ultspin { to { transform: rotate(360deg) } }
-@keyframes ultflame { to { background-position: 70% -140%, 0 0 } }
+@keyframes ultflame { to { transform: translate(10.5%, -21%) } }
 @keyframes ultpulse { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.07) } }
 @keyframes ultcharged { 0% { opacity: 0; transform: scale(.3) rotate(0deg) } 30% { opacity: 1; transform: scale(1) rotate(25deg) } 100% { opacity: 0; transform: scale(1.3) rotate(60deg) } }
 @keyframes ultfire { 0% { opacity: 1; transform: scale(.6) } 100% { opacity: 0; transform: scale(1.8) rotate(90deg) } }
@@ -942,6 +946,17 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #gearring .halo {
   position: absolute; left: 0; top: 0; height: calc(var(--s) * 1.15); transform: translate(-50%, -50%);
   background: radial-gradient(ellipse at center, rgba(255, 214, 120, .42) 0%, rgba(255, 170, 60, .16) 42%, rgba(255, 170, 60, 0) 70%);
+}
+#gearring .guide {
+  --gh: calc(var(--s) * .42);
+  position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transition: opacity .2s;
+  mix-blend-mode: screen; mix-blend-mode: plus-lighter;
+}
+#gearring .guide.on { opacity: 1; transition: opacity .3s .32s; }
+#gearring .guide i {
+  position: absolute; left: 0; top: 0; width: calc(var(--gh) * 2); height: var(--gh);
+  margin: calc(var(--gh) * -.5) 0 0 calc(var(--gh) * -1); opacity: 0; will-change: transform, opacity;
+  background: url('../assets/GENERAL/HUD/gear/guide-arrow.webp') 0 0 / calc(var(--gh) * 2.75) 100% no-repeat;
 }
 #gearring .slot { position: absolute; left: 0; top: 0; width: var(--s); height: var(--s); pointer-events: auto; cursor: pointer; will-change: transform; }
 #gearring .slot .sk { position: absolute; inset: 0; filter: drop-shadow(0 calc(var(--s) * .05) calc(var(--s) * .1) rgba(0, 0, 0, .65)); }

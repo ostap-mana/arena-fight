@@ -65,7 +65,7 @@ export class Actor {
     }
   }
 
-  update(dt, ctx) {
+  update(dt) {
     if (this.flash > 0) {
       this.flash -= dt
       this.tint(Math.max(0, this.flash / 0.16) * 0.85)
@@ -80,7 +80,7 @@ export class Actor {
     while (df < -Math.PI) df += Math.PI * 2
     this.facing += df * Math.min(1, dt * 14)
 
-    this.rig.update(dt, ctx)
+    this.rig.update(dt)
     this.root.position.x = this.pos.x
     this.root.position.z = this.pos.z
     this.root.position.y = this.baseY + this.pos.y + this.rig.rootOffset.y * this.scale

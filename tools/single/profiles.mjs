@@ -4,7 +4,8 @@ const CLOSE = { ...MOTION, secondaryFull: true, fps: 30, secondaryFps: 15, bits:
 const BATTLE = { ...MOTION, fps: 30, secondaryFps: 15, bits: 10, secondaryBits: 9, tolerance: 0.01, secondaryTolerance: 0.03 }
 const CROWD = { ...MOTION, fps: 30, secondaryFps: 15, bits: 10, secondaryBits: 9, tolerance: 0.018, secondaryTolerance: 0.05 }
 const ANIM = { fps: 30, rotationBits: 12, translationBits: 14, constantRotation: 0.0006, constantValue: 0.0004, dropRest: true, anim: BATTLE }
-const MESH = { positionBits: 14, uvBits: 12, dropTangents: true }
+export const ALPHA_QUALITY = 50
+const MESH = { positionBits: 14, uvBits: 12, dropTangents: true, alphaQuality: ALPHA_QUALITY }
 const CHARACTER = { ...ANIM, ...MESH, speed: 1, pruneJoints: true }
 
 const SMALL = { positionBits: 12, uvBits: 10, uvFloatStep: 1 / 1024, texMax: 256, quality: 54, normalMax: 128, normalQuality: 40, dataMax: 128 }
@@ -21,9 +22,10 @@ export const GLB = [
     uvFloatStep: 1 / 2048,
     texMax: 512,
     quality: 50,
+    alphaQuality: 30,
     normalMax: 128,
     normalQuality: 44,
-    imageRules: [[/Teeth/, { max: 64 }], [/Head|Hair/, { max: 256 }], [/Body_HiRes|Body_AlbedoAO$/, { max: 512, quality: 52 }], [/./, { max: 384 }]],
+    imageRules: [[/Teeth/, { max: 64 }], [/Head|Hair/, { max: 256 }], [/Body_HiRes|Body_AlbedoAO$/, { max: 512, quality: 52 }], [/./, { max: 320 }]],
   }],
   [/glb\/(eld037|mag018|eld025)\.glb$/, { ...CHARACTER, ...SMALL, anim: { ...BATTLE, secondaryFull: true }, dropClips: /^(Shock|Freeze|Walk|Skill_3_PreCast|Skill_3_EndCast)$/ }],
   [/glb\/anim\w+\.glb$/, { ...CHARACTER, ...SMALL, texMax: 384, dropClips: /LOB|^Girl_anim$|^FX_A_/ }],
@@ -49,7 +51,7 @@ export const IMAGE = [
   [/img\//, { max: 512, quality: 70 }],
 ]
 
-export const HUD = { max: 1024, quality: 46 }
+export const HUD = { max: 1024, quality: 44, alpha_quality: 40 }
 
 export const AUDIO = {
   rate: 22050,

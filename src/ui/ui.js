@@ -124,6 +124,8 @@ const VEIL_OUT_MS = 450
 const LOOT_ROW_MS = 2600
 const LOOT_HIDE_MS = 250
 const LOOT_ROWS = 2
+const BAR_STEPS = 200
+const SWEEP_STEPS = 360
 
 function spring(t) {
   const k = Math.min(1, Math.max(0, t))
@@ -204,11 +206,11 @@ export class UI {
         <div id="gesturehint"><div class="g-main"></div><div class="g-sub"></div><div class="g-hand">${JOYSTICK_TUTORIAL}</div></div>
         <div id="herocue">${TAP}</div>
         <div id="skills">
-          <div class="skill attack" data-k="attack"><img class="art" alt="" draggable="false"><span class="cd"></span><span class="press"></span></div>
-          <div class="skill s1" data-k="s1"><img class="icon" alt="" draggable="false"><span class="cd"></span><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
-          <div class="skill s2" data-k="s2"><img class="icon" alt="" draggable="false"><span class="cd"></span><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
+          <div class="skill attack" data-k="attack"><img class="art" alt="" draggable="false"><canvas class="cd"></canvas><span class="press"></span></div>
+          <div class="skill s1" data-k="s1"><img class="icon" alt="" draggable="false"><canvas class="cd"></canvas><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
+          <div class="skill s2" data-k="s2"><img class="icon" alt="" draggable="false"><canvas class="cd"></canvas><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
           <div id="ultbtn">
-            <span class="aura"></span>
+            <span class="aura"><i class="flame"></i></span>
             <img class="icon" alt="" draggable="false">
             <span class="dim"></span>
             <span class="ring"></span>
@@ -294,6 +296,8 @@ export class UI {
     this.animaIcon = this.animaCard.querySelector('.portrait .icon')
     this.animaHero = this.animaCard.querySelector('.hero img')
     this.animaCooldown = this.animaCard.querySelector('.cooldown b')
+    this.animaFill = this.animaCard.querySelector('.cooldown .fill')
+    this.animaDuration = this.animaCard.querySelector('.duration')
     this.animaReady = false
     this.titanTimer = this.root.querySelector('#titantimer')
     this.stick = this.root.querySelector('#stick')
@@ -370,10 +374,12 @@ export class UI {
       this.heroCue.style.visibility = visible ? 'visible' : 'hidden'
     }
     if (!visible) return
-    const t = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
-    if (t !== this.heroCueAt) {
-      this.heroCueAt = t
-      this.heroCue.style.transform = t
+    const qx = Math.round(x * 10)
+    const qy = Math.round(y * 10)
+    if (qx !== this.heroCueX || qy !== this.heroCueY) {
+      this.heroCueX = qx
+      this.heroCueY = qy
+      this.heroCue.style.transform = `translate3d(${qx / 10}px, ${qy / 10}px, 0)`
     }
     const flip = x > view.w * 0.62
     if (flip !== this.heroCueFlip) {
@@ -397,6 +403,10 @@ export class UI {
     const portrait = view.h > view.w
     this.hudScale = Math.min(1.8, Math.max(portrait ? 0.92 : 0.8, Math.min(short / 410, long / 730)))
     document.documentElement.style.setProperty('--hud-scale', this.hudScale.toFixed(3))
+    for (const c of Object.values(this.cooldownState || {})) {
+      c.size = 0
+      c.shownK = -1
+    }
   }
 
   progress(p) {
@@ -556,11 +566,17 @@ export class UI {
       this.heroBar.style.visibility = visible ? 'visible' : 'hidden'
     }
     if (!visible) return
-    const t = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${this.hudScale})`
-    if (t !== bar.at) {
-      bar.at = t
-      this.heroBar.style.transform = t
-    }
+    this.placeBar(this.heroBar, bar, x, y)
+  }
+
+  placeBar(node, bar, x, y) {
+    const qx = Math.round(x * 10)
+    const qy = Math.round(y * 10)
+    if (qx === bar.qx && qy === bar.qy && this.hudScale === bar.scale) return
+    bar.qx = qx
+    bar.qy = qy
+    bar.scale = this.hudScale
+    node.style.transform = `translate3d(${qx / 10}px, ${qy / 10}px, 0) scale(${this.hudScale})`
   }
 
   tick(dt) {
@@ -599,20 +615,20 @@ export class UI {
   setTitan(k, ready, secondsLeft) {
     const v = Math.max(0, Math.min(1, k))
     const card = this.animaCard
-    const r = (1 - v).toFixed(3)
+    const r = Math.round((1 - v) * BAR_STEPS)
     if (r !== this.animaShownR) {
       this.animaShownR = r
-      card.style.setProperty('--r', r)
+      this.animaFill.style.setProperty('--r', String(r / BAR_STEPS))
     }
     const secs = Math.max(0, secondsLeft)
-    const text = secs >= 10 ? String(Math.ceil(secs)) : secs.toFixed(1)
-    if (text !== this.animaShownText) {
-      this.animaShownText = text
-      this.animaCooldown.textContent = text
+    const tenths = secs >= 10 ? Math.ceil(secs) * 10 : Math.round(secs * 10)
+    if (tenths !== this.animaShownTenths) {
+      this.animaShownTenths = tenths
+      this.animaCooldown.textContent = secs >= 10 ? String(tenths / 10) : (tenths / 10).toFixed(1)
     }
     const was = this.animaReady
     this.animaReady = ready
-    card.classList.toggle('ready', ready)
+    if (ready !== was) card.classList.toggle('ready', ready)
     if (ready && !was) {
       this.deferClass(card, 'appear')
       this.deferClass(card, 'charged')
@@ -630,10 +646,11 @@ export class UI {
       this.hud.classList.toggle('titan', on)
       this.animaCard.classList.toggle('active', on)
     }
-    const d = Math.max(0, k).toFixed(3)
-    if (d === this.titanTimerShown) return
-    this.titanTimerShown = d
-    this.animaCard.style.setProperty('--d', d)
+    const q = Math.round(Math.max(0, k) * BAR_STEPS)
+    if (q === this.titanTimerShown) return
+    this.titanTimerShown = q
+    const d = String(q / BAR_STEPS)
+    this.animaDuration.style.setProperty('--d', d)
     this.titanTimer.style.setProperty('--k', d)
   }
 
@@ -674,11 +691,7 @@ export class UI {
       bar.el.style.visibility = visible ? 'visible' : 'hidden'
     }
     if (!visible) return
-    const t = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${this.hudScale})`
-    if (t !== bar.at) {
-      bar.at = t
-      bar.el.style.transform = t
-    }
+    this.placeBar(bar.el, bar, x, y)
     const k = actor.dead ? 0 : Math.max(0, actor.hp / actor.maxHp)
     if (k !== bar.k) {
       bar.k = k
@@ -751,16 +764,16 @@ export class UI {
     let c = this.cooldownState[key]
     if (!c) {
       const el = this.hud.querySelector(`.skill[data-k="${key}"]`)
-      c = this.cooldownState[key] = { el, num: el && el.querySelector('.cdn'), k: 0, shownK: '', text: '', lit: false }
+      c = this.cooldownState[key] = { el, sweep: el && el.querySelector('.cd'), num: el && el.querySelector('.cdn'), k: 0, shownK: -1, tenths: -1, lit: false }
     }
     const s = c.el
     if (!s) return
     const prev = c.k
     c.k = k
-    const shownK = k > 0 ? k.toFixed(3) : '0'
+    const shownK = k > 0 ? Math.round(k * SWEEP_STEPS) : 0
     if (shownK !== c.shownK) {
       c.shownK = shownK
-      s.style.setProperty('--k', shownK)
+      if (c.sweep) this.drawSweep(c, shownK / SWEEP_STEPS)
     }
     const n = c.num
     if (n) {
@@ -770,14 +783,34 @@ export class UI {
         n.style.opacity = lit ? '1' : '0'
       }
       if (lit) {
-        const text = secs >= 1 ? String(Math.ceil(secs)) : secs.toFixed(1)
-        if (text !== c.text) {
-          c.text = text
-          n.textContent = text
+        const tenths = secs >= 1 ? Math.ceil(secs) * 10 : Math.round(secs * 10)
+        if (tenths !== c.tenths) {
+          c.tenths = tenths
+          n.textContent = secs >= 1 ? String(tenths / 10) : (tenths / 10).toFixed(1)
         }
       }
     }
     if (prev > 0.01 && k <= 0.01 && key !== 'attack') this.deferClass(s, 'charged')
+  }
+
+  drawSweep(c, k) {
+    const canvas = c.sweep
+    if (!c.size) {
+      const css = canvas.offsetWidth
+      if (!css) return
+      c.size = Math.ceil(css * this.hudScale * Math.min(devicePixelRatio || 1, 3))
+      canvas.width = canvas.height = c.size
+      c.ctx = canvas.getContext('2d')
+    }
+    const ctx = c.ctx
+    const r = c.size / 2
+    ctx.clearRect(0, 0, c.size, c.size)
+    if (k <= 0) return
+    ctx.beginPath()
+    ctx.moveTo(r, r)
+    ctx.arc(r, r, r, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2)
+    ctx.closePath()
+    ctx.fill()
   }
 
   showBanner(title, sub, dur = 1.6, icon = null) {

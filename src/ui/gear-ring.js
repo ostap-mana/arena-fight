@@ -34,6 +34,18 @@ const FRESH_POP = 0.28
 const WEAR_SIDE = 0.07
 const SHADE_CLEAR = 0.55
 const SPRING = 'cubic-bezier(.18,1.25,.4,1)'
+const GUIDE_ARROWS = 12
+const GUIDE_SAMPLES = 24
+const GUIDE_FROM = 1.05
+const GUIDE_TO = 0.6
+const GUIDE_MIN = 0.6
+const GUIDE_BOW = 0.36
+const GUIDE_STEP = 1.155
+const GUIDE_SPEED = 1.3
+const GUIDE_FADE_IN = 0.45
+const GUIDE_FADE_OUT = 0.5
+const guideLengths = new Float32Array(GUIDE_SAMPLES + 1)
+const guidePoint = { x: 0, y: 0, a: 0 }
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
 
 function art(name) {
@@ -78,6 +90,7 @@ export class GearRing {
     this.el.innerHTML = deferImages(`
       <i class="shade"></i>
       <i class="halo"></i>
+      <div class="guide">${'<i></i>'.repeat(GUIDE_ARROWS)}</div>
       <div class="plate"><div class="pk">
         <i class="pshadow"></i>
         <div class="coach"><b></b><span></span></div>
@@ -117,6 +130,18 @@ export class GearRing {
     this.buildChip = this.el.querySelector('.buildchip')
     this.buildBonus = this.el.querySelector('.bbonus')
     this.slots = Object.fromEntries([...this.el.querySelectorAll('.slot')].map(s => [s.dataset.slot, s]))
+    this.guideEl = this.el.querySelector('.guide')
+    this.guideArrows = [...this.guideEl.children]
+    this.guideCurve = { x0: 0, y0: 0, x1: 0, y1: 0, x2: 0, y2: 0 }
+    this.guideCell = null
+    this.guideSlot = null
+    this.guideHold = false
+    this.guideShown = false
+    this.guideMeasure = false
+    this.guideLocal = { x: 0, y: 0, r: 0, inView: false }
+    this.stripX = 0
+    this.stripY = 0
+    this.items.addEventListener('scroll', () => this.measureGuide(), { passive: true })
     this.el.querySelector('.x').addEventListener('click', () => this.onClose && this.onClose())
     this.autoBtn.addEventListener('click', () => this.autoEquip())
     this.buildChip.addEventListener('click', () => this.setFilter(this.filter === 'build' ? 'all' : 'build'))
@@ -239,6 +264,8 @@ export class GearRing {
   close() {
     this.intro = null
     this.cueAuto(false)
+    this.guideCell = null
+    this.showGuide(false)
     const token = this.seq
     const c = this.center
     for (const [type, slot] of Object.entries(this.slots)) {
@@ -268,11 +295,9 @@ export class GearRing {
     const H = view.h
     const heroH = Math.max(40, bottom - top)
     const s = clamp(heroH * SLOT_OF_HERO, SLOT_MIN, SLOT_MAX)
-    const size = `${s.toFixed(1)}px`
-    if (size !== this.shownSize) {
-      this.shownSize = size
-      this.el.style.setProperty('--s', size)
+    if (setPx(this.el, '--s', s)) {
       this.plateH = null
+      this.guideMeasure = true
     }
     const bulge = s * BULGE
     let off = heroH * HERO_HALF + s * 0.5 + COLUMN_GAP
@@ -282,41 +307,155 @@ export class GearRing {
     const step = Math.max(s * ROW_STEP, (heroH - s) / 3)
     const cy = (top + bottom) / 2
     const half = step * 1.5 + s / 2
-    this.center = { x, y: cy }
-    this.hero = { x: cx, top, bottom, side: heroH * WEAR_SIDE }
+    this.center.x = x
+    this.center.y = cy
+    const hero = this.heroBox || (this.heroBox = { x: 0, top: 0, bottom: 0, side: 0 })
+    hero.x = cx
+    hero.top = top
+    hero.bottom = bottom
+    hero.side = heroH * WEAR_SIDE
+    this.hero = hero
     this.placeShade(x, cy, off + s * 0.1, half + s * 0.15)
-    const put = (type, side, i) => {
-      const t = (i - 1.5) / 1.5
-      const sx = x + side * (off + bulge * (1 - t * t))
-      const sy = cy + t * step * 1.5
-      this.spots[type] = { x: sx, y: sy }
-      setStyle(this.slots[type], 'transform', `translate3d(${(sx - s / 2).toFixed(1)}px, ${(sy - s / 2).toFixed(1)}px, 0)`)
-    }
-    LEFT.forEach((type, i) => put(type, -1, i))
-    RIGHT.forEach((type, i) => put(type, 1, i))
+    for (let i = 0; i < LEFT.length; i++) this.putSlot(LEFT[i], -1, i, x, cy, off, bulge, step, s)
+    for (let i = 0; i < RIGHT.length; i++) this.putSlot(RIGHT[i], 1, i, x, cy, off, bulge, step, s)
     const plateW = Math.min(W - EDGE * 2, s * PLATE_W)
     const stripW = Math.min(W - EDGE * 2, s * STRIP_CELL * (STRIP_SLOTS + 1.3) + s * 0.6)
-    setStyle(this.plate, 'width', `${plateW.toFixed(1)}px`)
-    setStyle(this.strip, 'width', `${stripW.toFixed(1)}px`)
+    setPx(this.plate, 'width', plateW)
+    setPx(this.strip, 'width', stripW)
     if (this.plateH == null) {
       this.plateH = this.plate.offsetHeight
       this.stripH = this.strip.offsetHeight
     }
     const plateY = Math.min(top, cy - half) - STACK_GAP - this.plateH
-    setStyle(this.plate, 'transform', `translate3d(${clamp(x - plateW / 2, EDGE, W - plateW - EDGE).toFixed(1)}px, ${Math.max(EDGE, plateY).toFixed(1)}px, 0)`)
+    setShift(this.plate, clamp(x - plateW / 2, EDGE, W - plateW - EDGE), Math.max(EDGE, plateY))
     const stripY = Math.max(bottom, cy + half) + STACK_GAP
-    setStyle(this.strip, 'transform', `translate3d(${clamp(x - stripW / 2, EDGE, W - stripW - EDGE).toFixed(1)}px, ${Math.min(H - this.stripH - EDGE, stripY).toFixed(1)}px, 0)`)
-    setStyle(this.halo, 'left', `${x.toFixed(1)}px`)
-    setStyle(this.halo, 'top', `${bottom.toFixed(1)}px`)
-    setStyle(this.halo, 'width', `${(off * 2 + s * 1.6).toFixed(1)}px`)
+    this.stripX = clamp(x - stripW / 2, EDGE, W - stripW - EDGE)
+    this.stripY = Math.min(H - this.stripH - EDGE, stripY)
+    setShift(this.strip, this.stripX, this.stripY)
+    setPx(this.halo, 'left', x)
+    setPx(this.halo, 'top', bottom)
+    setPx(this.halo, 'width', off * 2 + s * 1.6)
+    this.placeGuide(s)
+  }
+
+  pickGuide() {
+    const fresh = this.intro && this.items.querySelector(`.gi[data-id="${this.intro.id}"]`)
+    const up = fresh || this.wantsAutoCue ? null : this.items.querySelector('.gi > .up')
+    const cell = fresh || (up ? up.parentElement : null)
+    const item = cell && this.gear ? this.gear.items.find(it => it.id === Number(cell.dataset.id)) : null
+    this.guideCell = item ? cell : null
+    this.guideSlot = item ? item.slot : null
+    this.guideHold = !!fresh && this.freshFlying
+    this.measureGuide()
+  }
+
+  measureGuide() {
+    const cell = this.guideCell
+    if (!cell || !cell.isConnected) return
+    const local = this.guideLocal
+    let x = -this.items.scrollLeft
+    let y = 0
+    for (let n = cell; n && n !== this.strip; n = n.offsetParent) {
+      x += n.offsetLeft
+      y += n.offsetTop
+    }
+    local.x = x + cell.offsetWidth / 2
+    local.y = y + cell.offsetHeight / 2
+    local.r = cell.offsetHeight / 2
+    const cx = cell.offsetLeft - this.items.scrollLeft + cell.offsetWidth / 2
+    local.inView = cx >= this.items.offsetLeft && cx <= this.items.offsetLeft + this.items.clientWidth
+  }
+
+  placeGuide(s) {
+    const cell = this.guideCell
+    const spot = cell && this.spots[this.guideSlot]
+    if (!spot || this.guideHold || !cell.isConnected) return this.showGuide(false)
+    if (this.guideMeasure) {
+      this.guideMeasure = false
+      this.measureGuide()
+    }
+    const local = this.guideLocal
+    const c = this.guideCurve
+    c.x0 = this.stripX + local.x
+    c.y0 = this.stripY + local.y
+    c.x2 = spot.x
+    c.y2 = spot.y
+    const mx = (c.x0 + c.x2) / 2
+    const my = (c.y0 + c.y2) / 2
+    const side = (this.center.x - mx) * (c.y0 - c.y2) + (this.center.y - my) * (c.x2 - c.x0) < 0 ? -1 : 1
+    c.x1 = mx + (c.y0 - c.y2) * GUIDE_BOW * side
+    c.y1 = my + (c.x2 - c.x0) * GUIDE_BOW * side
+    const total = this.measureCurve()
+    const from = local.r * GUIDE_FROM
+    const to = total - s * GUIDE_TO
+    if (!local.inView || to - from < s * GUIDE_MIN) return this.showGuide(false)
+    const step = s * GUIDE_STEP
+    const run = (performance.now() / 1000 * s * GUIDE_SPEED) % step
+    const fadeIn = s * GUIDE_FADE_IN
+    const fadeOut = s * GUIDE_FADE_OUT
+    for (let i = 0; i < this.guideArrows.length; i++) {
+      const node = this.guideArrows[i]
+      const d = from + run + (i - 1) * step
+      if (d < from || d > to) {
+        setFade(node, 0)
+        continue
+      }
+      this.curveAt(d)
+      setTurn(node, guidePoint.x, guidePoint.y, guidePoint.a)
+      setFade(node, smooth((d - from) / fadeIn) * smooth((to - d) / fadeOut))
+    }
+    this.showGuide(true)
+  }
+
+  measureCurve() {
+    let px = this.guideCurve.x0
+    let py = this.guideCurve.y0
+    guideLengths[0] = 0
+    for (let k = 1; k <= GUIDE_SAMPLES; k++) {
+      this.curvePoint(k / GUIDE_SAMPLES)
+      guideLengths[k] = guideLengths[k - 1] + Math.hypot(guidePoint.x - px, guidePoint.y - py)
+      px = guidePoint.x
+      py = guidePoint.y
+    }
+    return guideLengths[GUIDE_SAMPLES]
+  }
+
+  curveAt(d) {
+    let k = 1
+    while (k < GUIDE_SAMPLES && guideLengths[k] < d) k++
+    const span = guideLengths[k] - guideLengths[k - 1] || 1
+    this.curvePoint((k - 1 + (d - guideLengths[k - 1]) / span) / GUIDE_SAMPLES)
+  }
+
+  curvePoint(t) {
+    const c = this.guideCurve
+    const u = 1 - t
+    guidePoint.x = u * u * c.x0 + 2 * u * t * c.x1 + t * t * c.x2
+    guidePoint.y = u * u * c.y0 + 2 * u * t * c.y1 + t * t * c.y2
+    guidePoint.a = Math.atan2(u * (c.y1 - c.y0) + t * (c.y2 - c.y1), u * (c.x1 - c.x0) + t * (c.x2 - c.x1))
+  }
+
+  showGuide(on) {
+    if (on === this.guideShown) return
+    this.guideShown = on
+    this.guideEl.classList.toggle('on', on)
+  }
+
+  putSlot(type, side, i, x, cy, off, bulge, step, s) {
+    const t = (i - 1.5) / 1.5
+    const sx = x + side * (off + bulge * (1 - t * t))
+    const sy = cy + t * step * 1.5
+    const spot = this.spots[type] || (this.spots[type] = { x: 0, y: 0 })
+    spot.x = sx
+    spot.y = sy
+    setShift(this.slots[type], sx - s / 2, sy - s / 2)
   }
 
   placeShade(x, y, rx, ry) {
-    const vars = { '--hx': x, '--hy': y, '--rx': rx / SHADE_CLEAR, '--ry': ry / SHADE_CLEAR }
-    for (const [k, v] of Object.entries(vars)) {
-      const px = `${Math.round(v)}px`
-      if (this.shade.style.getPropertyValue(k) !== px) this.shade.style.setProperty(k, px)
-    }
+    setWholePx(this.shade, '--hx', x)
+    setWholePx(this.shade, '--hy', y)
+    setWholePx(this.shade, '--rx', rx / SHADE_CLEAR)
+    setWholePx(this.shade, '--ry', ry / SHADE_CLEAR)
   }
 
   wornAt(item) {
@@ -471,6 +610,7 @@ export class GearRing {
   }
 
   placeCue() {
+    this.pickGuide()
     const fresh = this.intro && this.items.querySelector(`.gi[data-id="${this.intro.id}"]`)
     if (fresh) fresh.classList.add('fresh')
     const target = fresh || (this.wantsAutoCue && this.autoBtn.classList.contains('ready') ? this.autoBtn : null)
@@ -583,10 +723,60 @@ export class GearRing {
 
 const written = new WeakMap()
 
-function setStyle(node, key, value) {
+function cacheOf(node) {
   let cache = written.get(node)
   if (!cache) written.set(node, cache = {})
-  if (cache[key] === value) return
-  cache[key] = value
-  node.style[key] = value
+  return cache
+}
+
+function setPx(node, key, value) {
+  const tenths = Math.round(value * 10)
+  const cache = cacheOf(node)
+  if (cache[key] === tenths) return false
+  cache[key] = tenths
+  node.style.setProperty(key, `${(tenths / 10).toFixed(1)}px`)
+  return true
+}
+
+function setWholePx(node, key, value) {
+  const px = Math.round(value)
+  const cache = cacheOf(node)
+  if (cache[key] === px) return
+  cache[key] = px
+  node.style.setProperty(key, `${px}px`)
+}
+
+function smooth(v) {
+  const t = clamp(v, 0, 1)
+  return t * t * (3 - 2 * t)
+}
+
+function setFade(node, value) {
+  const step = Math.round(value * 50)
+  const cache = cacheOf(node)
+  if (cache.fade === step) return
+  cache.fade = step
+  node.style.opacity = String(step / 50)
+}
+
+function setTurn(node, x, y, angle) {
+  const tx = Math.round(x * 10)
+  const ty = Math.round(y * 10)
+  const ta = Math.round(angle * 1000)
+  const cache = cacheOf(node)
+  if (cache.tx === tx && cache.ty === ty && cache.ta === ta) return
+  cache.tx = tx
+  cache.ty = ty
+  cache.ta = ta
+  node.style.transform = `translate3d(${(tx / 10).toFixed(1)}px, ${(ty / 10).toFixed(1)}px, 0) rotate(${(ta / 1000).toFixed(3)}rad)`
+}
+
+function setShift(node, x, y) {
+  const tx = Math.round(x * 10)
+  const ty = Math.round(y * 10)
+  const cache = cacheOf(node)
+  if (cache.tx === tx && cache.ty === ty) return
+  cache.tx = tx
+  cache.ty = ty
+  node.style.transform = `translate3d(${(tx / 10).toFixed(1)}px, ${(ty / 10).toFixed(1)}px, 0)`
 }

@@ -1,8 +1,10 @@
 import * as THREE from 'three'
 import { stream } from '../core/rng.js'
 import { fetchJson } from '../core/fetch.js'
+import { markRange } from './buffer-range.js'
 
 const random = stream('fx')
+const byDepth = (a, b) => a.depth - b.depth
 
 const BASE = 'assets/fx/eg/'
 const loader = new THREE.TextureLoader()
@@ -241,6 +243,7 @@ class Batch {
     this.aTint = attr('iTint', 4)
     this.aGain = attr('iGain', 4)
     this.aRamp = attr('iRamp', 2)
+    this.attrs = [this.aPos, this.aSize, this.aTint, this.aGain, this.aRamp]
     g.instanceCount = 0
     this.geo = g
     const color = texture(def.file, true)
@@ -305,7 +308,7 @@ class Batch {
     this.mesh.visible = visible
     if (!visible) return
     for (const p of items) p.depth = _view.set(p.x, p.y, p.z).applyMatrix4(camera.matrixWorldInverse).z
-    items.sort((a, b) => a.depth - b.depth)
+    items.sort(byDepth)
     const P = this.aPos.array
     const S = this.aSize.array
     const T = this.aTint.array
@@ -320,11 +323,7 @@ class Batch {
       G[o] = p.emissive; G[o + 1] = p.opacity; G[o + 2] = p.soft; G[o + 3] = p.additive
       R[i * 2] = p.ramp; R[i * 2 + 1] = p.rampScale
     }
-    for (const a of [this.aPos, this.aSize, this.aTint, this.aGain, this.aRamp]) {
-      a.clearUpdateRanges()
-      a.addUpdateRange(0, n * a.itemSize)
-      a.needsUpdate = true
-    }
+    for (const a of this.attrs) markRange(a, n * a.itemSize)
     this.geo.instanceCount = n
     const u = this.mat.uniforms
     if (fog && fog.isFogExp2) {
@@ -353,6 +352,7 @@ export class Flipbooks {
     this.group = new THREE.Group()
     parent.add(this.group)
     this.batches = new Map()
+    this.batchList = []
     this.ready = loadManifest()
     this.time = 0
   }
@@ -372,6 +372,7 @@ export class Flipbooks {
       const def = manifest[name]
       b = new Batch(def, billboard, def.capacity || 48)
       this.batches.set(key, b)
+      this.batchList.push(b)
       this.group.add(b.mesh)
     }
     return b
@@ -433,7 +434,7 @@ export class Flipbooks {
 
   update(dt, camera, fog) {
     this.time += dt
-    for (const b of this.batches.values()) {
+    for (const b of this.batchList) {
       const items = b.items
       for (let i = items.length - 1; i >= 0; i--) {
         const p = items[i]
@@ -488,6 +489,7 @@ export class Flipbooks {
   dispose() {
     for (const b of this.batches.values()) b.dispose()
     this.batches.clear()
+    this.batchList.length = 0
     this.group.parent?.remove(this.group)
   }
 }

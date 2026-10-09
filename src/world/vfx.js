@@ -4,6 +4,8 @@ import { LOW_TIER } from '../core/tier.js'
 import { stream } from '../core/rng.js'
 import { fetchJson } from '../core/fetch.js'
 import { compileFor } from '../core/compile.js'
+import { removeAt } from '../core/list.js'
+import { markRange } from './buffer-range.js'
 
 const random = stream('fx')
 
@@ -43,6 +45,11 @@ const _col2 = [1, 1, 1, 1]
 const _basis = new THREE.Matrix4()
 const _euler = new THREE.Euler()
 const _trailPos = new THREE.Vector3()
+const _birthPos = new THREE.Vector3()
+const _follow = { camera: null }
+const triggerPool = []
+const pointPool = []
+const trailPool = []
 const WHITE4 = [1, 1, 1, 1]
 const EMITTER_FIELDS = [['pos', 3], ['vel', 3], ['age', 1], ['life', 1], ['size', 3], ['rot', 3], ['col', 4], ['rnd', 4], ['frame', 1], ['pid', 1], ['birthAcc', 1]]
 
@@ -197,9 +204,32 @@ function copy4(src, out, at = 0) {
   return out
 }
 
-function markRange(attribute, count) {
-  attribute.addUpdateRange(0, count)
-  attribute.needsUpdate = true
+function takeTrigger(n) {
+  const trig = triggerPool.pop() || { p: new THREE.Vector3(), n: 0 }
+  trig.n = n
+  return trig
+}
+
+function takePoint(p) {
+  const pt = pointPool.pop() || { p: new THREE.Vector3(), age: 0 }
+  pt.p.copy(p)
+  pt.age = 0
+  return pt
+}
+
+function releasePoints(pts) {
+  for (let i = 0; i < pts.length; i++) pointPool.push(pts[i])
+  pts.length = 0
+}
+
+function takeTrail(id, life) {
+  const tr = trailPool.pop() || { id: 0, pts: [], dead: false, life: 0, col: [1, 1, 1, 1], w: 1, seen: 0 }
+  tr.id = id
+  tr.dead = false
+  tr.life = life
+  tr.col.fill(1)
+  tr.w = 1
+  return tr
 }
 
 function moveSlot(arr, width, from, to) {
@@ -1191,8 +1221,10 @@ class Emitter {
         if (!def.loop && this.t >= def.dur && prev < def.dur + 1) this.emitting = false
       }
     }
-    for (const trig of this.subTriggers) this.emitAt(trig)
-    this.subTriggers.length = 0
+    const subs = this.subTriggers
+    for (let k = 0; k < subs.length; k++) this.emitAt(subs[k])
+    for (let k = 0; k < subs.length; k++) triggerPool.push(subs[k])
+    subs.length = 0
     this.simulate(sdt)
     if (!silent && this.mesh) this.upload(camera)
     if (!silent && this.trails) this.trails.update(sdt)
@@ -1279,10 +1311,14 @@ class Emitter {
     this.pid[i] = this.nextId++
     this.birthAcc[i] = 0
     if (def.birthSubs.length) {
-      const wp = def.world ? _v.clone() : _v.clone().applyMatrix4(this.node.matrixWorld)
-      for (const sub of def.birthSubs) {
-        const target = this.inst.emitterByNode.get(sub.node)
-        if (target && target.def.bursts.length) target.subTriggers.push({ p: wp, n: -1 })
+      _birthPos.copy(_v)
+      if (!def.world) _birthPos.applyMatrix4(this.node.matrixWorld)
+      for (let k = 0; k < def.birthSubs.length; k++) {
+        const target = this.inst.emitterByNode.get(def.birthSubs[k].node)
+        if (!target || !target.def.bursts.length) continue
+        const trig = takeTrigger(-1)
+        trig.p.copy(_birthPos)
+        target.subTriggers.push(trig)
       }
     }
     this.vel[i * 3] = _dir.x
@@ -1294,7 +1330,10 @@ class Emitter {
     const last = --this.count
     if (this.def.deathSubs.length) this.fireSubs(i, 2)
     if (i === last) return
-    for (const [field, width] of EMITTER_FIELDS) moveSlot(this[field], width, last, i)
+    for (let f = 0; f < EMITTER_FIELDS.length; f++) {
+      const field = EMITTER_FIELDS[f]
+      moveSlot(this[field[0]], field[1], last, i)
+    }
   }
 
   worldPosOf(i, out) {
@@ -1304,11 +1343,15 @@ class Emitter {
   }
 
   fireSubs(i, type) {
-    for (const s of this.def.subs) {
+    const subs = this.def.subs
+    for (let k = 0; k < subs.length; k++) {
+      const s = subs[k]
       if (s.type !== type) continue
       const target = this.inst.emitterByNode.get(s.node)
       if (!target || random() > (s.p === undefined ? 1 : s.p)) continue
-      target.subTriggers.push({ p: this.worldPosOf(i, new THREE.Vector3()), n: -1 })
+      const trig = takeTrigger(-1)
+      this.worldPosOf(i, trig.p)
+      target.subTriggers.push(trig)
     }
   }
 
@@ -1408,8 +1451,8 @@ class Emitter {
         }
       }
       if (def.birthSubs.length) {
-        for (const sub of def.birthSubs) {
-          const target = this.inst.emitterByNode.get(sub.node)
+        for (let b = 0; b < def.birthSubs.length; b++) {
+          const target = this.inst.emitterByNode.get(def.birthSubs[b].node)
           if (!target) continue
           const rate = this.subRate(target)
           if (rate <= 0) continue
@@ -1417,7 +1460,9 @@ class Emitter {
           if (this.birthAcc[i] >= 1) {
             const k = Math.floor(this.birthAcc[i])
             this.birthAcc[i] -= k
-            target.subTriggers.push({ p: this.worldPosOf(i, new THREE.Vector3()), n: Math.min(k, 4) })
+            const trig = takeTrigger(Math.min(k, 4))
+            this.worldPosOf(i, trig.p)
+            target.subTriggers.push(trig)
           }
         }
       }
@@ -1615,7 +1660,8 @@ class Emitter {
       const slot = def.slots[k]
       let v = 0
       if (slot) {
-        const [s, c] = slot
+        const s = slot[0]
+        const c = slot[1]
         if (s >= 31 && s <= 38) {
           const ci = s <= 34 ? 0 : 1
           const cd = def.custom && def.custom[ci]
@@ -1687,7 +1733,8 @@ class ParticleTrails {
     this.em = em
     this.d = em.def.trail
     this.map = new Map()
-    this.seen = new Set()
+    this.list = []
+    this.stamp = 0
     this.perTrail = 14
     this.maxPts = Math.min(1600, em.cap * this.perTrail)
     const def = em.def
@@ -1731,25 +1778,27 @@ class ParticleTrails {
     const em = this.em
     const d = this.d
     const scale = em.inst.scale
-    this.seen.clear()
+    const stamp = ++this.stamp
     for (let i = 0; i < em.count; i++) {
       const id = em.pid[i]
-      this.seen.add(id)
       let tr = this.map.get(id)
       const t = em.age[i] / em.life[i]
       if (!tr) {
-        tr = { pts: [], dead: false, life: Math.max(0.02, d.life.get(t, em.rnd[i * 4]) * em.life[i]), col: [1, 1, 1, 1], w: 1 }
+        tr = takeTrail(id, Math.max(0.02, d.life.get(t, em.rnd[i * 4]) * em.life[i]))
         this.map.set(id, tr)
+        this.list.push(tr)
       }
+      tr.seen = stamp
       const p = em.worldPosOf(i, _trailPos)
-      const last = tr.pts[tr.pts.length - 1]
+      const pts = tr.pts
+      const last = pts[pts.length - 1]
       if (!last || last.p.distanceTo(p) >= d.minDist * scale) {
-        const recycled = tr.pts.length >= this.perTrail ? tr.pts.shift() : null
-        if (recycled) {
+        if (pts.length >= this.perTrail) {
+          const recycled = pts.shift()
           recycled.p.copy(p)
           recycled.age = 0
-          tr.pts.push(recycled)
-        } else tr.pts.push({ p: p.clone(), age: 0 })
+          pts.push(recycled)
+        } else pts.push(takePoint(p))
       } else {
         last.p.copy(p)
       }
@@ -1759,19 +1808,30 @@ class ParticleTrails {
       for (let c = 0; c < 4; c++) tr.col[c] = base[at + c] * _col2[c]
       tr.w = d.sizeW ? em.curSize[i] : scale
     }
-    for (const [id, tr] of this.map) {
-      if (!this.seen.has(id)) {
+    const list = this.list
+    for (let k = list.length - 1; k >= 0; k--) {
+      const tr = list[k]
+      if (tr.seen !== stamp) {
         if (d.die) {
-          this.map.delete(id)
+          this.drop(k)
           continue
         }
         tr.dead = true
       }
-      for (const pt of tr.pts) pt.age += dt
-      while (tr.pts.length && tr.pts[0].age > tr.life) tr.pts.shift()
-      if (tr.dead && tr.pts.length < 2) this.map.delete(id)
+      const pts = tr.pts
+      for (let j = 0; j < pts.length; j++) pts[j].age += dt
+      while (pts.length && pts[0].age > tr.life) pointPool.push(pts.shift())
+      if (tr.dead && pts.length < 2) this.drop(k)
     }
     this.build()
+  }
+
+  drop(k) {
+    const tr = this.list[k]
+    releasePoints(tr.pts)
+    this.map.delete(tr.id)
+    removeAt(this.list, k)
+    trailPool.push(tr)
   }
 
   build() {
@@ -1781,7 +1841,9 @@ class ParticleTrails {
     const I = this.idx.array
     let v = 0
     let ii = 0
-    for (const tr of this.map.values()) {
+    const list = this.list
+    for (let q = 0; q < list.length; q++) {
+      const tr = list[q]
       const n = tr.pts.length
       if (n < 2) continue
       if (v + n > this.maxPts) break
@@ -1838,6 +1900,7 @@ class ParticleTrails {
   }
 
   dispose() {
+    for (let k = this.list.length - 1; k >= 0; k--) this.drop(k)
     this.em.inst.world.remove(this.mesh)
     const def = this.em.def
     const list = def.trailSpares || (def.trailSpares = [])
@@ -1915,19 +1978,19 @@ class Ribbon {
 
   step(dt) {
     const pts = this.points
-    for (const p of pts) p.age += dt
-    while (pts.length && pts[0].age >= this.time) pts.shift()
+    for (let i = 0; i < pts.length; i++) pts[i].age += dt
+    while (pts.length && pts[0].age >= this.time) pointPool.push(pts.shift())
     if (this.emitting) {
       this.node.getWorldPosition(_v)
       const last = pts[pts.length - 1]
       const minD = this.d.minDist * this.inst.scale
       if (!last || last.p.distanceTo(_v) >= minD) {
-        const recycled = pts.length >= this.cap ? pts.shift() : null
-        if (recycled) {
+        if (pts.length >= this.cap) {
+          const recycled = pts.shift()
           recycled.p.copy(_v)
           recycled.age = 0
           pts.push(recycled)
-        } else pts.push({ p: _v.clone(), age: 0 })
+        } else pts.push(takePoint(_v))
       } else {
         last.p.copy(_v)
       }
@@ -1988,6 +2051,7 @@ class Ribbon {
   }
 
   dispose() {
+    releasePoints(this.points)
     if (!this.mesh) return
     this.inst.world.remove(this.mesh)
     if (ribbonSpares.length < RIBBON_SPARES) ribbonSpares.push({ aPos: this.aPos, aUvs: this.aUvs, aCol: this.aCol, mesh: this.mesh })
@@ -2099,8 +2163,13 @@ class Instance {
   get done() {
     if (this.stopped && this.stopAge >= Math.max(this.dying, 0.05) + 1.5) return true
     if (this.age < 0.05 || (this.hosting && !this.stopped)) return false
-    for (const e of this.emitters) if ((e.mesh || e.trails) && (e.count > 0 || (e.emitting && !e.isSub) || (e.trails && e.trails.alive))) return false
-    for (const r of this.ribbons) if (r.alive) return false
+    const emitters = this.emitters
+    for (let i = 0; i < emitters.length; i++) {
+      const e = emitters[i]
+      if ((e.mesh || e.trails) && (e.count > 0 || (e.emitting && !e.isSub) || (e.trails && e.trails.alive))) return false
+    }
+    const ribbons = this.ribbons
+    for (let i = 0; i < ribbons.length; i++) if (ribbons[i].alive) return false
     return true
   }
 
@@ -2108,10 +2177,15 @@ class Instance {
     this.age += dt
     if (this.stopped) this.stopAge += dt
     if (!this.stopped && this.age >= this.lifetime) this.stop()
-    if (this.follow && !this.detached) this.place({ camera })
+    if (this.follow && !this.detached) {
+      _follow.camera = camera
+      this.place(_follow)
+    }
     this.root.updateMatrixWorld(true)
-    for (const e of this.emitters) e.step(dt, camera, false)
-    for (const r of this.ribbons) r.step(dt)
+    const emitters = this.emitters
+    for (let i = 0; i < emitters.length; i++) emitters[i].step(dt, camera, false)
+    const ribbons = this.ribbons
+    for (let i = 0; i < ribbons.length; i++) ribbons[i].step(dt)
   }
 
   dispose() {
@@ -2234,7 +2308,7 @@ export class Vfx {
     return inst
   }
 
-  async warm(renderer, camera, names = [], target = null, onlyNamed = false) {
+  async warm(renderer, camera, { names = [], target = null, onlyNamed = false, libs = null, pause = null } = {}) {
     maxAnisotropy = Math.min(LOW_TIER ? 4 : 16, renderer.capabilities.getMaxAnisotropy() || 1)
     for (const tex of textureCache.values()) {
       if (tex.anisotropy === maxAnisotropy) continue
@@ -2245,16 +2319,18 @@ export class Vfx {
     const mats = new Set()
     const upload = new Set()
     let sliceStart = performance.now()
-    for (const lib of this.libs.values()) {
+    const breathe = pause || (() => new Promise(r => requestAnimationFrame(r)))
+    for (const [id, lib] of this.libs) {
+      if (libs && !libs.includes(id)) continue
       for (const name of Object.keys(lib.prefabs)) {
         const named = wanted.has(name)
         if (!named && (onlyNamed || !/^B_FX_/.test(name))) continue
         for (const m of prefabMaterials(lib, name)) {
           mats.add(m)
-          if (named) upload.add(m)
+          if (named || pause) upload.add(m)
         }
         if (performance.now() - sliceStart > WARM_SLICE_MS) {
-          await new Promise(r => requestAnimationFrame(r))
+          await breathe()
           sliceStart = performance.now()
         }
       }
@@ -2264,6 +2340,7 @@ export class Vfx {
     const geo = quadGeometry()
     const list = [...mats]
     for (let i = 0; i < list.length; i += WARM_BATCH) {
+      if (pause && i) await pause()
       const probe = new THREE.Group()
       for (const m of list.slice(i, i + WARM_BATCH)) {
         const mesh = new THREE.Mesh(geo, m)

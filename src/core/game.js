@@ -1,9 +1,9 @@
 import * as THREE from 'three'
-import { EffectComposer, RenderPass, EffectPass, BloomEffect, VignetteEffect, ChromaticAberrationEffect, SMAAEffect, SMAAPreset, DepthOfFieldEffect, HueSaturationEffect, BrightnessContrastEffect, BlendFunction } from 'postprocessing'
+import { EffectComposer, RenderPass, EffectPass, BloomEffect, VignetteEffect, ChromaticAberrationEffect, FXAAEffect, DepthOfFieldEffect, HueSaturationEffect, BrightnessContrastEffect, BlendFunction } from 'postprocessing'
 import gsap from 'gsap'
 
 import { HEROES, TITANS, ENEMIES, WAVES } from '../data/heroes.js'
-import { loadModelData, loadWingedModel, buildModel, texturesReady, landingTime, strideSpeed } from './model.js'
+import { loadModelData, loadWingedModel, prefetchModel, buildModel, castBodyShadow, texturesReady, landingTime, strideSpeed } from './model.js'
 import { Actor } from '../entities/actor.js'
 import { buildArena, ARENA_RADIUS } from '../world/arena.js'
 import { FX } from '../world/fx.js'
@@ -14,6 +14,8 @@ import { HeroFx, prefabRole } from '../world/hero-fx.js'
 import { loadCharacterLighting, tickCharacters, setLobbyView, CHARACTER_LIGHT, LOBBY_LIGHT, SHADOW_MODE } from '../world/character-shader.js'
 import { DynamicLights } from '../world/lights.js'
 import { Loot } from '../world/loot.js'
+import { GuideLine } from '../world/guide-line.js'
+import { SHADOW_MAP_SIZE, fitShadowToView } from '../world/shadow-fit.js'
 import { audio, STEPS } from './audio.js'
 import { Input } from './input.js'
 import { Gear } from './gear.js'
@@ -27,7 +29,8 @@ import { prefetchProgress } from './fetch.js'
 import { compileFor } from './compile.js'
 import { ResolutionGovernor } from './governor.js'
 import { view } from './viewport.js'
-import { COARSE, FORCED_QUALITY } from './tier.js'
+import { COARSE, FORCED_QUALITY, PERF_HUD } from './tier.js'
+import { PerfHud } from '../ui/perf-hud.js'
 import { prewarmObject, texturesOf, uploadTexturesNow } from './prewarm.js'
 
 const random = stream('sim')
@@ -117,10 +120,18 @@ const GEAR_OUT = 0.32
 const HERO_TAP_PAD = 12
 const HERO_TAP_WIDTH = 0.38
 const MOVE_FX = 'move'
+const LOOT_FX = 'loot'
+const LAZY_INPUT_QUIET_MS = 1200
+const LAZY_POLL_MS = 250
 const MOVE_MARK = 'FX_Move_Click_1_1'
 const MOVE_MARK_SCALE = 1
 const MOVE_ARRIVE = 0.15
 const MOVE_SLACK = 0.75
+const GUIDE_ARROW = 'T_FX_Move_Click_1_1_A'
+const GUIDE_ENGAGE = 1.5
+const GUIDE_RELEASE = 3.5
+const GUIDE_LOOT_GAP = 0.5
+const _guideAt = new THREE.Vector3()
 const _ray = new THREE.Raycaster()
 const _ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
 const _ndc = new THREE.Vector2()
@@ -135,6 +146,7 @@ const SELECT_SHADOW_MAX = new THREE.Vector3(4.5, 2.9, 1.1)
 const KEY_DISTANCE = 40
 const _lightBasis = new THREE.Matrix4()
 const _corner = new THREE.Vector3()
+const _casters = []
 const SELECT_VIEW_DIR = new THREE.Vector3(0, 3.1, 8.0).normalize()
 const SELECT_HERO_Z = -0.4
 const SELECT_HERO_TOP = 2.6
@@ -162,14 +174,17 @@ const STATE_KEYS = { KeyV: 'victory', KeyD: 'defeat', KeyR: 'restart' }
 const RETRY_DELAY = 160
 const BOOT_PROGRESS = { fetch: 0.8, parse: 0.15 }
 const SELECT_TEXTURE_WAIT = 4000
-const PIXEL_BUDGET = { low: 1.1e6, high: 3.7e6 }
+const PIXEL_BUDGET = { low: 0.8e6, high: 3.7e6 }
 const MOBILE_MIN_RATIO = 0.75
+const BLOOM_LEVELS = { low: 6, high: 8 }
 const SWINGS = new Set(['attack', 'attack2'])
 const ROOTING = new Set(['cast', 'morph', 'unmorph'])
 const BUSY_STATES = new Set(['attack', 'attack2', 'cast', 'morph', 'unmorph', 'roar'])
 const _axis = [0, 0]
 const _steer = [0, 0]
 const _still = [0, 0]
+const NO_SKILL = { cd: 1 }
+const NO_OPTS = {}
 const _camVel = new THREE.Vector3()
 const _dampA = new THREE.Vector3()
 const _dampB = new THREE.Vector3()
@@ -182,6 +197,28 @@ function smoothDamp(current, target, velocity, smoothTime, dt) {
   _dampB.copy(_dampA).multiplyScalar(omega).add(velocity).multiplyScalar(dt)
   velocity.addScaledVector(_dampB, -omega).multiplyScalar(k)
   current.copy(target).add(_dampA.add(_dampB).multiplyScalar(k))
+}
+
+function readySkill(e, d) {
+  const skills = e.def.skills
+  for (let i = 0; i < skills.length; i++) {
+    const k = skills[i]
+    if (e.skillCd[k.key] <= 0 && d <= k.reach && d >= (k.min || 0)) return k
+  }
+  return null
+}
+
+function stepCrossed(times, prev, t) {
+  for (let i = 0; i < times.length; i++) {
+    const s = times[i]
+    if (t >= prev ? s > prev && s <= t : s > prev || s <= t) return true
+  }
+  return false
+}
+
+function anyAlive(actors) {
+  for (let i = 0; i < actors.length; i++) if (!actors[i].dead) return true
+  return false
 }
 const _fitCam = new THREE.PerspectiveCamera()
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
@@ -246,7 +283,12 @@ export class Game {
     this.cooldowns = { s1: 0, s2: 0, dash: 0, attack: 0 }
     this.selectActors = []
     this.modelSpares = new Map()
+    this.lazyQueue = []
+    this.lazyDone = new Set()
+    this.lazyBusy = false
+    this.lastInputAt = 0
     this.warmedModels = new WeakSet()
+    this.fxWarms = new Map()
     this.warmedFx = new Set()
     this.renderHold = 0
     this.revealing = null
@@ -343,6 +385,7 @@ export class Game {
     this.gpuName = gpu
     this.quality = FORCED_QUALITY || (soft || COARSE ? 'low' : 'high')
     this.setupResolution(COARSE)
+    this.perfHud = PERF_HUD ? new PerfHud(this) : null
     r.shadowMap.enabled = true
     r.shadowMap.type = THREE.PCFShadowMap
     SHADOW_MODE.projected = false
@@ -354,6 +397,7 @@ export class Game {
       luminanceSmoothing: 0.08,
       mipmapBlur: true,
       radius: 0.7,
+      levels: BLOOM_LEVELS[this.quality],
     })
     if (this.quality === 'low') this.bloom.luminancePass.resolution.scale = 0.5
     this.chroma = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0004, 0.0004) })
@@ -361,7 +405,7 @@ export class Game {
     this.battleGrade = new HueSaturationEffect({ saturation: BATTLE_POST.saturation })
     this.battleContrast = new BrightnessContrastEffect({ contrast: BATTLE_POST.contrast })
     this.battlePasses = []
-    if (this.quality === 'high') this.battlePasses.push(new EffectPass(this.camera, new SMAAEffect({ preset: SMAAPreset.HIGH })))
+    if (this.quality === 'high') this.battlePasses.push(new EffectPass(this.camera, new FXAAEffect()))
     this.battlePass = new EffectPass(this.camera, this.bloom, this.battleGrade, this.battleContrast, this.vignette)
     this.battlePasses.push(this.battlePass)
     for (const p of this.battlePasses) this.composer.addPass(p)
@@ -375,7 +419,7 @@ export class Game {
     const floor = Math.min(1, dpr)
     const fit = Math.sqrt(PIXEL_BUDGET[this.quality] / (view.w * view.h))
     const start = clamp(Math.min(dpr, fit), floor, dpr)
-    this.governor = new ResolutionGovernor({ start, min: coarse ? Math.min(floor, MOBILE_MIN_RATIO) : floor, max: dpr })
+    this.governor = new ResolutionGovernor({ start, min: coarse ? Math.min(floor, MOBILE_MIN_RATIO) : floor, max: coarse ? start : dpr })
     this.renderer.setPixelRatio(start)
     this.renderer.setSize(view.w, view.h)
   }
@@ -388,6 +432,7 @@ export class Game {
       luminanceSmoothing: 0.25,
       mipmapBlur: true,
       radius: 0.82,
+      levels: BLOOM_LEVELS[this.quality],
     })
     if (this.quality === 'low') this.lobbyBloom.luminancePass.resolution.scale = 0.5
     this.lobbySat = new HueSaturationEffect({ saturation: LOBBY_POST.saturation })
@@ -401,7 +446,7 @@ export class Game {
       this.lobbyDof = new DepthOfFieldEffect(cam, { focusDistance: 8, focusRange: LOBBY_POST.focusRange, bokehScale: LOBBY_POST.bokeh, resolutionScale: 0.5 })
       this.lobbyDof.target = new THREE.Vector3()
       effects.unshift(this.lobbyDof)
-      this.lobbyPasses.push(new EffectPass(cam, new SMAAEffect({ preset: SMAAPreset.MEDIUM })))
+      this.lobbyPasses.push(new EffectPass(cam, new FXAAEffect()))
     }
     const lobbyPass = new EffectPass(cam, ...effects)
     lobbyPass.dithering = true
@@ -523,6 +568,7 @@ export class Game {
   async boot() {
     const fonts = ['400 20px Hitzone', '500 20px Hitzone', '20px "Hitzone Med"', '20px "Montserrat It"']
     const fontsReady = Promise.all(fonts.map(f => document.fonts?.load(f).catch(() => {})))
+    addEventListener('pointerdown', () => { this.lastInputAt = performance.now() }, { capture: true, passive: true })
     audio.probe()
     const lobbyIds = [...new Set(HEROES.map(h => h.lobby || h.model))]
     const total = lobbyIds.length + 1
@@ -548,6 +594,7 @@ export class Game {
     this.heroFx.onSpawn = (name, pos) => audio.emit(name, pos)
     this.loot = new Loot(this.scene, this.vfx, this.camera)
     this.loot.onCollect = item => this.collectLoot(item)
+    this.guide = new GuideLine(this.scene)
     for (const h of HEROES) {
       if (h.skinMute) this.heroFx.muteSkin(h.vfx, h.skinMute)
       if (h.lobbyFocus) this.heroFx.focusLobby(h.vfx, h.lobbyFocus)
@@ -593,41 +640,109 @@ export class Game {
     return this.revealing || Promise.resolve()
   }
 
+  async calm() {
+    for (;;) {
+      await this.quiet()
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)))
+      if (this.state !== 'select') return
+      const busy = this.selectActors.some(a => a.rig.state === 'intro') || performance.now() - this.lastInputAt < LAZY_INPUT_QUIET_MS
+      if (!busy) return
+      await new Promise(r => setTimeout(r, LAZY_POLL_MS))
+    }
+  }
+
   async loadInBackground() {
-    const vfxIds = [...new Set(HEROES.map(h => h.vfx).filter(Boolean))]
+    const nextFrame = () => new Promise(r => requestAnimationFrame(r))
+    const vfxIds = [...new Set([HEROES[this.heroIndex], ...HEROES].map(h => h.vfx).filter(Boolean))]
+    for (const id of vfxIds) {
+      await this.quiet()
+      await this.vfx.preload([id])
+      await nextFrame()
+    }
     await this.quiet()
-    await this.vfx.preload(vfxIds)
-    await this.quiet()
-    for (const id of vfxIds) this.heroFx.preloadModels(id)
-    await this.vfx.warm(this.renderer, this.camera, this.lobbyFxNames(), this.composer.inputBuffer, true)
+    await this.vfx.warm(this.renderer, this.camera, { names: this.lobbyFxNames(), target: this.composer.inputBuffer, onlyNamed: true, pause: nextFrame })
     this.attachSelectSkins()
-    await this.quiet()
-    await this.vfx.warm(this.renderer, this.camera, [], this.composer.inputBuffer)
+    this.want(this.battleJobs(HEROES[this.heroIndex]))
+    this.want(HEROES.map(h => [`bytes:${h.model}`, () => prefetchModel(h.model)]))
+  }
+
+  battleJobs(hero) {
+    const titan = TITANS[hero.titan]
+    const enemyVfx = [...new Set(this.enemyDefs().map(def => def.vfx).filter(Boolean))]
+    const model = (key, load) => [key, gentle => load().then(data => gentle && this.warmModel(data))]
+    const fx = (id, load) => [`vfx:${id}`, gentle => load().then(() => gentle && this.warmFxLibs([id], () => this.calm()))]
+    return [
+      model(`model:${hero.model}`, () => loadModelData(hero.model)),
+      hero.vfx && fx(hero.vfx, () => this.vfx.preload([hero.vfx]).then(() => this.heroFx.preloadModels(hero.vfx))),
+      titan && model(`model:${titan.model}`, () => loadModelData(titan.model)),
+      titan && titan.vfx && fx(titan.vfx, () => this.vfx.preload([titan.vfx])),
+      ['sounds', () => this.fetchLaterSounds()],
+      ...this.enemyDefs().map(def => model(`enemy:${def.model}`, () => enemyModel(def))),
+      ...enemyVfx.map(id => fx(id, () => this.vfx.preload([id]))),
+      fx(LOOT_FX, () => this.loadLoot()),
+      fx(MOVE_FX, () => this.vfx.preload([MOVE_FX])),
+    ].filter(Boolean)
+  }
+
+  async warmModel(data) {
+    if (!data || this.warmedModels.has(data)) return
+    this.warmedModels.add(data)
+    await this.calm()
+    const model = this.takeModel(data)
+    await this.calm()
+    await prewarmObject(this.renderer, model.root, this.camera, this.scene, this.composer.inputBuffer)
+    this.spareModel(model)
+  }
+
+  warmFxLibs(ids, pause = null) {
+    const fresh = ids.filter(id => id && !this.fxWarms.has(id) && this.vfx.library(id))
+    if (fresh.length) {
+      const names = [...this.loot.fxNames(), MOVE_MARK]
+      const job = this.vfx.warm(this.renderer, this.camera, { names, target: this.composer.inputBuffer, libs: fresh, pause })
+      fresh.forEach(id => this.fxWarms.set(id, job))
+    }
+    return Promise.all(ids.map(id => this.fxWarms.get(id)))
+  }
+
+  fetchLaterSounds() {
     audio.fetch(['music_battle', 'amb_battle', 'common', 'enemies'])
     audio.fetchSfx()
     audio.fetch(['music_titan', 'music_victory', 'music_endcard'])
-    for (const id of [...new Set(HEROES.map(h => h.model))]) {
-      await this.quiet()
-      await this.warmModel(await loadModelData(id).catch(() => null))
+  }
+
+  loadLoot() {
+    if (!this.lootLoad) this.lootLoad = this.loot.load()
+    return this.lootLoad
+  }
+
+  want(jobs, first = false) {
+    if (this.state !== 'select' || this.confirming) return
+    const fresh = jobs.filter(([key]) => !this.lazyDone.has(key))
+    const keys = new Set(fresh.map(([key]) => key))
+    const rest = this.lazyQueue.filter(([key]) => !keys.has(key))
+    this.lazyQueue = first ? [...fresh, ...rest] : [...rest, ...fresh]
+    this.pumpLazy()
+  }
+
+  async pumpLazy() {
+    if (this.lazyBusy) return
+    this.lazyBusy = true
+    while (this.lazyQueue.length) {
+      await this.calm()
+      const job = this.lazyQueue.shift()
+      if (!job) break
+      this.lazyDone.add(job[0])
+      await Promise.resolve(job[1](true)).catch(e => console.warn('lazy load', job[0], e))
     }
-    for (const def of this.enemyDefs()) {
-      await this.quiet()
-      await this.warmModel(await enemyModel(def).catch(() => null))
-    }
-    for (const def of [...new Set(HEROES.map(h => TITANS[h.titan]).filter(Boolean))]) {
-      await this.quiet()
-      await this.warmModel(await loadModelData(def.model).catch(() => null))
-      if (def.vfx) await this.vfx.preload([def.vfx]).catch(() => null)
-    }
-    await this.quiet()
-    await Promise.all([
-      this.loot.load().catch(e => console.warn('loot', e)),
-      this.vfx.preload([MOVE_FX]).catch(e => console.warn('move fx', e)),
-    ])
-    if (this.state === 'battle') this.warmBattleFx([], true)
-    const enemyVfx = [...new Set(WAVES.flatMap(w => w.spawns.map(([type]) => ENEMIES[type].vfx)).filter(Boolean))]
-    if (enemyVfx.length) await this.vfx.preload(enemyVfx)
-    this.vfx.warm(this.renderer, this.camera, [...this.loot.fxNames(), MOVE_MARK], this.composer.inputBuffer)
+    this.lazyBusy = false
+  }
+
+  loadBattle(hero) {
+    this.lazyQueue = []
+    return Promise.all(this.battleJobs(hero).map(([key, run]) => {
+      this.lazyDone.add(key)
+      return Promise.resolve(run(false)).catch(e => console.warn('battle load', key, e))
+    }))
   }
 
   tapOnHero(x, y) {
@@ -716,9 +831,13 @@ export class Game {
     const footX = (_v.x * 0.5 + 0.5) * view.w
     const bottom = (-_v.y * 0.5 + 0.5) * view.h
     _v2.set(h.pos.x, h.pos.y + h.height * GEAR_TOP, h.pos.z).project(this.camera)
-    const span = { x: (footX + (_v2.x * 0.5 + 0.5) * view.w) / 2, top: (-_v2.y * 0.5 + 0.5) * view.h, bottom }
-    const s = this.gearSpan || span
-    for (const k of ['x', 'top', 'bottom']) s[k] += (span[k] - s[k]) * (this.gearSpan ? GEAR_SMOOTH : 1)
+    const x = (footX + (_v2.x * 0.5 + 0.5) * view.w) / 2
+    const top = (-_v2.y * 0.5 + 0.5) * view.h
+    const k = this.gearSpan ? GEAR_SMOOTH : 1
+    const s = this.gearSpan || this.gearBox || (this.gearBox = { x, top, bottom })
+    s.x += (x - s.x) * k
+    s.top += (top - s.top) * k
+    s.bottom += (bottom - s.bottom) * k
     this.gearSpan = s
     this.ui.gearRing.place(s.x, s.top, s.bottom)
     return s.bottom - s.top
@@ -863,14 +982,6 @@ export class Game {
     this.spareModel(actor.model)
   }
 
-  async warmModel(data) {
-    if (!data || this.warmedModels.has(data)) return
-    this.warmedModels.add(data)
-    const model = this.takeModel(data)
-    await prewarmObject(this.renderer, model.root, this.camera, this.scene, this.composer.inputBuffer)
-    this.spareModel(model)
-  }
-
   async stageBattle(hero) {
     const datas = []
     for (const def of this.enemyDefs()) datas.push(await settled(enemyModel(def)))
@@ -906,7 +1017,7 @@ export class Game {
 
     const key = new THREE.DirectionalLight(0xffe3b8, 2.5)
     key.castShadow = true
-    const map = this.quality === 'high' ? 2048 : 1024
+    const map = SHADOW_MAP_SIZE[this.quality]
     key.shadow.mapSize.set(map, map)
     this.scene.add(key)
     if (this.arena) {
@@ -951,7 +1062,7 @@ export class Game {
     s.radius = ARENA_SHADOW.radius[this.quality]
     s.camera.near = ARENA_SHADOW.near
     s.camera.far = ARENA_SHADOW.far
-    this.setShadowSpan(ARENA_SHADOW_SPAN)
+    this.fitBattleShadow()
   }
 
   selectShadow() {
@@ -993,11 +1104,12 @@ export class Game {
     c.updateProjectionMatrix()
   }
 
-  setShadowSpan(d) {
-    const c = this.key.shadow.camera
-    c.left = c.bottom = -d
-    c.right = c.top = d
-    c.updateProjectionMatrix()
+  fitBattleShadow() {
+    const floorY = this.arena ? this.arena.shadowCatcher.position.y : 0
+    _casters.length = 0
+    if (this.hero) _casters.push(this.hero)
+    for (const e of this.enemies) _casters.push(e)
+    fitShadowToView(this.key, this.camera, floorY, ARENA_SHADOW_SPAN, _casters)
   }
 
   async prepareSelect() {
@@ -1088,21 +1200,22 @@ export class Game {
     }
   }
 
-  async warmBattleFx(ids, withLoot = false, veiled = false) {
+  async warmBattleFx(ids) {
     const hidden = new THREE.Vector3(0, -40, 0)
     const fresh = ids.filter(id => id && !this.warmedFx.has(id))
     fresh.forEach(id => this.warmedFx.add(id))
+    const shared = [LOOT_FX, MOVE_FX]
+    await this.warmFxLibs([...ids, ...shared])
     const warm = fresh.flatMap(id => this.heroFx.warmSkills(id, hidden))
-    const probe = withLoot && this.loot.ready ? this.loot.warmProbe(LOOT_WARM_AT, LOOT_WARM_SCALE) : null
-    if (veiled) {
-      await this.compileHidden()
-      uploadTexturesNow(this.renderer, [...texturesOf(this.scene), ...this.vfx.textures(ids)])
-      this.composer.render()
-    } else {
-      await new Promise(r => requestAnimationFrame(r))
-      await this.compileScene()
-    }
+    const probe = this.loot.ready ? this.loot.warmProbe(LOOT_WARM_AT, LOOT_WARM_SCALE) : null
+    const moveLib = this.vfx.library(MOVE_FX)
+    if (moveLib && !this.guide.ready) this.guide.setMap(moveLib.texture(GUIDE_ARROW))
+    this.guide.warm(true)
+    await this.compileHidden()
+    uploadTexturesNow(this.renderer, [...texturesOf(this.scene), ...this.vfx.textures([...ids, ...shared])])
+    this.composer.render()
     await new Promise(r => requestAnimationFrame(r))
+    this.guide.warm(false)
     for (const inst of warm) this.vfx.kill(inst)
     if (probe) probe.removeFromParent()
   }
@@ -1156,7 +1269,9 @@ export class Game {
   }
 
   updateSelectActors(dt) {
-    this.selectActors.forEach((a, i) => {
+    const actors = this.selectActors
+    for (let i = 0; i < actors.length; i++) {
+      const a = actors[i]
       const rig = a.rig
       if (rig.state === 'intro') {
         a.introT += dt
@@ -1180,13 +1295,14 @@ export class Game {
         rig.play('idlebreak', { force: true, fade: IDLE_BREAK_IN })
         audio.play(`${HEROES[i].model}_break_1`)
       }
-      a.update(dt, {})
-    })
+      a.update(dt)
+    }
   }
 
   confirmSelect() {
     this.fetchBattleSounds()
     this.confirming = true
+    this.loadBattle(HEROES[this.heroIndex])
     this.confirmT = 0
     this.ui.leaveSelect(CONFIRM_TIME)
     setTimeout(() => this.startBattle(), CONFIRM_TIME * 1000)
@@ -1235,6 +1351,7 @@ export class Game {
     if (i !== this.heroIndex) {
       this.focusHero(i)
       this.playIntro(i)
+      this.want(this.battleJobs(HEROES[i]), true)
     }
   }
 
@@ -1259,6 +1376,8 @@ export class Game {
   }
 
   async startBattle() {
+    const veiled = this.confirming
+    if (veiled) this.renderHold++
     this.state = 'intro'
     this.ui.show('select', false)
     this.setLobbyPost(false)
@@ -1276,6 +1395,7 @@ export class Game {
       this.stopIntroFx(a)
     }
     this.selectActors = []
+    const battleLoad = this.loadBattle(hero)
     const [battleModel] = await Promise.all([loadModelData(hero.model), hero.vfx ? this.vfx.preload([hero.vfx]).then(() => this.heroFx.preloadModels(hero.vfx)) : null])
     this.hero = new Actor(this.takeModel(battleModel), { targetHeight: 1.9 })
     this.hero.rig.retimeCombo(hero.combo)
@@ -1308,9 +1428,11 @@ export class Game {
     this.camLook.set(0, BATTLE_LOOK_Y, 0)
     this.fitCamera()
     this.camSnap = true
+    await battleLoad
     const unstage = await this.stageBattle(hero)
-    await this.warmBattleFx(this.battleVfxIds(hero), true, true)
+    await this.warmBattleFx(this.battleVfxIds(hero))
     unstage()
+    if (veiled) this.renderHold--
 
     audio.track('music_battle')
     audio.layer('amb_battle', true)
@@ -1401,6 +1523,7 @@ export class Game {
     a.def = def
     a.type = type
     a.wave = this.waveIndex
+    if (!def.boss) castBodyShadow(a.model)
     a.cd = random() * def.rate
     if (def.skills) {
       a.cd = def.rate
@@ -1478,7 +1601,7 @@ export class Game {
     const h = this.hero
     if (e.castGap > 0 || !h || h.dead || e.rig.state === 'attack' && !e.rig.oneShotDone) return false
     const d = Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z)
-    const s = e.def.skills.find(k => e.skillCd[k.key] <= 0 && d <= k.reach && d >= (k.min || 0))
+    const s = readySkill(e, d)
     if (!s) return false
     this.bossCast(e, s, d)
     return true
@@ -1656,7 +1779,10 @@ export class Game {
   }
 
   wantsAttack() {
-    return this.attackHeld || ATTACK_KEYS.some(k => this.input.keys.has(k))
+    if (this.attackHeld) return true
+    const keys = this.input.keys
+    for (let i = 0; i < ATTACK_KEYS.length; i++) if (keys.has(ATTACK_KEYS[i])) return true
+    return false
   }
 
   attackPressed() {
@@ -2221,8 +2347,6 @@ export class Game {
 
   async loadTitan(def) {
     const [data] = await Promise.all([loadModelData(def.model), this.vfx.preload([def.vfx])])
-    this.vfx.warm(this.renderer, this.camera, [], this.composer.inputBuffer)
-    await this.warmBattleFx([def.vfx])
     return { data, land: landingTime(data, 'Morph') }
   }
 
@@ -2448,6 +2572,7 @@ export class Game {
     this.pending = []
     this.spawning = 0
     this.loot.clear()
+    this.guide.clear()
     this.heroFx.clear()
     this.vfx.clear()
     this.lights.clear()
@@ -2487,7 +2612,9 @@ export class Game {
     const def = this.activeDef()
     const steer = this.steerAxis()
     const hold = this.gearOpen && !steer[0] && !steer[1]
-    const [ax, az] = hold ? _still : steer
+    const axis = hold ? _still : steer
+    const ax = axis[0]
+    const az = axis[1]
     if (hold) h.targetFacing = this.camYaw
     const dashing = this.dashT > 0
     const committed = SWINGS.has(h.rig.state) && !h.rig.oneShotDone && !!h.pendingHit
@@ -2519,7 +2646,7 @@ export class Game {
     if (moving && swinging) h.pendingHit = null
     const busy = BUSY_STATES.has(h.rig.state) && !h.rig.oneShotDone && !(moving && swinging)
     if (this.dashT > 0) { /* dash pose active */ }
-    else if (!busy && (moving || h.rig.finished)) h.rig.play(moving ? 'run' : 'idle', moving ? { speed: this.runRate(h, def) } : {})
+    else if (!busy && (moving || h.rig.finished) && h.rig.state !== (moving ? 'run' : 'idle')) h.rig.play(moving ? 'run' : 'idle', moving ? { speed: this.runRate(h, def) } : NO_OPTS)
 
     if (h.pendingHit) {
       h.attackT += dt
@@ -2581,7 +2708,7 @@ export class Game {
             s.material.transparent = true
             s.material.opacity = k
           }
-          e.update(fadeDt, {})
+          e.update(fadeDt)
         }
         continue
       }
@@ -2590,7 +2717,7 @@ export class Game {
       if (e.stagger > 0) {
         e.stagger -= dt
         if (e.rig.state !== 'hit') e.rig.play('hit', { force: true, fade: 0.06 })
-        e.update(dt, {})
+        e.update(dt)
         continue
       }
       if (e.def.skills && this.updateBossCast(e, dt)) {
@@ -2734,8 +2861,9 @@ export class Game {
     }
 
     if (e.def.fly) e.pos.y = e.def.fly + Math.sin(this.t * 2.4 + e.rig.t) * 0.25
-    e.update(dt, {})
-    this.footsteps(e, soundCode(e.def), e.def.boss ? 'step_big_anima_bosses' : 'step_ground', { at: e.pos, slot: 'enemy_step', max: 2 })
+    e.update(dt)
+    const stepSound = e.stepSound || (e.stepSound = { at: e.pos, slot: 'enemy_step', max: 2 })
+    this.footsteps(e, soundCode(e.def), e.def.boss ? 'step_big_anima_bosses' : 'step_ground', stepSound)
   }
 
   hurtHero(dmg) {
@@ -2758,7 +2886,7 @@ export class Game {
     }
   }
 
-  footsteps(actor, code, key, opts = {}) {
+  footsteps(actor, code, key, opts = NO_OPTS) {
     const rig = actor.rig
     const clip = rig.state === 'run' && rig.action ? rig.action.getClip() : null
     const times = clip && STEPS[code] && STEPS[code][clip.name]
@@ -2769,8 +2897,7 @@ export class Game {
     const t = rig.action.time
     const prev = actor.stepT ?? t
     actor.stepT = t
-    const crossed = t >= prev ? times.some(s => s > prev && s <= t) : times.some(s => s > prev || s <= t)
-    if (crossed) audio.play(key, opts)
+    if (stepCrossed(times, prev, t)) audio.play(key, opts)
   }
 
   portraitAmount() {
@@ -2778,7 +2905,8 @@ export class Game {
   }
 
   phoneLandscapeAmount() {
-    const [small, large] = PHONE_SHORT_SIDE
+    const small = PHONE_SHORT_SIDE[0]
+    const large = PHONE_SHORT_SIDE[1]
     const short = Math.min(view.w, view.h)
     return clamp((large - short) / (large - small), 0, 1) * (1 - this.portraitAmount())
   }
@@ -2886,6 +3014,7 @@ export class Game {
   }
 
   govern(elapsed, work) {
+    if (this.perfHud) this.perfHud.sample(elapsed, work)
     if (this.renderHold || this.contextLost || (this.state !== 'select' && this.state !== 'battle')) {
       this.governor.hold()
       return
@@ -2938,7 +3067,7 @@ export class Game {
     if (this.state === 'battle' || this.state === 'morph' || this.state === 'end') {
       if (this.hero) {
         if (this.state === 'battle') this.updateHero(dt)
-        this.hero.update(heroDt, {})
+        this.hero.update(heroDt)
         audio.listen(this.hero.pos.x, this.hero.pos.z, this.camYaw)
         this.footsteps(this.hero, this.activeDef().model, this.titanMode ? 'step_big_anima_bosses' : 'step_ground')
       }
@@ -2951,7 +3080,7 @@ export class Game {
         if (this.cooldowns[k] > 0) {
           this.cooldowns[k] -= dt
           const max = k === 'attack' ? this.activeDef().atkRate
-            : k === 'dash' ? 2.4 : (this.activeDef().skills[SKILL_SLOT[k]] || { cd: 1 }).cd
+            : k === 'dash' ? 2.4 : (this.activeDef().skills[SKILL_SLOT[k]] || NO_SKILL).cd
           this.ui.cooldown(k, clamp(this.cooldowns[k] / max, 0, 1), this.cooldowns[k])
         } else {
           this.ui.cooldown(k, 0, 0)
@@ -2964,7 +3093,7 @@ export class Game {
         while (this.pending.length && this.pending[0].t <= this.waveTimer) {
           this.spawnEnemy(this.pending.shift().type)
         }
-      } else if (!this.spawning && !this.enemies.some(e => !e.dead)) {
+      } else if (!this.spawning && !anyAlive(this.enemies)) {
         if (this.waveIndex < WAVES.length - 1) this.nextWave()
         else if (!this.loot.busy || this.lootWait >= LOOT_VICTORY_WAIT) this.victory()
         else {
@@ -2988,8 +3117,13 @@ export class Game {
     if (this.rescueActive) {
       this.rescueT -= dt / this.timeScale * 0.25
       const n = Math.max(0, Math.ceil(this.rescueT))
-      this.ui.fail.querySelector('.countdown').textContent = n
+      const count = this.rescueCount || (this.rescueCount = { el: this.ui.fail.querySelector('.countdown'), n: -1 })
+      if (n !== count.n) {
+        count.n = n
+        count.el.textContent = n
+      }
       if (this.rescueT <= 0) {
+        count.n = -1
         this.rescueActive = false
         this.timeScale = 1
         this.ui.show('fail', false)
@@ -2998,7 +3132,9 @@ export class Game {
     }
 
     this.updateCamera(this.gearK > 0 ? this.realDt : dt)
+    if (this.state !== 'select') this.fitBattleShadow()
     if (this.loot && this.hero) this.loot.update(dt, this.hero, this.lootAnchor())
+    if (this.guide) this.updateGuide()
     if (this.heroFx) this.heroFx.update(dt)
     if (this.vfx) this.vfx.update(heroDt, this.camera)
     this.updateEnemyBars()
@@ -3028,6 +3164,45 @@ export class Game {
       const visible = _v.z < 1 && Math.abs(_v.x) < 1.2 && Math.abs(_v.y) < 1.2
       this.ui.placeEnemyBar(e, (_v.x * 0.5 + 0.5) * view.w, (-_v.y * 0.5 + 0.5) * view.h, visible)
     }
+  }
+
+  updateGuide() {
+    const gap = this.guideTarget()
+    this.guide.update(this.realDt || 0, this.hero ? this.hero.pos : null, gap >= 0 ? _guideAt : null, gap)
+  }
+
+  guideTarget() {
+    const h = this.hero
+    if (this.state !== 'battle' || !h || h.dead || !this.input.enabled) return -1
+    if (this.gearOpen || this.gearK > 0.01 || this.shieldUp || this.rescueActive || this.heroCueOn) return -1
+    const loot = this.restingLoot(h)
+    if (loot) {
+      _guideAt.set(loot.mesh.position.x, 0, loot.mesh.position.z)
+      return GUIDE_LOOT_GAP
+    }
+    let best = null
+    let bd = Infinity
+    for (const e of this.enemies) {
+      if (e.dead) continue
+      const d = Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) - e.radius
+      if (d < bd) { bd = d; best = e }
+    }
+    if (!best) return -1
+    const reach = this.activeDef().atkRange + (this.guide.alpha > 0 ? GUIDE_ENGAGE : GUIDE_RELEASE)
+    if (bd < reach) return -1
+    _guideAt.set(best.pos.x, 0, best.pos.z)
+    return best.radius
+  }
+
+  restingLoot(h) {
+    let best = null
+    let bd = Infinity
+    for (const d of this.loot.drops) {
+      if (d.phase !== 'rest' || d.claimed) continue
+      const dist = Math.hypot(d.mesh.position.x - h.pos.x, d.mesh.position.z - h.pos.z)
+      if (dist < bd) { bd = dist; best = d }
+    }
+    return best
   }
 
   nearestEnemy() {

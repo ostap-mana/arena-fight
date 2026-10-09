@@ -7,9 +7,61 @@ import { meshVfxMaterial } from '../world/vfx.js'
 import { fetchBuffer } from './fetch.js'
 
 const MODEL_DIR = 'assets/glb/'
-const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
+const CLIP_SLICE_MS = 8
+const SMALL_PART_SHADOW = 0.4
 const COMPACT = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
 const modelCache = new Map()
+const modelBytes = new Map()
+const SKINNED_DEPTH = new THREE.MeshDepthMaterial()
+
+function useSkinnedDepth(mesh) {
+  const m = mesh.material
+  if (!mesh.isSkinnedMesh || Array.isArray(m) || m.alphaTest > 0 || m.alphaToCoverage) return
+  mesh.customDepthMaterial = SKINNED_DEPTH
+}
+
+class DeferredClips {
+  constructor(parser) {
+    this.name = 'deferred_clips'
+    this.parser = parser
+  }
+
+  beforeRoot() {
+    this.parser.deferredClips = this.parser.json.animations || []
+    this.parser.json.animations = []
+  }
+}
+
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).register(parser => new DeferredClips(parser))
+const nextTask = () => new Promise(resolve => setTimeout(resolve, 0))
+
+async function parseGently(buffer) {
+  const gltf = await loader.parseAsync(buffer, MODEL_DIR)
+  const parser = gltf.parser
+  const defs = parser.deferredClips || []
+  parser.json.animations = defs
+  const clips = []
+  let slice = performance.now()
+  for (let i = 0; i < defs.length; i++) {
+    if (performance.now() - slice > CLIP_SLICE_MS) {
+      await nextTask()
+      slice = performance.now()
+    }
+    clips.push(await parser.getDependency('animation', i))
+  }
+  gltf.animations = clips
+  return gltf
+}
+
+function modelUrl(id) {
+  return `${MODEL_DIR}${COMPACT && /_lob$/.test(id) ? `${id}_m` : id}.glb`
+}
+
+export function prefetchModel(id) {
+  if (modelCache.has(id)) return modelCache.get(id)
+  if (!modelBytes.has(id)) modelBytes.set(id, fetchBuffer(modelUrl(id)))
+  return modelBytes.get(id)
+}
 const IGNORED_CLIP = /^(FXA_|New Animation)/
 const SWING_BONE = /^(WeaponRoot_[LR]|Weapon1_[LR]|Wrist_[LR]|Elbow_[LR]|Shoulder_[LR])$/
 const WING_BONE = /^Wing/
@@ -24,8 +76,9 @@ export function texturesReady() {
 
 export function loadModelData(id) {
   if (!modelCache.has(id)) {
-    const file = COMPACT && /_lob$/.test(id) ? `${id}_m` : id
-    modelCache.set(id, fetchBuffer(`${MODEL_DIR}${file}.glb`).then(data => loader.parseAsync(data, MODEL_DIR)).then(prepareModel))
+    const bytes = prefetchModel(id).catch(() => fetchBuffer(modelUrl(id)))
+    modelBytes.delete(id)
+    modelCache.set(id, bytes.then(parseGently).then(prepareModel))
   }
   return modelCache.get(id)
 }
@@ -286,6 +339,31 @@ function presetBounds(mesh) {
   mesh.boundingSphere = geometry.boundingSphere.clone()
 }
 
+function sphereRadius(mesh) {
+  if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere()
+  return mesh.geometry.boundingSphere.radius
+}
+
+function solidPart(mesh, body) {
+  if (!body || mesh === body) return true
+  const m = mesh.material
+  if (Array.isArray(m)) return true
+  if (m.transparent || m.blending !== THREE.NormalBlending) return false
+  return sphereRadius(mesh) >= sphereRadius(body) * SMALL_PART_SHADOW
+}
+
+function castSolidShadows(root, body) {
+  root.traverse(o => {
+    if (o.isMesh) o.castShadow = solidPart(o, body)
+  })
+}
+
+export function castBodyShadow(model) {
+  model.root.traverse(o => {
+    if (o.isMesh) o.castShadow = o === model.body
+  })
+}
+
 function sameSkeleton(a, b) {
   if (a.bones.length !== b.bones.length) return false
   for (let i = 0; i < a.bones.length; i++) {
@@ -320,15 +398,18 @@ export function buildModel(data, opts = {}) {
     if (o.isSkinnedMesh) {
       skins.push(o)
       presetBounds(o)
+      useSkinnedDepth(o)
     }
   })
   shareSkeletons(skins)
+  const body = largestSkin(root)
+  if (opts.castShadow) castSolidShadows(root, body)
   const model = {
     root,
     bones,
     byName,
     skins,
-    body: largestSkin(root),
+    body,
     height,
     footY,
     clips: data.clips,

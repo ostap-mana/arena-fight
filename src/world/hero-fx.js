@@ -3,6 +3,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
 import { loadModelData } from '../core/model.js'
 import { CHAIN_FADE } from '../core/rig.js'
 import { stream } from '../core/rng.js'
+import { removeAt } from '../core/list.js'
 
 const random = stream('sim')
 
@@ -174,7 +175,7 @@ export class HeroFx {
     this.onSpawn = null
     this.models = []
     this.modelData = new Map()
-    this.tracked = new Set()
+    this.tracked = []
   }
 
   script(id) {
@@ -291,6 +292,7 @@ export class HeroFx {
       side: curveAmount(e.side, dist) * caster.scale,
       height: curveAmount(e.height, dist) * caster.scale,
       last: from.clone(),
+      pos: from.clone(),
       onArrive,
     })
   }
@@ -322,7 +324,7 @@ export class HeroFx {
       const to = s.goal(_v2)
       _v.copy(to).sub(s.from)
       const along = s.e.progress ? sampleCurve(s.e.progress, k) : k
-      const pos = s.from.clone().addScaledVector(_v, along)
+      const pos = s.pos.copy(s.from).addScaledVector(_v, along)
       _s.crossVectors(_up, _v)
       if (_s.lengthSq() > 1e-8) pos.addScaledVector(_s.normalize(), sampleCurve(s.e.side, k) * s.side)
       pos.y += sampleCurve(s.e.height, k) * s.height
@@ -500,7 +502,10 @@ export class HeroFx {
         continue
       }
       m.mixer.update(dt)
-      for (const [from, to] of m.pairs) {
+      const pairs = m.pairs
+      for (let j = 0; j < pairs.length; j++) {
+        const from = pairs[j][0]
+        const to = pairs[j][1]
         to.position.copy(from.position)
         to.quaternion.copy(from.quaternion)
         to.scale.copy(from.scale)
@@ -528,14 +533,16 @@ export class HeroFx {
       if (inst) actor.skinFx.push(inst)
       return inst
     })
-    this.tracked.add({ actor, script: s, ambient, clip: null, t: 0, fired: 0 })
+    this.tracked.push({ actor, script: s, ambient, clip: null, t: 0, fired: 0 })
   }
 
   trackEvents() {
-    for (const tr of this.tracked) {
+    const tracked = this.tracked
+    for (let n = tracked.length - 1; n >= 0; n--) {
+      const tr = tracked[n]
       const a = tr.actor
       if (!a.skinFx || !a.skinFx.length || a.skinFx[0] !== tr.ambient.find(Boolean)) {
-        this.tracked.delete(tr)
+        removeAt(tracked, n)
         continue
       }
       const action = a.rig.action
