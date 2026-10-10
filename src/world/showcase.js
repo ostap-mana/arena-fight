@@ -23,10 +23,8 @@ const STAND_Y = 0.04
 const PORTRAIT_STAND = 0.82
 const PORTRAIT_IDLE = 0.3
 const EXPOSURE = { fire: 0.66 }
-const ARRIVE_NDC = 0.5
-const ARRIVE_MAX = 0.8
 const SHOCK_TIME = 0.7
-const REVEAL_TIME = 0.75
+const REVEAL_TIME = 0.3
 const FLASH_DECAY = 3.5
 const FLOOR_BOOK = 'stand_floor'
 const FLAME_BOOK = 'stand_flame'
@@ -45,7 +43,6 @@ const SELECT_SHADOW = 0.85
 const floorGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
 const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 96, 1, true).translate(0, 0.5, 0)
 const smooth = k => k * k * (3 - 2 * k)
-const _ndc = new THREE.Vector3()
 
 const FLOOR_VS = `
   varying vec2 vUv;
@@ -67,7 +64,6 @@ const CIRCLE_FS = `
   uniform sampler2D uGlow;
   uniform sampler2D uRunes;
   uniform sampler2D uRing;
-  uniform sampler2D uSeal;
   uniform vec3 uColor;
   uniform float uTime;
   uniform float uOn;
@@ -78,23 +74,45 @@ const CIRCLE_FS = `
   uniform float uReveal;
   varying vec2 vUv;
   const float TAU = 6.2831853;
-  const float ORBIT_R = 0.6;
+  const float SECTOR = TAU / 3.0;
+  const float TRI_R = 0.74;
+  const float INNER_R = 0.37;
+  const float INNER_GAP = 0.034;
+  const float CORE_R = 0.31;
+  const float NODE_R = 0.056;
   const float PULSE_PERIOD = 2.8;
   vec2 spin(vec2 p, float a, float scale) {
     float c = cos(a);
     float s = sin(a);
     return vec2(c * p.x - s * p.y, s * p.x + c * p.y) / scale * 0.5 + 0.5;
   }
-  float comets(vec2 p, float r, float turn, float t) {
-    float orbit = (r - ORBIT_R) / 0.02;
-    float band = exp(-orbit * orbit);
+  vec2 rotate(vec2 p, float a) {
+    float c = cos(a);
+    float s = sin(a);
+    return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+  }
+  vec2 triangle(vec2 p, float radius) {
+    float k = floor(mod(atan(p.y, p.x) - TAU * 0.25, TAU) / SECTOR);
+    float mid = TAU * 0.25 + (k + 0.5) * SECTOR;
+    vec2 n = vec2(cos(mid), sin(mid));
+    float along = dot(p, vec2(-n.y, n.x)) / (radius * 1.7320508) + 0.5;
+    return vec2(dot(p, n) - radius * 0.5, (k + clamp(along, 0.0, 1.0)) / 3.0);
+  }
+  float nodeDistance(vec2 p) {
+    float k = floor(mod(atan(p.y, p.x) - TAU * 0.25 + SECTOR * 0.5, TAU) / SECTOR);
+    float a = TAU * 0.25 + k * SECTOR;
+    return length(p - TRI_R * vec2(cos(a), sin(a)));
+  }
+  float stroke(float d, float width) {
+    float aa = fwidth(d) + 1e-4;
+    return 1.0 - smoothstep(width - aa, width + aa, d);
+  }
+  float comets(float perimeter, float edge, float t) {
+    float band = exp(-edge * edge / 0.00025);
     float sum = 0.0;
     for (int i = 0; i < 3; i++) {
-      float head = fract(t * 0.14 + float(i) / 3.0);
-      float behind = fract(head - turn);
-      float a = (head - 0.5) * TAU;
-      float d = length(p - ORBIT_R * vec2(cos(a), sin(a)));
-      sum += band * exp(-behind * 9.0) * 1.4 + exp(-d * d / 0.0008) * 2.0 + exp(-d * d / 0.01) * 0.3;
+      float behind = fract(fract(t * 0.11 + float(i) / 3.0) - perimeter);
+      sum += band * (exp(-behind * 7.0) * 1.1 + exp(-behind * 80.0) * 2.6);
     }
     return sum;
   }
@@ -116,32 +134,53 @@ const CIRCLE_FS = `
     float glint = pow(max(0.5 + 0.5 * cos((turn - t * 0.09) * TAU), 0.0), 10.0);
     float glint2 = pow(max(0.5 + 0.5 * cos((turn + t * 0.13 + 0.5) * TAU), 0.0), 14.0);
 
+    vec2 tp = rotate(p, -t * 0.05) / open;
+    vec2 ip = rotate(p, t * 0.09) / open;
+    vec2 tri = triangle(tp, TRI_R);
+    vec2 core = triangle(-ip, CORE_R);
+    float node = nodeDistance(tp);
+    float knock = smoothstep(NODE_R, NODE_R + 0.012, node);
+    float clear = smoothstep(0.012, 0.034, abs(tri.x)) * knock;
+    float ir = length(ip);
+
     vec2 runeUv = spin(p, t * 0.07, 0.78 * open);
-    vec2 sealUv = spin(p, -t * 0.12, 0.56 * open);
-    float runes = texture2D(uRunes, runeUv).r;
-    float runeHalo = texture2D(uRunes, runeUv, 3.0).r;
-    float ring = texture2D(uRing, spin(p, -t * 0.02, 0.84 * open)).r;
-    float seal = texture2D(uSeal, sealUv).r;
-    float sealHalo = texture2D(uSeal, sealUv, 3.0).r;
+    float runes = texture2D(uRunes, runeUv).r * clear;
+    float runeHalo = texture2D(uRunes, runeUv, 3.0).r * clear;
+    float ring = texture2D(uRing, spin(p, -t * 0.02, 0.84 * open)).r * knock;
     float glow = texture2D(uGlow, vUv).r;
     float pulseT = fract(t / PULSE_PERIOD);
     float pulse = texture2D(uRing, spin(p, 0.0, mix(0.42, 1.02, pulseT))).r * pow(1.0 - pulseT, 2.0) * smoothstep(0.0, 0.08, pulseT);
-    float shock = texture2D(uRing, spin(p, 0.0, mix(0.35, 1.0, uShock))).r * pow(max(1.0 - uShock, 0.0), 2.0);
+
+    float triLine = (stroke(abs(tri.x), 0.015) + stroke(abs(tri.x + 0.034), 0.004) * 0.7) * knock;
+    float triHalo = exp(-abs(tri.x) * 30.0) * knock;
+    float plate = step(tri.x, 0.0) * smoothstep(INNER_R, INNER_R + 0.05, ir) * (0.25 + 0.75 * exp(tri.x * 12.0));
+    float tick = stroke(abs(fract(ir > 1e-4 ? atan(ip.y, ip.x) / TAU * 48.0 : 0.0) - 0.5) * TAU * ir / 48.0, 0.004)
+      * step(INNER_R - INNER_GAP, ir) * step(ir, INNER_R);
+    float inner = stroke(abs(ir - INNER_R), 0.008) + stroke(abs(ir - INNER_R + INNER_GAP), 0.0035) * 0.8 + tick * 0.6;
+    float coreLine = stroke(abs(core.x), 0.006) + stroke(abs(ir - CORE_R * 0.5), 0.004) * 0.7;
+    float nodes = stroke(abs(node - NODE_R), 0.007) + stroke(abs(node - NODE_R * 0.55), 0.004) * 0.8;
+    float shockT = max(1.0 - uShock, 0.0);
+    float shock = exp(-abs(triangle(tp, mix(0.12, 1.15, uShock)).x) * 45.0) * shockT * shockT;
     float fill = smoothstep(0.15, 0.78, r) * smoothstep(0.84, 0.74, r);
 
     float line = runes * (0.14 * idle + lit * (1.0 + 1.4 * glint))
       + ring * (0.12 * idle + lit * (0.7 + 0.9 * glint2))
-      + seal * (0.05 * idle + lit * (0.6 + 0.5 * glint2))
-      + comets(p, r, turn, t) * lit
-      + (runes + seal) * uFlash * 1.4;
-    float soft = runeHalo * lit * 0.28
-      + sealHalo * lit * 0.2
+      + triLine * (0.12 * idle + lit * (0.95 + 0.9 * glint2))
+      + nodes * (0.08 * idle + lit * 0.9)
+      + inner * (0.06 * idle + lit * (0.7 + 0.5 * glint))
+      + coreLine * (0.04 * idle + lit * 0.5)
+      + comets(tri.y, tri.x, t) * knock * lit
+      + (runes + triLine + inner) * uFlash * 1.4;
+    float soft = runeHalo * lit * 0.18
+      + triHalo * lit * 0.32
+      + plate * lit * 0.1
       + glow * (0.02 + 0.04 * uOn)
-      + fill * lit * 0.07
+      + fill * lit * 0.03
       + pulse * lit * 0.55
       + shock * uOn * 1.4
       + edge * uOn * step(r, 0.86) * smoothstep(0.2, 0.5, r) * 0.9;
-    vec3 col = 1.0 - exp(-uColor * uExposure * (line * 3.0 + soft * 1.7));
+    float hot = (stroke(abs(tri.x), 0.006) * knock + nodes * 0.5 + stroke(abs(ir - INNER_R), 0.003) * 0.6) * lit;
+    vec3 col = 1.0 - exp(-uColor * uExposure * (line * 3.0 + soft * 1.7) - hot * 0.9);
     gl_FragColor = vec4(col, 1.0);
   }`
 
@@ -239,13 +278,9 @@ export class Showcase {
     this.contact = T('T_character_highlight_3', false)
     this.runes = T('T_FX_Decal_47_2', false)
     this.ring = T('T_FX_Circle_12_1', false)
-    this.seal = T('T_FX_Decal_65_1_CEL', false)
     this.noise = tiled(T('T_FX_Noise_45_1', false))
     this.books = new Flipbooks(this.group)
     this.picked = -1
-    this.wanted = -1
-    this.wantedAt = 0
-    this.shown = -1
     this.camera = null
     this.stands = actors.map((a, i) => this.buildStand(a, heroes[i]))
     this.ambient = new LobbyAmbient(this.group, { tint: HAZE_TINT[arena.id] ?? HAZE_TINT.fire, arena: arena.id })
@@ -279,7 +314,6 @@ export class Showcase {
       uGlow: { value: this.glow },
       uRunes: { value: this.runes },
       uRing: { value: this.ring },
-      uSeal: { value: this.seal },
       uNoise: { value: this.noise },
       uColor: { value: color },
       uTime: { value: 0 },
@@ -368,33 +402,16 @@ export class Showcase {
     s.fx = null
   }
 
-  showPick(selected, portrait) {
-    if (selected !== this.wanted) {
-      this.wanted = selected
-      this.wantedAt = this.time
-    }
-    if (this.shown === this.wanted) return this.shown
-    if (this.shown < 0 || portrait <= 0 || this.time - this.wantedAt >= ARRIVE_MAX || this.inView(this.wanted)) this.shown = this.wanted
-    return this.shown
-  }
-
-  inView(i) {
-    const s = this.stands[i]
-    if (!s || !this.camera) return true
-    _ndc.copy(s.actor.pos).project(this.camera)
-    return Math.abs(_ndc.x) < ARRIVE_NDC
-  }
-
   update(dt, selected, portrait = 0) {
     this.time += dt
     const t = this.time
     const standScale = 1 + (PORTRAIT_STAND - 1) * portrait
     const idleGain = 1 + (PORTRAIT_IDLE - 1) * portrait
-    const shown = this.showPick(selected, portrait)
+    const shown = selected
     for (let i = 0; i < this.stands.length; i++) {
       const s = this.stands[i]
       const goal = i === shown ? 1 : 0
-      s.focus = Math.max(0, Math.min(1, s.focus + Math.sign(goal - s.focus) * dt / FOCUS_TIME))
+      s.focus = goal ? 1 : Math.max(0, s.focus - dt / FOCUS_TIME)
       if (Math.abs(goal - s.focus) < 1e-3) s.focus = goal
       s.weight = smooth(s.focus)
       const w = s.weight
@@ -410,7 +427,7 @@ export class Showcase {
       cu.uIdle.value = idleGain
       cu.uShock.value = Math.min(1, s.flashT / SHOCK_TIME)
       cu.uFlash.value = Math.exp(-s.flashT * FLASH_DECAY)
-      cu.uReveal.value = smooth(Math.min(1, s.flashT / REVEAL_TIME))
+      cu.uReveal.value = 1 - (1 - Math.min(1, s.flashT / REVEAL_TIME)) ** 2
       for (const r of s.rims) {
         r.uStandRim.value = IDLE_RIM + (PICKED_RIM - IDLE_RIM) * w
         r.uStandDim.value = IDLE_DIM + (PICKED_GAIN - IDLE_DIM) * w
