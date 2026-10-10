@@ -1,23 +1,9 @@
 import { CardBorderFx } from './card-fx.js'
 import { HEROES, LOOT } from '../data/heroes.js'
 import playNowImg from '../assets/GENERAL/BUTTONS/play-now.webp'
-import attackSwordImg from '../assets/GENERAL/HUD/buttons/attack-sword.webp'
-import attackSpearImg from '../assets/GENERAL/HUD/buttons/attack-spear.webp'
-import attackArcanaImg from '../assets/GENERAL/HUD/buttons/attack-arcana.webp'
-import eld037Skill1 from '../assets/GENERAL/HUD/skills/eld037-1.webp'
-import eld037Skill2 from '../assets/GENERAL/HUD/skills/eld037-2.webp'
-import eld037Ult from '../assets/GENERAL/HUD/skills/eld037-ult.webp'
-import mag018Skill1 from '../assets/GENERAL/HUD/skills/mag018-1.webp'
-import mag018Skill2 from '../assets/GENERAL/HUD/skills/mag018-2.webp'
-import mag018Ult from '../assets/GENERAL/HUD/skills/mag018-ult.webp'
-import eld025Skill1 from '../assets/GENERAL/HUD/skills/eld025-1.webp'
-import eld025Skill2 from '../assets/GENERAL/HUD/skills/eld025-2.webp'
-import eld025Ult from '../assets/GENERAL/HUD/skills/eld025-ult.webp'
 import eld037Portrait from '../assets/GENERAL/HUD/heroes/eld037-large.webp'
 import mag018Portrait from '../assets/GENERAL/HUD/heroes/mag018-large.webp'
 import eld025Portrait from '../assets/GENERAL/HUD/heroes/eld025-large.webp'
-import animlts004Skill1 from '../assets/GENERAL/HUD/skills/animlts004-1.webp'
-import animlts004Skill2 from '../assets/GENERAL/HUD/skills/animlts004-2.webp'
 import animlts004Portrait from '../assets/GENERAL/HUD/heroes/animlts004-large.webp'
 import elementFireImg from '../assets/GENERAL/HUD/icons/element-fire.webp'
 import elementWaterImg from '../assets/GENERAL/HUD/icons/element-water.webp'
@@ -32,13 +18,37 @@ import { Outcome } from './outcome.js'
 import { GearRing } from './gear-ring.js'
 import { deferImages, whenReleased, releaseImages } from './lazy.js'
 import { FINGER, TAP } from './tapcue.js'
-import { view } from '../core/viewport.js'
+import { view, safeInsets } from '../core/viewport.js'
 import powerIconImg from '../assets/GENERAL/HUD/gear/power-icon.webp'
 import bossBadgeImg from '../assets/GENERAL/HUD/wave/boss.webp'
+import eld037Skill1 from '../assets/GENERAL/HUD/skills/mini/eld037-1.webp'
+import eld037Skill2 from '../assets/GENERAL/HUD/skills/mini/eld037-2.webp'
+import eld037Ult from '../assets/GENERAL/HUD/skills/mini/eld037-ult.webp'
+import mag018Skill1 from '../assets/GENERAL/HUD/skills/mini/mag018-1.webp'
+import mag018Skill2 from '../assets/GENERAL/HUD/skills/mini/mag018-2.webp'
+import mag018Ult from '../assets/GENERAL/HUD/skills/mini/mag018-ult.webp'
+import eld025Skill1 from '../assets/GENERAL/HUD/skills/mini/eld025-1.webp'
+import eld025Skill2 from '../assets/GENERAL/HUD/skills/mini/eld025-2.webp'
+import eld025Ult from '../assets/GENERAL/HUD/skills/mini/eld025-ult.webp'
+import animlts004Skill1 from '../assets/GENERAL/HUD/skills/mini/animlts004-1.webp'
+import animlts004Skill2 from '../assets/GENERAL/HUD/skills/mini/animlts004-2.webp'
 
 const BANNER_ICONS = {
   boss: bossBadgeImg,
 }
+
+const SKILL_ART = {
+  eld037: [eld037Skill1, eld037Skill2, eld037Ult],
+  mag018: [mag018Skill1, mag018Skill2, mag018Ult],
+  eld025: [eld025Skill1, eld025Skill2, eld025Ult],
+  animlts004: [animlts004Skill1, animlts004Skill2],
+}
+const SKILL_STEPS = 48
+const SKILL_CAST_JUMP = 0.5
+const ULT_STEPS = 120
+const ULT_FILL_MS = 500
+const ULT_FLASH_MS = 300
+const ULT_FLASH_STEPS = 8
 
 export const ELEMENT_ART = {
   fire: elementFireImg,
@@ -63,19 +73,6 @@ const LOOT_ART = {
   gems: lootGemsImg,
   chest: lootChestImg,
   anima: lootAnimaImg,
-}
-
-const SKILL_ART = {
-  eld037: [eld037Skill1, eld037Skill2, eld037Ult],
-  mag018: [mag018Skill1, mag018Skill2, mag018Ult],
-  eld025: [eld025Skill1, eld025Skill2, eld025Ult],
-  animlts004: [animlts004Skill1, animlts004Skill2],
-}
-
-const ATTACK_ART = {
-  sword: attackSwordImg,
-  spear: attackSpearImg,
-  arcana: attackArcanaImg,
 }
 
 const PORTRAIT_ART = {
@@ -112,20 +109,25 @@ const EASY = 'cubic-bezier(.45, 0, .55, 1)'
 const EASE_IN = 'cubic-bezier(.55, 0, 1, .45)'
 const EASE_OUT = 'cubic-bezier(.25, 1, .5, 1)'
 const BANNER_IN = 'cubic-bezier(.2, .9, .3, 1)'
+const BANNER_HOME = 0.27
+const BANNER_SHADE = 0.55
+const GEAR_SETTLE_MS = 380
+const BANNER_GAP = 8
+const BANNER_MIN_FIT = 0.75
+const BANNER_MIN_SCALE = 0.55
 const APPEAR_FROM = 1.15
 const APPEAR_MS = 400
 const APPEAR_FADE_MS = 300
 const CARD_DELAY_MS = 120
 const CARD_STAGGER_MS = 70
 const PICK_LAG_MS = 150
+const PICK_LOOPS = new Set(['pickpulse', 'picksweep'])
 const LEAVE_MS = 220
-const VEIL_IN_MS = 350
 const VEIL_OUT_MS = 450
 const LOOT_ROW_MS = 2600
 const LOOT_HIDE_MS = 250
 const LOOT_ROWS = 2
 const BAR_STEPS = 200
-const SWEEP_STEPS = 360
 
 function spring(t) {
   const k = Math.min(1, Math.max(0, t))
@@ -139,10 +141,7 @@ const APPEAR_FRAMES = Array.from({ length: 25 }, (_, n) => {
 
 const JOYSTICK_TUTORIAL = `<div class="joy"><i class="ring a"></i><i class="ring b"></i><i class="jbase"></i><i class="jknob"></i>${FINGER}</div>`
 const HINT_TEXT = {
-  move: ['DRAG TO MOVE', 'OR TAP THE GROUND'],
-  attack: ['TAP TO ATTACK', 'HOLD TO KEEP HITTING'],
-  skill: ['TAP TO CAST', ''],
-  titan: ['TAP TO TRANSFORM', ''],
+  move: ['DRAG TO MOVE', ''],
 }
 
 export function el(html) {
@@ -183,6 +182,11 @@ export class UI {
           </div>
           <div class="tip"><i class="plate"></i><img class="ico" src="${powerIconImg}" alt="" draggable="false"><span></span></div>
         </div>
+        <div id="skillbar">
+          <div class="sk ult cooling"><img class="icon" alt="" draggable="false"><i class="charge"><i class="lead"></i><i class="main"></i><i class="flash"></i></i><i class="frame"></i></div>
+          <div class="sk s1"><img class="icon" alt="" draggable="false"><i class="cd"></i><i class="frame"></i><b class="cdn"></b></div>
+          <div class="sk s2"><img class="icon" alt="" draggable="false"><i class="cd"></i><i class="frame"></i><b class="cdn"></b></div>
+        </div>
         <div id="titantimer"><div class="c">TITAN</div><div class="t"><i class="back"></i><i class="fill"></i></div></div>
         <div id="stick">
           <div class="base"></div>
@@ -205,24 +209,6 @@ export class UI {
         </div>
         <div id="gesturehint"><div class="g-main"></div><div class="g-sub"></div><div class="g-hand">${JOYSTICK_TUTORIAL}</div></div>
         <div id="herocue">${TAP}</div>
-        <div id="skills">
-          <div class="skill attack" data-k="attack"><img class="art" alt="" draggable="false"><canvas class="cd"></canvas><span class="press"></span></div>
-          <div class="skill s1" data-k="s1"><img class="icon" alt="" draggable="false"><canvas class="cd"></canvas><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
-          <div class="skill s2" data-k="s2"><img class="icon" alt="" draggable="false"><canvas class="cd"></canvas><span class="frame"></span><span class="cdn"></span><span class="press"></span><span class="ready"></span></div>
-          <div id="ultbtn">
-            <span class="aura"><i class="flame"></i></span>
-            <img class="icon" alt="" draggable="false">
-            <span class="dim"></span>
-            <span class="ring"></span>
-            <span class="frame"></span>
-            <span class="swirl a"></span>
-            <span class="swirl b"></span>
-            <span class="pct"><b>0</b><i>%</i></span>
-            <span class="press"></span>
-            <span class="burst"></span>
-          </div>
-          ${TAP}
-        </div>
       </div>
 
       <div id="lootfeed">
@@ -234,6 +220,8 @@ export class UI {
 
       <div id="banner"><i class="bk"></i><img class="ic" alt="" draggable="false"><div class="t"></div><div class="s"></div></div>
       <div id="veil"></div>
+      <canvas id="freeze"></canvas>
+      <div id="freezebar"><i></i></div>
 
       <div id="fail" class="screen">
         <div class="t">CRITICAL HP!</div>
@@ -276,8 +264,7 @@ export class UI {
     this.enemyBars = new Map()
     this.heroBar = el(`<div class="fhp"><div class="part"><i class="glow"></i><i class="fill"></i><i class="noise"></i></div></div>`)
     this.enemyLayer.appendChild(this.heroBar)
-    this.heroBarState = { k: 1, max: 0, shown: false }
-    this.cooldownState = {}
+    this.heroBarState = { k: 1, max: 0, shown: false, foot: 0 }
     this.topBar = this.root.querySelector('#topbar')
     this.topTip = this.topBar.querySelector('.tip span')
     this.waveInfo = this.root.querySelector('#waveinfo')
@@ -286,12 +273,13 @@ export class UI {
     this.waveStops = []
     this.waveCalled = 0
     this.wavePainted = -1
-    this.ultBtn = this.root.querySelector('#ultbtn')
-    this.attackBtn = this.root.querySelector('.skill.attack')
-    this.attackArt = this.attackBtn.querySelector('.art')
-    this.ultIcon = this.ultBtn.querySelector('.icon')
-    this.ultPct = this.ultBtn.querySelector('.pct b')
-    this.ultReady = false
+    this.skillbar = this.root.querySelector('#skillbar')
+    this.skillSlots = ['s1', 's2', 'ult'].map(k => {
+      const el = this.skillbar.querySelector(`.sk.${k}`)
+      return { el, icon: el.querySelector('.icon'), num: el.querySelector('.cdn'), k: 0, step: -1, secs: -1, ready: false }
+    })
+    this.ultBar = { flash: this.skillbar.querySelector('.ult .flash'), goal: 0, from: 0, shown: 0, since: 0, gainAt: -Infinity, lead: 0, main: 0, glow: 0 }
+    this.skillModel = null
     this.animaCard = this.root.querySelector('#animacard')
     this.animaIcon = this.animaCard.querySelector('.portrait .icon')
     this.animaHero = this.animaCard.querySelector('.hero img')
@@ -304,17 +292,13 @@ export class UI {
     this.gestureHint = this.root.querySelector('#gesturehint')
     this.heroCue = this.root.querySelector('#herocue')
     this.heroCueTap = this.heroCue.querySelector('.tapcue')
-    this.skillsBox = this.root.querySelector('#skills')
-    this.skillCue = this.skillsBox.querySelector('.tapcue')
-    this.skills = this.root.querySelectorAll('.skill')
-    this.skillIcons = ['s1', 's2'].map(k => this.hud.querySelector(`.skill.${k} .icon`))
     whenReleased(() => {
       Object.values(PORTRAIT_ART).forEach(src => { new Image().src = src })
-      Object.values(SKILL_ART).flat().forEach(src => { new Image().src = src })
-      Object.values(ATTACK_ART).forEach(src => { new Image().src = src })
     })
     this.banner = this.root.querySelector('#banner')
     this.veil = this.root.querySelector('#veil')
+    this.freezeEl = this.root.querySelector('#freeze')
+    this.freezeBar = this.root.querySelector('#freezebar')
     this.end = this.root.querySelector('#end')
     this.fail = this.root.querySelector('#fail')
     this.loot = this.end.querySelector('.loot')
@@ -332,9 +316,12 @@ export class UI {
   showGestureHint(on, mode = 'move') {
     const el = this.gestureHint
     if (!on) {
-      if (el.dataset.mode === mode) el.classList.remove('on')
+      if (el.dataset.mode !== mode) return
+      el.classList.remove('on')
+      this.hud.classList.remove('hinting')
       return
     }
+    this.hud.classList.toggle('hinting', mode === 'move')
     el.dataset.mode = mode
     for (const m of Object.keys(HINT_TEXT)) el.classList.toggle(m, m === mode)
     const [main, sub] = HINT_TEXT[mode]
@@ -343,25 +330,6 @@ export class UI {
     el.classList.remove('play')
     void el.offsetWidth
     el.classList.add('on', 'play')
-  }
-
-  hintShown(mode) {
-    return this.gestureHint.classList.contains('on') && this.gestureHint.dataset.mode === mode
-  }
-
-  cueSkill(key) {
-    const cue = this.skillCue
-    this.cuedSkill = key
-    if (!key) {
-      cue.classList.remove('on')
-      return
-    }
-    const btn = key === 'ult' ? this.ultBtn : this.hud.querySelector(`.skill.${key}`)
-    cue.style.left = `${btn.offsetLeft + btn.offsetWidth / 2}px`
-    cue.style.top = `${btn.offsetTop + btn.offsetHeight / 2}px`
-    const r = btn.getBoundingClientRect()
-    cue.classList.toggle('flip', r.left + r.width / 2 > view.w * 0.62)
-    cue.classList.add('on')
   }
 
   cueHero(on) {
@@ -403,10 +371,7 @@ export class UI {
     const portrait = view.h > view.w
     this.hudScale = Math.min(1.8, Math.max(portrait ? 0.92 : 0.8, Math.min(short / 410, long / 730)))
     document.documentElement.style.setProperty('--hud-scale', this.hudScale.toFixed(3))
-    for (const c of Object.values(this.cooldownState || {})) {
-      c.size = 0
-      c.shownK = -1
-    }
+    this.gearRing.scale = this.hudScale
   }
 
   progress(p) {
@@ -467,8 +432,16 @@ export class UI {
 
   selectCard(i) {
     this.cardEls.forEach((c, k) => c.classList.toggle('sel', k === i))
+    this.syncPickLoops()
     this.cardFx = this.cardFx || new CardBorderFx()
     this.cardFx.attach(this.cardEls[i], HEROES[i].rarity)
+  }
+
+  syncPickLoops() {
+    if (!this.select.getAnimations) return
+    for (const a of this.select.getAnimations({ subtree: true })) {
+      if (PICK_LOOPS.has(a.animationName)) a.startTime = 0
+    }
   }
 
   appear(node, delay) {
@@ -487,7 +460,7 @@ export class UI {
     })
   }
 
-  leaveSelect(duration) {
+  leaveSelect() {
     this.select.classList.add('leaving')
     this.cardEls.forEach(slot => {
       const picked = slot.classList.contains('sel')
@@ -496,8 +469,26 @@ export class UI {
         : [{ transform: 'none', opacity: 1 }, { transform: 'translateY(12%)', opacity: 0 }]
       slot.animate(frames, { duration: picked ? LEAVE_MS + 120 : LEAVE_MS, easing: EASE_IN, fill: 'forwards' })
     })
-    this.veil.getAnimations().forEach(a => a.cancel())
-    this.veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: VEIL_IN_MS, delay: Math.max(0, duration * 1000 - VEIL_IN_MS), easing: EASE_IN, fill: 'forwards' })
+  }
+
+  freeze(source) {
+    const c = this.freezeEl
+    if (c.width !== source.width || c.height !== source.height) {
+      c.width = source.width
+      c.height = source.height
+    }
+    c.getContext('2d').drawImage(source, 0, 0)
+    for (const n of [c, this.freezeBar]) n.getAnimations().forEach(a => a.cancel())
+    this.root.classList.add('frozen')
+  }
+
+  thaw() {
+    if (!this.root.classList.contains('frozen')) return
+    const fades = [this.freezeEl, this.freezeBar].map(n => n.animate([{ opacity: 1 }, { opacity: 0 }], { duration: VEIL_OUT_MS, easing: EASE_OUT, fill: 'forwards' }))
+    fades[0].onfinish = () => {
+      this.root.classList.remove('frozen')
+      fades.forEach(a => a.cancel())
+    }
   }
 
   veilHold() {
@@ -512,20 +503,73 @@ export class UI {
     this.veil.animate([{ opacity: from }, { opacity: 0 }], { duration: VEIL_OUT_MS, easing: EASE_OUT, fill: 'forwards' })
   }
 
-  setHud(hero) {
-    this.attackArt.src = ATTACK_ART[hero.attack] || ATTACK_ART.sword
-    const art = SKILL_ART[hero.model] || SKILL_ART.mag018
-    this.skillIcons.forEach((img, i) => { img.src = art[i] })
-    this.ultIcon.src = art[2]
-  }
-
-  setTitanHud(titan) {
-    const art = SKILL_ART[titan.model] || []
-    this.skillIcons.forEach((img, i) => { if (art[i]) img.src = art[i] })
-  }
-
   setHp(v, max) {
     this.setHeroBar(Math.max(0, Math.min(1, v / max)), max)
+  }
+
+  updateSkillbar(def, titan, cooldowns, ult, ultReady) {
+    if (def.model !== this.skillModel) {
+      this.skillModel = def.model
+      const art = SKILL_ART[def.model] || []
+      this.skillSlots.forEach((s, i) => { if (art[i]) s.icon.src = art[i] })
+      this.skillbar.classList.toggle('titan', titan)
+    }
+    def.skills.forEach((skill, i) => {
+      const secs = Math.max(0, cooldowns[skill.key] || 0)
+      this.paintSkill(this.skillSlots[i], skill.cd > 0 ? Math.min(1, secs / skill.cd) : 0, secs)
+    })
+    if (!titan) this.paintUlt(this.skillSlots[2], ult, ultReady)
+  }
+
+  paintSkill(s, k, secs) {
+    if (k - s.k > SKILL_CAST_JUMP) this.deferClass(s.el, 'cast')
+    s.k = k
+    this.paintSweep(s, Math.ceil(k * SKILL_STEPS))
+    const whole = s.step > 0 ? Math.ceil(secs) : 0
+    if (whole !== s.secs) {
+      s.secs = whole
+      s.num.textContent = whole ? String(whole) : ''
+    }
+  }
+
+  paintUlt(s, k, ready) {
+    if (s.ready && !ready) this.deferClass(s.el, 'cast')
+    if (ready !== s.ready) {
+      s.ready = ready
+      s.el.classList.toggle('ready', ready)
+      s.el.classList.toggle('cooling', !ready)
+    }
+    const bar = this.ultBar
+    const now = performance.now()
+    const goal = Math.min(1, k)
+    if (goal !== bar.goal) {
+      if (goal > bar.goal) bar.gainAt = now
+      bar.from = goal > bar.goal ? bar.shown : goal
+      bar.goal = goal
+      bar.since = now
+      bar.lead = this.paintArc(s.el, '--l', goal, bar.lead)
+    }
+    bar.shown = bar.from + (goal - bar.from) * Math.min(1, (now - bar.since) / ULT_FILL_MS)
+    bar.main = this.paintArc(s.el, '--m', bar.shown, bar.main)
+    const t = (now - bar.gainAt) / ULT_FLASH_MS
+    const glow = t < 1 ? Math.round((1 - Math.abs(2 * t - 1)) * ULT_FLASH_STEPS) : 0
+    if (glow !== bar.glow) {
+      bar.glow = glow
+      bar.flash.style.opacity = String(glow / ULT_FLASH_STEPS)
+    }
+  }
+
+  paintArc(el, prop, v, step) {
+    const next = Math.round(v * ULT_STEPS)
+    if (next !== step) el.style.setProperty(prop, String(next / ULT_STEPS))
+    return next
+  }
+
+  paintSweep(s, step) {
+    if (step === s.step) return
+    s.step = step
+    s.el.style.setProperty('--k', String(step / SKILL_STEPS))
+    s.el.classList.toggle('cooling', step > 0)
   }
 
   setPower(power, goal, ready) {
@@ -559,13 +603,14 @@ export class UI {
     if (hit) this.deferClass(this.heroBar, 'hit')
   }
 
-  placeHeroBar(x, y, visible) {
+  placeHeroBar(x, y, visible, foot = y) {
     const bar = this.heroBarState
     if (bar.shown !== visible) {
       bar.shown = visible
       this.heroBar.style.visibility = visible ? 'visible' : 'hidden'
     }
     if (!visible) return
+    bar.foot = foot
     this.placeBar(this.heroBar, bar, x, y)
   }
 
@@ -583,28 +628,6 @@ export class UI {
     this.frame++
     this.flushDeferred()
     if (this.cardFx && this.select.classList.contains('on')) this.cardFx.tick(dt)
-  }
-
-  setUlt(k, ready) {
-    const v = Math.max(0, Math.min(1, k))
-    const was = this.ultReady
-    this.ultReady = ready
-    if (ready !== was) this.ultBtn.classList.toggle('on', ready)
-    const shown = v.toFixed(3)
-    if (shown !== this.ultShownK) {
-      this.ultShownK = shown
-      this.ultBtn.style.setProperty('--k', shown)
-    }
-    const pct = String(Math.floor(v * 100))
-    if (pct !== this.ultShownPct) {
-      this.ultShownPct = pct
-      this.ultPct.textContent = pct
-    }
-    if (ready && !was) this.deferClass(this.ultBtn, 'charged')
-  }
-
-  fireUlt() {
-    this.replayClass(this.ultBtn, 'fire')
   }
 
   setAnima(titan, hero) {
@@ -760,59 +783,6 @@ export class UI {
     this.wavePainted = k
   }
 
-  cooldown(key, k, secs) {
-    let c = this.cooldownState[key]
-    if (!c) {
-      const el = this.hud.querySelector(`.skill[data-k="${key}"]`)
-      c = this.cooldownState[key] = { el, sweep: el && el.querySelector('.cd'), num: el && el.querySelector('.cdn'), k: 0, shownK: -1, tenths: -1, lit: false }
-    }
-    const s = c.el
-    if (!s) return
-    const prev = c.k
-    c.k = k
-    const shownK = k > 0 ? Math.round(k * SWEEP_STEPS) : 0
-    if (shownK !== c.shownK) {
-      c.shownK = shownK
-      if (c.sweep) this.drawSweep(c, shownK / SWEEP_STEPS)
-    }
-    const n = c.num
-    if (n) {
-      const lit = k > 0.01
-      if (lit !== c.lit) {
-        c.lit = lit
-        n.style.opacity = lit ? '1' : '0'
-      }
-      if (lit) {
-        const tenths = secs >= 1 ? Math.ceil(secs) * 10 : Math.round(secs * 10)
-        if (tenths !== c.tenths) {
-          c.tenths = tenths
-          n.textContent = secs >= 1 ? String(tenths / 10) : (tenths / 10).toFixed(1)
-        }
-      }
-    }
-    if (prev > 0.01 && k <= 0.01 && key !== 'attack') this.deferClass(s, 'charged')
-  }
-
-  drawSweep(c, k) {
-    const canvas = c.sweep
-    if (!c.size) {
-      const css = canvas.offsetWidth
-      if (!css) return
-      c.size = Math.ceil(css * this.hudScale * Math.min(devicePixelRatio || 1, 3))
-      canvas.width = canvas.height = c.size
-      c.ctx = canvas.getContext('2d')
-    }
-    const ctx = c.ctx
-    const r = c.size / 2
-    ctx.clearRect(0, 0, c.size, c.size)
-    if (k <= 0) return
-    ctx.beginPath()
-    ctx.moveTo(r, r)
-    ctx.arc(r, r, r, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2)
-    ctx.closePath()
-    ctx.fill()
-  }
-
   showBanner(title, sub, dur = 1.6, icon = null) {
     const t = this.banner.querySelector('.t')
     const s = this.banner.querySelector('.s')
@@ -823,8 +793,9 @@ export class UI {
     s.textContent = sub || ''
     this.banner.classList.toggle('subbed', !!sub)
     this.banner.classList.toggle('iconed', !!icon)
+    if (icon) ic.src = BANNER_ICONS[icon]
+    this.placeBanner()
     if (icon) {
-      ic.src = BANNER_ICONS[icon]
       ic.animate(
         [
           { opacity: 0, transform: 'scale(2.2)', easing: BANNER_IN },
@@ -836,14 +807,14 @@ export class UI {
       )
     }
     bk.animate(
-      [{ opacity: 0 }, { opacity: 1, offset: 0.16 }, { opacity: 1, offset: 0.82 }, { opacity: 0 }],
+      [{ opacity: 0 }, { opacity: BANNER_SHADE, offset: 0.16 }, { opacity: BANNER_SHADE, offset: 0.82 }, { opacity: 0 }],
       { duration: dur * 1000 }
     )
     const enter = Math.min(0.2, 0.32 / dur)
     const leave = 1 - Math.min(0.16, 0.3 / dur)
     t.animate(
       [
-        { opacity: 0, transform: 'scale(1.6)', filter: 'blur(8px)', easing: BANNER_IN },
+        { opacity: 0, transform: 'scale(1.3)', filter: 'blur(6px)', easing: BANNER_IN },
         { opacity: 1, transform: 'scale(1)', filter: 'blur(0px)', offset: enter },
         { opacity: 1, transform: 'scale(1.02)', filter: 'blur(0px)', offset: leave, easing: EASE_IN },
         { opacity: 0, transform: 'scale(1.1)', filter: 'blur(0px)' },
@@ -856,14 +827,144 @@ export class UI {
     )
   }
 
+  placeBanner() {
+    const b = this.banner
+    b.classList.remove('tight')
+    if (!this.heroBarState.shown) return this.setBannerSpot(view.h * BANNER_HOME, 1, 0)
+    if (this.fitBanner() || !b.classList.contains('iconed')) return
+    b.classList.add('tight')
+    this.fitBanner()
+  }
+
+  fitBanner() {
+    const b = this.banner
+    b.style.scale = ''
+    b.style.translate = ''
+    const need = b.offsetHeight
+    if (!need) return this.setBannerSpot(view.h * BANNER_HOME, 1, 0)
+    const span = this.bannerSpan()
+    const blocks = this.bannerBlocks()
+    const ceil = this.topBar.getBoundingClientRect().bottom + BANNER_GAP
+    const heroTop = this.heroBar.getBoundingClientRect().top - BANNER_GAP
+    const heroFoot = this.heroBarState.foot + BANNER_GAP
+    const floor = view.h - safeInsets().b - BANNER_GAP
+    const above = this.bannerTry(span, blocks, ceil, heroTop, need, true)
+    const below = this.bannerTry(span, blocks, heroFoot, floor, need, false)
+    const pick = above.ok || (!below.ok && above.k >= below.k) ? above : below
+    this.setBannerSpot(pick.y, pick.k, pick.dx)
+    return pick.ok
+  }
+
+  bannerTry(span, blocks, lo, hi, need, above) {
+    const k = Math.max(BANNER_MIN_SCALE, Math.min(1, (hi - lo) / need))
+    const y = above ? Math.max(lo, Math.min(view.h * BANNER_HOME, hi - need * k)) : lo + Math.max(0, hi - lo - need * k) * 0.4
+    const spot = { y, k, dx: 0, hit: this.bannerHit(blocks, span, need, y, k, 0), ok: false }
+    if (spot.hit) this.bannerNear(spot, blocks, span, need, above ? hi - need * k : lo, above)
+    if (spot.hit) this.bannerLower(spot, blocks, span, need, hi)
+    if (spot.hit) this.bannerShift(spot, blocks, span, need)
+    if (spot.hit) this.bannerSqueeze(spot, blocks, span, need)
+    spot.ok = spot.k >= BANNER_MIN_FIT && !spot.hit
+    return spot
+  }
+
+  bannerNear(spot, blocks, span, need, near, above) {
+    const hit = this.bannerHit(blocks, span, need, near, spot.k, 0)
+    if (hit && above) return
+    spot.y = near
+    spot.hit = hit
+  }
+
+  bannerLower(spot, blocks, span, need, hi) {
+    const y = Math.max(spot.y, spot.hit.bottom + BANNER_GAP)
+    const k = Math.min(spot.k, (hi - y) / need)
+    if (k < BANNER_MIN_FIT || this.bannerHit(blocks, span, need, y, k, 0)) return
+    Object.assign(spot, { y, k, hit: null })
+  }
+
+  bannerShift(spot, blocks, span, need) {
+    const mid = view.w / 2
+    const insets = safeInsets()
+    const left = mid + (span.left - mid) * spot.k
+    const right = mid + (span.right - mid) * spot.k
+    const hit = spot.hit
+    const dx = (hit.left + hit.right) / 2 < mid ? hit.right + BANNER_GAP - left : hit.left - BANNER_GAP - right
+    const inside = left + dx >= insets.l + BANNER_GAP && right + dx <= view.w - insets.r - BANNER_GAP
+    if (!inside || this.bannerHit(blocks, span, need, spot.y, spot.k, dx)) return
+    Object.assign(spot, { dx, hit: null })
+  }
+
+  bannerSqueeze(spot, blocks, span, need) {
+    const mid = view.w / 2
+    const insets = safeInsets()
+    let left = insets.l + BANNER_GAP
+    let right = view.w - insets.r - BANNER_GAP
+    for (const r of blocks) {
+      if (r.bottom <= spot.y || r.top >= spot.y + need * spot.k) continue
+      if ((r.left + r.right) / 2 < mid) left = Math.max(left, r.right + BANNER_GAP)
+      else right = Math.min(right, r.left - BANNER_GAP)
+    }
+    const k = Math.min(spot.k, (right - left) / (span.right - span.left))
+    const dx = (left + right) / 2 - (mid + ((span.left + span.right) / 2 - mid) * k)
+    if (k < BANNER_MIN_FIT || this.bannerHit(blocks, span, need, spot.y, k, dx)) return
+    Object.assign(spot, { k, dx, hit: null })
+  }
+
+  bannerHit(blocks, span, need, y, k, dx) {
+    const mid = view.w / 2
+    const left = mid + (span.left - mid) * k + dx
+    const right = mid + (span.right - mid) * k + dx
+    const bottom = y + need * k
+    for (const r of blocks) if (r.bottom > y && r.top < bottom && r.right > left && r.left < right) return r
+    return null
+  }
+
+  bannerBlocks() {
+    const blocks = []
+    for (const node of [this.lootFeed, this.stick, this.animaCard, this.skillbar]) {
+      const r = node.getBoundingClientRect()
+      if (r.width && r.height) blocks.push(r)
+    }
+    return blocks
+  }
+
+  bannerSpan() {
+    const range = this.bannerRange || (this.bannerRange = document.createRange())
+    let left = view.w
+    let right = 0
+    for (const node of this.banner.querySelectorAll('.ic, .t, .s')) {
+      range.selectNodeContents(node)
+      const r = node.tagName === 'IMG' ? node.getBoundingClientRect() : range.getBoundingClientRect()
+      if (!r.width) continue
+      left = Math.min(left, r.left)
+      right = Math.max(right, r.right)
+    }
+    return right > left ? { left, right } : { left: view.w / 2, right: view.w / 2 }
+  }
+
+  setBannerSpot(y, k, dx) {
+    this.banner.style.top = `${Math.round(y)}px`
+    this.banner.style.scale = k < 1 ? k.toFixed(3) : ''
+    this.banner.style.translate = dx ? `${Math.round(dx)}px 0` : ''
+  }
+
   openGear(gear, intro) {
+    clearTimeout(this.settleTimer)
+    this.root.classList.remove('settling')
     this.gearRing.open(gear, intro)
     this.hud.classList.add('gearmode')
+    this.root.classList.add('gearing')
   }
 
   closeGear() {
     this.gearRing.close()
     this.hud.classList.remove('gearmode')
+    this.root.classList.remove('gearing')
+    this.root.classList.add('settling')
+    clearTimeout(this.settleTimer)
+    this.settleTimer = setTimeout(() => {
+      this.root.classList.remove('settling')
+      if (this.banner.querySelector('.t').getAnimations().length) this.placeBanner()
+    }, GEAR_SETTLE_MS)
   }
 
   showPowerGain(from, to) {

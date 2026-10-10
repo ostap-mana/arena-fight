@@ -84,12 +84,24 @@ async function pump() {
   pumping = false
 }
 
-export async function prewarmObject(target, object, camera, scene, renderTarget = null) {
+export async function prewarmObject(target, object, camera, scene, renderTarget = null, pause = null) {
   const stage = new THREE.Group()
   const parent = object.parent
   stage.add(object)
-  await compileFor(target, stage, camera, renderTarget, scene)
+  if (pause) await compileEach(target, object, camera, renderTarget, scene, pause)
+  else await compileFor(target, stage, camera, renderTarget, scene)
   stage.remove(object)
   if (parent) parent.add(object)
   uploadTextures(target, texturesOf(object))
+}
+
+async function compileEach(target, object, camera, renderTarget, scene, pause) {
+  const drawables = []
+  object.traverse(o => {
+    if (o.isMesh || o.isPoints || o.isLine || o.isSprite) drawables.push(o)
+  })
+  for (const o of drawables) {
+    await pause()
+    await compileFor(target, o, camera, renderTarget, scene)
+  }
 }

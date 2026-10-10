@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { safeFragment } from './safe-shader.js'
 import { Flipbooks } from './flipbook.js'
 import { stream } from '../core/rng.js'
 import { LOW_TIER } from '../core/tier.js'
@@ -116,7 +117,7 @@ const WARN_FS = `
       inside *= mix(0.14, 0.5, step(1.0 - vUv.y, uFill));
     } else {
       float r = length(p);
-      float ang = atan(abs(p.x), -p.y);
+      float ang = r > 1e-4 ? atan(abs(p.x), -p.y) : 0.0;
       inside = (1.0 - smoothstep(uArc - 0.015, uArc, ang)) * (1.0 - smoothstep(0.985, 1.0, r));
       edge = (1.0 - r) * uSize.x;
       if (uArc < 3.1) edge = min(edge, (uArc - ang) * r * uSize.x);
@@ -257,7 +258,7 @@ const PILLAR_FS = `
     float n = texture2D(uTex, vec2(vUv.x * 0.6 + uSeed, y * 0.6 - uAge * 1.8)).r;
     float n2 = texture2D(uTex, vec2(vUv.x * 0.45 + uSeed + 0.5, y * 0.35 - uAge * 1.1)).r;
     float k = (side * (0.1 + 0.8 * n + 0.5 * n2) * 0.8 + core * 0.55) * vert * uAlpha;
-    vec3 col = uColor * k * 1.5 + vec3(core * vert * uAlpha * 0.2);
+    vec3 col = uColor * k * 0.85 + vec3(core * vert * uAlpha * 0.2);
     gl_FragColor = vec4(col, 1.0);
   }`
 
@@ -341,7 +342,7 @@ function glowMaterial(vertexShader, fragmentShader, uniforms, extra) {
   return new THREE.ShaderMaterial({
     uniforms,
     vertexShader,
-    fragmentShader,
+    fragmentShader: safeFragment(fragmentShader),
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -364,8 +365,6 @@ export class FX {
     this.smoke = T('T_FX_Smoke_3_1', false)
     this.trail = tiled(T('T_FX_Trail_1_1', false))
     this.crack = T('T_FX_Cracked_Glow_1_1')
-    this.bullet = T('T_FX_Obj_Bullet_1_1')
-    this.shape = T('T_FX_Shape_5_1')
     this.noise = tiled(T('T_FX_Noise_45_1', false))
     this.streaks = tiled(T('T_FX_Noise_2_1', false))
     this.cloud = tiled(T('T_FX_Noise_20_1', false))
@@ -501,7 +500,7 @@ export class FX {
           gl_PointSize = size * uScale / max(0.001, -mv.z);
           gl_Position = projectionMatrix * mv;
         }`,
-      fragmentShader: `
+      fragmentShader: safeFragment(`
         varying vec3 vC;
         void main() {
           vec2 p = gl_PointCoord * 2.0 - 1.0;
@@ -509,7 +508,7 @@ export class FX {
           if (d >= 1.0) discard;
           float a = exp(-d * 3.5) * (1.0 - d);
           gl_FragColor = vec4(vC * a * 1.6 + vec3(a * a * a) * 0.55, 1.0);
-        }`,
+        }`),
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -675,6 +674,10 @@ export class FX {
     if (item && item.t < item.windup) item.t = item.windup
   }
 
+  dropWarn(item) {
+    if (item) item.t = item.life
+  }
+
   book(name, o) {
     return this.books.has(name) ? this.books.spawn(name, o) : null
   }
@@ -698,11 +701,6 @@ export class FX {
     else this.puff(x, 0.7, z, 2.4, 0x5a2a6a, 0.8)
     this.spark(x, 0.8, z, 26, 0xa050ff, 7)
     if (boss) this.shock(x, z, 16, 0xff5050, 1.2)
-  }
-
-  dashDust(x, z, dx, dz) {
-    const dust = this.book('smoke_puff', { x: x - dx * 0.5, y: 0, z: z - dz * 0.5, size: 2.1, color: 0xd8c8b8, billboard: 'up', rot: 0, speed: 1.6, alpha: 0.75 })
-    if (!dust) this.puff(x, 0.35, z, 2.2, 0x9fd0ff, 0.5)
   }
 
   morphBurst(x, z, color) {

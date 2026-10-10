@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { safeFragment } from './safe-shader.js'
 
 const WIDTH = 0.92
 const ARROW_LEN = WIDTH * 2
@@ -66,7 +67,7 @@ export class GuideLine {
     this.mesh = new THREE.Mesh(stripGeometry(), new THREE.ShaderMaterial({
       uniforms: this.uniforms,
       vertexShader: VS,
-      fragmentShader: FS,
+      fragmentShader: safeFragment(FS),
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,

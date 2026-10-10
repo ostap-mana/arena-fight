@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { safeFragment } from './safe-shader.js'
 import gsap from 'gsap'
 import { T, tiled, paletteFor } from './fx.js'
 import { Flipbooks } from './flipbook.js'
@@ -85,7 +86,8 @@ const CIRCLE_FS = `
     return vec2(c * p.x - s * p.y, s * p.x + c * p.y) / scale * 0.5 + 0.5;
   }
   float comets(vec2 p, float r, float turn, float t) {
-    float band = exp(-pow((r - ORBIT_R) / 0.02, 2.0));
+    float orbit = (r - ORBIT_R) / 0.02;
+    float band = exp(-orbit * orbit);
     float sum = 0.0;
     for (int i = 0; i < 3; i++) {
       float head = fract(t * 0.14 + float(i) / 3.0);
@@ -101,9 +103,9 @@ const CIRCLE_FS = `
     float r = length(p);
     if (r > 1.0) discard;
     float t = uTime;
-    float ang = atan(p.y, p.x);
+    float ang = r > 1e-4 ? atan(p.y, p.x) : 0.0;
     float turn = ang / TAU + 0.5;
-    float front = abs(atan(p.x, -p.y)) / 3.14159265;
+    float front = r > 1e-4 ? abs(atan(p.x, -p.y)) / 3.14159265 : 0.0;
     float idle = (1.0 - uOn) * uIdle;
     float open = mix(0.8, 1.0, uOn);
     float sweep = uReveal * 1.08;
@@ -111,8 +113,8 @@ const CIRCLE_FS = `
     float edge = exp(-abs(front + 0.04 - sweep) * 28.0) * smoothstep(1.0, 0.8, uReveal);
     float lit = uOn * drawn;
 
-    float glint = pow(0.5 + 0.5 * cos((turn - t * 0.09) * TAU), 10.0);
-    float glint2 = pow(0.5 + 0.5 * cos((turn + t * 0.13 + 0.5) * TAU), 14.0);
+    float glint = pow(max(0.5 + 0.5 * cos((turn - t * 0.09) * TAU), 0.0), 10.0);
+    float glint2 = pow(max(0.5 + 0.5 * cos((turn + t * 0.13 + 0.5) * TAU), 0.0), 14.0);
 
     vec2 runeUv = spin(p, t * 0.07, 0.78 * open);
     vec2 sealUv = spin(p, -t * 0.12, 0.56 * open);
@@ -124,7 +126,7 @@ const CIRCLE_FS = `
     float glow = texture2D(uGlow, vUv).r;
     float pulseT = fract(t / PULSE_PERIOD);
     float pulse = texture2D(uRing, spin(p, 0.0, mix(0.42, 1.02, pulseT))).r * pow(1.0 - pulseT, 2.0) * smoothstep(0.0, 0.08, pulseT);
-    float shock = texture2D(uRing, spin(p, 0.0, mix(0.35, 1.0, uShock))).r * pow(1.0 - uShock, 2.0);
+    float shock = texture2D(uRing, spin(p, 0.0, mix(0.35, 1.0, uShock))).r * pow(max(1.0 - uShock, 0.0), 2.0);
     float fill = smoothstep(0.15, 0.78, r) * smoothstep(0.84, 0.74, r);
 
     float line = runes * (0.14 * idle + lit * (1.0 + 1.4 * glint))
@@ -168,7 +170,7 @@ const WALL_FS = `
     float streak = texture2D(uNoise, vec2(vUv.x * 9.0, h * 0.35 - uTime * 0.45)).r;
     float streak2 = texture2D(uNoise, vec2(vUv.x * 17.0 + 0.3, h * 0.6 - uTime * 0.8)).r;
     float rise = streak * streak2 * 2.2;
-    float fade = pow(1.0 - h, 2.2);
+    float fade = pow(max(1.0 - h, 0.0), 2.2);
     float base = exp(-h * 14.0);
     float k = (fade * (0.28 + rise * 1.3) + base * 0.9 + uFlash * fade * 1.8) * uOn * drawn;
     vec3 col = 1.0 - exp(-uColor * k * 2.0);
@@ -179,7 +181,7 @@ function additive(vertexShader, fragmentShader, uniforms, extra) {
   return new THREE.ShaderMaterial({
     uniforms,
     vertexShader,
-    fragmentShader,
+    fragmentShader: safeFragment(fragmentShader),
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -266,7 +268,7 @@ export class Showcase {
     const contact = new THREE.Mesh(floorGeo, new THREE.ShaderMaterial({
       uniforms: { uMap: { value: this.contact }, uAlpha: { value: 0.6 } },
       vertexShader: FLOOR_VS,
-      fragmentShader: CONTACT_FS,
+      fragmentShader: safeFragment(CONTACT_FS),
       transparent: true,
       depthWrite: false,
     }))

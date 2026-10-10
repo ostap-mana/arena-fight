@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>window.__BUILD={"buildId":"21cddf367e63","commit":"6f61b84","tuneHash":"2244","at":"2026-10-04T21:01:10.663Z"};</script>
+    <script>window.__CREATIVE={"id":"invokers-arena-fight","title":"Invokers Arena Fight","orientation":"portrait","emits":["displayed","started","progress","failed","retry","solved","endcard","cta"],"hooks":{"start":"sdk|auto","seed":"__SEED","step":"playdata.step","state":"__STATE","states":{"victory":"KeyV","defeat":"KeyD","restart":"KeyR"}},"cta":{"ios":"https://apps.apple.com/app/id6755186220","android":"https://play.google.com/store/apps/details?id=hitzone.anima.spirit.guardians","targets":[{"where":"solved","selector":"#outcome .control"}]}};</script>
+    <script>
+      window.__BOOT = { marks: [['shell', Math.round(performance.now())]] };
+      (function () {
+        var listeners = [];
+        var running = false;
+        var paused = false;
+        var volume = null;
+        var game = null;
+
+        function hosted() { return listeners.length > 0; }
+
+        function emit(name, data) {
+          for (var i = 0; i < listeners.length; i++) {
+            try { listeners[i](name, data); } catch (e) { continue; }
+          }
+        }
+
+        function call(name, arg) {
+          if (!game || typeof game[name] !== 'function') return;
+          try { game[name](arg); } catch (e) { return; }
+        }
+
+        function begin() {
+          call('start');
+          if (paused) call('pause');
+          emit('displayed');
+          emit('started');
+        }
+
+        window.__PLAYABLE = {
+          on: function (fn) { if (typeof fn === 'function') listeners.push(fn); },
+
+          start: function () {
+            if (running) return;
+            running = true;
+            paused = false;
+            if (game) begin();
+          },
+
+          pause: function () {
+            paused = true;
+            if (running) call('pause');
+          },
+
+          resume: function () {
+            paused = false;
+            if (running) call('resume');
+          },
+
+          setAudio: function (on) {
+            volume = !!on;
+            call('audio', volume);
+          },
+
+          openStore: function () {},
+
+          ctaRects: function () { return []; },
+
+          emit: emit,
+          hosted: hosted,
+        };
+
+        window.__INVOKERS_LINK = {
+          emit: emit,
+          hosted: hosted,
+
+          running: function () { return running; },
+
+          wire: function (impl) {
+            game = impl;
+            if (volume !== null) call('audio', volume);
+            if (running) begin();
+            else if (hosted()) call('hold');
+          },
+        };
+
+        setTimeout(function () {
+          if (!hosted()) window.__PLAYABLE.start();
+        }, 1500);
+      }());
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#050914" />
+    <title>INVOKERS — Titan Legacy</title>
+    <style>html,body{color:#fff;background:#05070f;height:100%;margin:0;padding:0;overflow:hidden}#app{position:fixed;top:0;bottom:0;left:0;right:0}#stage{width:100%;height:100%;display:block;position:absolute;top:0;bottom:0;left:0;right:0}#ui{pointer-events:none;position:absolute;top:0;bottom:0;left:0;right:0;overflow:hidden}#ui>*{pointer-events:auto}#ui.booting>:not(#boot){display:none!important}#boot{z-index:90;background:#000;place-items:center;transition:opacity .5s;display:grid;position:absolute;top:0;bottom:0;left:0;right:0}#boot .logo{aspect-ratio:512/127;width:clamp(220px,22vw,420px);animation:1.1s cubic-bezier(.2,.7,.2,1) both logoin;position:relative}#boot .logo img{pointer-events:none;-webkit-user-drag:none;display:block;position:absolute}#boot .logo .base{width:100%;height:100%;top:0;bottom:0;left:0;right:0}#boot .logo .ring{aspect-ratio:1;will-change:transform;width:17.5781%;animation:1.5s linear infinite bootspin;top:-.7874%;left:35.9375%}#boot .foot{place-items:center;width:60%;height:16px;display:grid;position:absolute;top:calc(100% + clamp(26px,5vh,44px));left:50%;transform:translate(-50%)}#boot .bar{background:#ffffff1a;width:100%;height:1px;transition:opacity .4s;overflow:hidden}#boot .bar>i{transform-origin:0;background:#ffffffb3;height:100%;transition:transform .3s ease-out;display:block;transform:scaleX(0)}@keyframes logoin{0%{opacity:.01;transform:scale(.96)}to{opacity:1;transform:none}}@keyframes bootspin{to{transform:rotate(360deg)}}</style>
+    <script type="module" crossorigin src="./assets/index-Yv-lHUo_.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-xrqUuHuU.css">
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="stage"></canvas>
+      <div id="ui" class="booting">
+        <div id="boot">
+          <div class="logo">
+            <img class="base" src="assets/img/logo_base.webp" alt="INVOKERS — Titan Legacy" draggable="false" fetchpriority="high">
+            <img class="ring" src="assets/img/logo_ring.webp" alt="" draggable="false" fetchpriority="high">
+            <div class="foot">
+              <div class="bar"><i></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>(function shelf(data) {
+	var coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+	var arena = data.arenas[new URLSearchParams(location.search).get("loc")] || data.arenas[data.fallback];
+	var list = data.json.map(function(url) {
+		return [url, 0];
+	});
+	if (arena) list.push(arena);
+	data.lobby.forEach(function(pair) {
+		list.push(pair[coarse ? 1 : 0]);
+	});
+	var jobs = {};
+	var all = [];
+	var total = 0;
+	function wait(ms) {
+		return new Promise(function(done) {
+			setTimeout(done, ms);
+		});
+	}
+	function read(response, job) {
+		if (!response.body || !response.body.getReader) return response.arrayBuffer().then(function(buffer) {
+			job.got = job.size;
+			return buffer;
+		});
+		var reader = response.body.getReader();
+		var parts = [];
+		var length = 0;
+		function pump() {
+			return reader.read().then(function(step) {
+				if (step.done) {
+					var out = new Uint8Array(length);
+					var at = 0;
+					parts.forEach(function(part) {
+						out.set(part, at);
+						at += part.length;
+					});
+					job.got = job.size;
+					return out.buffer;
+				}
+				parts.push(step.value);
+				length += step.value.length;
+				job.got = Math.min(job.size, length);
+				return pump();
+			});
+		}
+		return pump();
+	}
+	function attempt(url, job, tries) {
+		job.got = 0;
+		return fetch(url, { credentials: "same-origin" }).then(function(response) {
+			if (!response.ok) throw new Error(url + ": HTTP " + response.status);
+			return read(response, job);
+		}).catch(function(error) {
+			if (tries >= 2) throw error;
+			return wait(400 * (tries + 1)).then(function() {
+				return attempt(url, job, tries + 1);
+			});
+		});
+	}
+	var queue = Promise.resolve();
+	list.forEach(function(entry) {
+		var job = {
+			size: entry[1],
+			got: 0
+		};
+		total += job.size;
+		if (job.size) {
+			job.done = queue.then(function() {
+				return attempt(entry[0], job, 0);
+			});
+			queue = job.done.catch(function() {});
+		} else job.done = attempt(entry[0], job, 0);
+		job.done.catch(function() {});
+		jobs[entry[0]] = job;
+		all.push(job);
+	});
+	window.__PREFETCH = {
+		take: function(url) {
+			var job = jobs[url];
+			delete jobs[url];
+			return job ? job.done : null;
+		},
+		progress: function() {
+			var got = 0;
+			all.forEach(function(job) {
+				got += job.got;
+			});
+			return total ? Math.min(1, got / total) : 1;
+		}
+	};
+})({"arenas":{"fire":["assets/locations/spire_fire.glb",1965552],"water":["assets/locations/spire_water.glb",1614056],"earth":["assets/locations/spire_earth.glb",1564108],"wind":["assets/locations/spire_wind.glb",1163156],"light":["assets/locations/spire_light.glb",1712760],"dark":["assets/locations/spire_dark.glb",1370428]},"fallback":"fire","lobby":[[["assets/glb/mag018_lob.glb",2388604],["assets/glb/mag018_lob_m.glb",2388604]],[["assets/glb/eld037_lob.glb",4135560],["assets/glb/eld037_lob_m.glb",2981008]],[["assets/glb/eld025_lob.glb",2966712],["assets/glb/eld025_lob_m.glb",2966712]]],"json":["assets/locations/index.json","assets/locations/lighting.json"]})</script>
+  </body>
+</html>

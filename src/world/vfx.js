@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { safeFragment } from './safe-shader.js'
 import { uploadTextures } from '../core/prewarm.js'
 import { LOW_TIER } from '../core/tier.js'
 import { stream } from '../core/rng.js'
@@ -312,7 +313,8 @@ const SHARED_VS = `
       #ifdef USE_INSTANCING
         nm = nm * mat3(instanceMatrix);
       #endif
-      vec3 n = normalize(nm * normal);
+      vec3 nn = nm * normal;
+      vec3 n = nn * inversesqrt(max(dot(nn, nn), 1e-12));
       vec3 v = normalize(cameraPosition - wp.xyz);
       float f = pow(max(1.0 - abs(dot(n, v)), 0.0), max(uFMMP.x, 6.1e-5));
       f = clamp(uAMDS.w * f + uAMDS.z, 0.0, 1.0);
@@ -702,7 +704,7 @@ function buildMaterial(lib, m) {
     uniforms,
     defines,
     vertexShader: SHARED_VS,
-    fragmentShader: fs,
+    fragmentShader: safeFragment(fs),
     transparent: true,
     depthWrite: false,
     depthTest: !(num(m, '_ZTestAlwaysToggle', 0) > 0.5 || num(m, '_ZTest', 4) === 8),
@@ -769,7 +771,7 @@ export function meshVfxMaterial(m, map) {
     },
     defines,
     vertexShader: SKINNED_MAINTEX_VS,
-    fragmentShader: MAINTEX_FS,
+    fragmentShader: safeFragment(MAINTEX_FS),
     transparent: true,
     depthWrite: false,
     vertexColors: true,
@@ -2188,6 +2190,16 @@ class Instance {
     for (let i = 0; i < ribbons.length; i++) ribbons[i].step(dt)
   }
 
+  drawables() {
+    const out = []
+    for (const e of this.emitters) {
+      if (e.mesh) out.push(e.mesh)
+      if (e.trails && e.trails.mesh) out.push(e.trails.mesh)
+    }
+    for (const r of this.ribbons) if (r.mesh) out.push(r.mesh)
+    return out
+  }
+
   dispose() {
     for (const e of this.emitters) e.dispose()
     for (const r of this.ribbons) r.dispose()
@@ -2217,6 +2229,8 @@ function prefabMaterials(lib, name) {
 
 const WARM_SLICE_MS = 6
 const WARM_BATCH = 24
+const WARM_GENTLE_BATCH = 1
+const WARM_HIDDEN = new THREE.Vector3(0, -40, 0)
 
 function uploadMaterialTextures(renderer, materials) {
   const textures = new Set()
@@ -2339,10 +2353,11 @@ export class Vfx {
     uploadMaterialTextures(renderer, upload)
     const geo = quadGeometry()
     const list = [...mats]
-    for (let i = 0; i < list.length; i += WARM_BATCH) {
+    const batch = pause ? WARM_GENTLE_BATCH : WARM_BATCH
+    for (let i = 0; i < list.length; i += batch) {
       if (pause && i) await pause()
       const probe = new THREE.Group()
-      for (const m of list.slice(i, i + WARM_BATCH)) {
+      for (const m of list.slice(i, i + batch)) {
         const mesh = new THREE.Mesh(geo, m)
         mesh.frustumCulled = false
         probe.add(mesh)
@@ -2365,6 +2380,21 @@ export class Vfx {
           o.dispose()
         }
       })
+    }
+  }
+
+  async warmSpawned(renderer, camera, id, names, { target = null, scene = null, focus = null, pause }) {
+    const lib = this.libs.get(id)
+    if (!lib) return
+    for (const name of names) {
+      if (!lib.has(name)) continue
+      const inst = new Instance(this, lib, name, { pos: WARM_HIDDEN, scale: 0.001, focus })
+      for (const o of inst.drawables()) {
+        o.visible = false
+        await pause()
+        await compileFor(renderer, o, camera, target, scene)
+      }
+      inst.dispose()
     }
   }
 

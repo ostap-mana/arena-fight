@@ -1,5 +1,6 @@
 const WINDOW = 1.5
 const SLOW_FRAME = 1 / 50
+const LAGGING_FRAME = 1 / 40
 const HEALTHY_FRAME = 1 / 57
 const CPU_BOUND = 0.5
 const DOWN = 0.85
@@ -52,11 +53,12 @@ export class ResolutionGovernor {
     const frame = median(this.samples)
     const busy = median(this.work) / 1000 / frame
     const stalled = longTasks !== this.longTasks
+    const lagging = frame > LAGGING_FRAME
     this.reset()
-    if (stalled) return null
+    if (stalled && !lagging) return null
     if (frame > SLOW_FRAME) {
       this.calm = 0
-      if (busy >= CPU_BOUND || this.ratio <= this.min) return null
+      if ((busy >= CPU_BOUND && !lagging) || this.ratio <= this.min) return null
       this.raiseWait = Math.min(RAISE_WAIT_MAX, this.raiseWait * 2)
       return this.set(Math.max(this.min, this.ratio * DOWN))
     }

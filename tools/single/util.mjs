@@ -38,7 +38,7 @@ export function cached(key, ext, make) {
 export function encodeImages(jobs) {
   const todo = []
   const results = jobs.map(job => {
-    const key = hash('img6', job.data, { ...job, data: undefined })
+    const key = hash('img7', job.data, { ...job, data: undefined })
     const out = path.join(CACHE, `${key}.img`)
     if (!fs.existsSync(out) && !todo.some(t => t.out === out)) {
       const src = path.join(CACHE, `${key}.src`)

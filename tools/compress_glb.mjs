@@ -23,6 +23,7 @@ const PROFILES = [
   [/^(eld037|mag018|eld025)\.glb$/, { ...CHARACTER, ...BATTLE_MAPS, dropClips: /^(Shock|Freeze|Walk|Skill_3_PreCast|Skill_3_EndCast)$/ }],
   [/^anim\w+\.glb$/, { ...CHARACTER, ...BATTLE_MAPS, dropClips: /LOB$|^Girl_anim$|^FX_A_/ }],
   [/^dem\d+\.glb$/, { ...CHARACTER, ...BATTLE_MAPS, rotationBits: 12, color: { max: 512, quality: 90 }, keepClips: /^(Idle|Run|ComboAttack_\d+|Flinch|Death(_\d+)?)$/ }],
+  [/^gia\d+\.glb$/, { ...CHARACTER, ...BATTLE_MAPS, rotationBits: 12, color: { max: 512, quality: 90 }, keepClips: /^(Idle|Run|ComboAttack_1|Death|Skill_1_(PreCast|Cast|EndCast))$/ }],
   [/^sakiel\.glb$/, { ...CHARACTER, ...BATTLE_MAPS, dropClips: /LOB$|^IdleBreak|^IdleIn$|^Walk$/ }],
   [/^sakiel_wings\.glb$/, { ...CHARACTER, ...BATTLE_MAPS, pruneJoints: false, dropRest: false }],
   [/^fx_\w+\.glb$/, { ...CHARACTER }],

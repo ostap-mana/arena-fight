@@ -44,10 +44,11 @@ def encode_image(data, role, profile):
         img = Image.new("RGB", (4, 4), FLAT_NORMAL)
     elif max(img.size) > side:
         k = side / max(img.size)
-        img = img.resize((max(4, round(img.width * k)), max(4, round(img.height * k))), Image.LANCZOS)
+        size = (max(4, round(img.width * k)), max(4, round(img.height * k)))
+        img = Image.merge(img.mode, [band.resize(size, Image.LANCZOS) for band in img.split()]) if img.mode == "RGBA" else img.resize(size, Image.LANCZOS)
     buf = io.BytesIO()
     quality = profile["normal_quality"] if role == "normal" else profile["quality"]
-    img.save(buf, "WEBP", quality=quality, alpha_quality=profile["alpha_quality"], method=6)
+    img.save(buf, "WEBP", quality=quality, alpha_quality=profile["alpha_quality"], method=6, exact=alpha)
     return buf.getvalue()
 
 

@@ -154,12 +154,12 @@ export class CardBorderFx {
         this.box = { w: r.width, h: r.height }
       }).observe(this.canvas)
     }
-    const gl = this.canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false })
-    this.gl = gl
-    if (!gl) return
+    this.gl = null
     loadManifest().then(m => {
       const def = m[BOOK]
-      if (def) this.load(def)
+      if (!def) return
+      this.gl = this.canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false })
+      if (this.gl) this.load(def)
     })
   }
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { Effect, EffectAttribute } from 'postprocessing'
+import { Effect, EffectAttribute, BlendFunction } from 'postprocessing'
 
 const LUMA = `
   float luma(vec3 c) {
@@ -49,11 +49,25 @@ const GRADE_FS = `
     l = luma(c);
     c = max(mix(vec3(l), c, 1.0 + uVibrance * (1.0 - chroma)), 0.0);
 
-    float tone = smoothstep(0.0, 0.7, sqrt(l));
+    float tone = smoothstep(0.0, 0.7, sqrt(max(l, 0.0)));
     c *= mix(uShadowTint, uHighlightTint, tone);
     outputColor = vec4(mix(inputColor.rgb, c, uMix), inputColor.a);
   }
 `
+
+const SANITIZE_FS = `
+  void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+    uvec4 bits = floatBitsToUint(inputColor);
+    bvec4 broken = bvec4(uvec4(equal(bits & uvec4(0x7f800000u), uvec4(0x7f800000u))) * uvec4(notEqual(bits & uvec4(0x007fffffu), uvec4(0u))));
+    outputColor = clamp(mix(inputColor, vec4(0.0, 0.0, 0.0, 1.0), broken), 0.0, 1.0);
+  }
+`
+
+export class SanitizeEffect extends Effect {
+  constructor() {
+    super('SanitizeEffect', SANITIZE_FS, { blendFunction: BlendFunction.SRC })
+  }
+}
 
 export class FocusSharpenEffect extends Effect {
   constructor({ amount = 0.8, range = 3, limit = 0.05 } = {}) {

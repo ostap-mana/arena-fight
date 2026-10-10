@@ -652,7 +652,7 @@ function textureRoles(json) {
 export function imageJob(data, role, profile, name = '') {
   const rule = (profile.imageRules || []).find(([pattern]) => pattern.test(name))
   const over = rule ? rule[1] : {}
-  const base = { data, format: profile.format || 'webp', alpha_quality: profile.alphaQuality }
+  const base = { data, format: profile.format || 'webp', alpha_quality: profile.alphaQuality, alpha_floor: over.alphaFloor ?? profile.alphaFloor ?? 0, opaque: !!over.opaque }
   if (role === 'normal') {
     const max = over.normalMax ?? profile.normalMax
     if (!max) return { data, flat_normal: true, max: 4, format: 'webp', quality: 90 }

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { safeFragment } from './safe-shader.js'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
 import { loadModelData } from '../core/model.js'
 import { CHAIN_FADE } from '../core/rig.js'
@@ -136,7 +137,7 @@ function rimMaterial(spec) {
       uRimScale: { value: spec.floats._RimScale ?? 2 },
     },
     vertexShader: RIM_VS,
-    fragmentShader: RIM_FS,
+    fragmentShader: safeFragment(RIM_FS),
   })
 }
 
@@ -171,6 +172,8 @@ export class HeroFx {
     this.links = []
     this.timers = []
     this.skinMutes = new Map()
+    this.lobbyMutes = new Map()
+    this.castMutes = new Map()
     this.lobbyFocus = new Map()
     this.onSpawn = null
     this.models = []
@@ -571,6 +574,8 @@ export class HeroFx {
   }
 
   spawn(id, name, opts) {
+    const cast = !opts.mute && this.castMutes.get(id)
+    if (cast && cast.has(name)) opts.mute = cast.get(name)
     const inst = this.vfx.spawn(id, name, opts)
     if (inst && this.onSpawn) this.onSpawn(name, opts.pos)
     return inst
@@ -578,6 +583,21 @@ export class HeroFx {
 
   muteSkin(id, names) {
     this.skinMutes.set(id, new Set(names))
+  }
+
+  muteCast(id, byPrefab) {
+    this.castMutes.set(id, new Map(Object.entries(byPrefab).map(([prefab, names]) => [prefab, new Set(names)])))
+  }
+
+  muteLobby(id, names) {
+    this.lobbyMutes.set(id, new Set(names))
+  }
+
+  skinMute(id, lobby) {
+    const skin = this.skinMutes.get(id)
+    const extra = lobby ? this.lobbyMutes.get(id) : null
+    if (!extra) return skin || null
+    return skin ? new Set([...skin, ...extra]) : extra
   }
 
   focusLobby(id, names) {
@@ -676,7 +696,7 @@ export class HeroFx {
         quat: socket.getWorldQuaternion(new THREE.Quaternion()),
         scale: actor.scale,
         lifetime: Infinity,
-        mute: this.skinMutes.get(id) || null,
+        mute: this.skinMute(id, lobby),
         focus: lobby ? this.lobbyFocus.get(id) || null : null,
         camera: this.camera,
       })
@@ -703,13 +723,14 @@ export class HeroFx {
       quat: socket.getWorldQuaternion(new THREE.Quaternion()),
       scale: actor.scale,
       lifetime,
+      mute: this.lobbyMutes.get(id) || null,
       focus: this.lobbyFocus.get(id) || null,
       camera: this.camera,
     })
   }
 
-  spawnAt(id, name, pos, yaw, scale, lifetime = 3) {
-    return this.spawn(id, name, { pos, quat: yawQuat(yaw), scale, lifetime, camera: this.camera })
+  spawnAt(id, name, pos, yaw, scale, lifetime = 3, mute = null) {
+    return this.spawn(id, name, { pos, quat: yawQuat(yaw), scale, lifetime, camera: this.camera, mute })
   }
 
   fly(id, name, caster, target, opts) {

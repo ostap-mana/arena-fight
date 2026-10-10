@@ -5,10 +5,10 @@ import gsap from 'gsap'
 import { HEROES, TITANS, ENEMIES, WAVES } from '../data/heroes.js'
 import { loadModelData, loadWingedModel, prefetchModel, buildModel, castBodyShadow, texturesReady, landingTime, strideSpeed } from './model.js'
 import { Actor } from '../entities/actor.js'
-import { buildArena, ARENA_RADIUS } from '../world/arena.js'
+import { buildArena, aimArenaCut, ARENA_RADIUS } from '../world/arena.js'
 import { FX } from '../world/fx.js'
 import { Showcase } from '../world/showcase.js'
-import { LobbyGradeEffect, FocusSharpenEffect } from '../world/lobby-post.js'
+import { LobbyGradeEffect, FocusSharpenEffect, SanitizeEffect } from '../world/lobby-post.js'
 import { Vfx } from '../world/vfx.js'
 import { HeroFx, prefabRole } from '../world/hero-fx.js'
 import { loadCharacterLighting, tickCharacters, setLobbyView, CHARACTER_LIGHT, LOBBY_LIGHT, SHADOW_MODE } from '../world/character-shader.js'
@@ -22,13 +22,13 @@ import { Gear } from './gear.js'
 import { BUILDS, POWER_GOAL } from '../data/builds.js'
 import { UI } from '../ui/ui.js'
 import { FloatText } from '../ui/float-text.js'
-import { GEAR_TOP } from '../ui/gear-ring.js'
+import { GEAR_TOP, ringHeroFit } from '../ui/gear-ring.js'
 import { stream, seed } from './rng.js'
 import { wireBus, sayOnce, sayProgress, openStore, stepDoor, tellState, bootMark } from '../net/bus.js'
 import { prefetchProgress } from './fetch.js'
 import { compileFor } from './compile.js'
 import { ResolutionGovernor } from './governor.js'
-import { view } from './viewport.js'
+import { view, safeInsets } from './viewport.js'
 import { COARSE, FORCED_QUALITY, PERF_HUD } from './tier.js'
 import { PerfHud } from '../ui/perf-hud.js'
 import { prewarmObject, texturesOf, uploadTexturesNow } from './prewarm.js'
@@ -36,21 +36,21 @@ import { prewarmObject, texturesOf, uploadTexturesNow } from './prewarm.js'
 const random = stream('sim')
 
 const SKILL_SLOT = { s1: 0, s2: 1 }
-const GESTURE_HINT_DELAY = 1.2
+const FIRST_WAVE_BANNER = 3.2
+const GESTURE_HINT_DELAY = FIRST_WAVE_BANNER
 const MOVE_HINT_TIME = 9
-const SKILL_HINT_DELAY = 0.6
-const SKILL_HINT_TIME = 7
-const ATTACK_HINT_DELAY = 0.4
-const ATTACK_HINT_TIME = 8
-const ATTACK_KEYS = ['Space', 'KeyJ']
-const ULT_HINT_TIME = 5
+const AUTO_SKILLS = ['s1', 's2']
+const AUTO_ATTACK_SLACK = 0.6
+const AUTO_SKILL_SLACK = 0.5
+const AUTO_ULT_SHARE = 0.6
+const _near = { e: null, d: 0 }
 const GEAR_HINT_TIME = 4
 const GEAR_OPEN_DELAY = 2.3
 const SHIELD_CLOSE_DELAY = 0.9
 const MORPH_SWAP = 0.45
 const MORPH_CAMERA = 1.5
 const SPAWN_RING = [7.5, 11]
-const BLOOM_BASE = 0.55
+const BLOOM_BASE = 0.45
 const BLOOM_THRESHOLD = 0.9
 const BATTLE_POST = {
   saturation: 0.12,
@@ -86,6 +86,7 @@ const BATTLE_MAX_VFOV = 62
 const BATTLE_LOOK_Y = 0.6
 const TITAN_ZOOM_OUT = 1.2
 const TITAN_CHARGE_TIME = 15
+const TITAN_AUTO_DELAY = 1.2
 const BOSS_SPAWN_DIST = 9
 const BOSS_CAST_GAP = 1.4
 const BOSS_RECOVER = 0.35
@@ -93,6 +94,14 @@ const BOSS_CAST_OVERRUN = 1.5
 const BOSS_MIN_CAST_SPEED = 0.45
 const BOSS_CHARGE_OVERSHOOT = 3
 const BOSS_DASH_TIME = 0.32
+const BOSS_HIT_SOUND = { lostSword: 'explosion_vfx_3', demonVein: 'explosion_vfx_8', fallenBlades: 'explosion_vfx_2', stolenWings: 'dash' }
+const BOSS_ENTRANCE_PAUSE = 1
+const THAW_FRAMES = 3
+const LEAP_LIFT = 0.92
+const LEAP_AIR_CLIP = 'Skill_1_Cast'
+const LEAP_LAND_CLIP = 'Skill_1_EndCast'
+const LEAP_EDGE = 1.5
+const INTRO_VOICE_LATE = 0.3
 const LOOT_SHOWCASE = 1.4
 const LOOT_VICTORY_WAIT = 4.5
 const RUN_RATE = [0.6, 1.8]
@@ -103,7 +112,8 @@ const LOOT_WARM_AT = new THREE.Vector3(0, -0.4, 0)
 const LOOT_WARM_SCALE = 0.001
 const GEAR_SLOWMO = 0.3
 const GEAR_HERO_SHARE = 0.36
-const GEAR_NEAREST = 0.3
+const GEAR_NEAREST = 0.12
+const GEAR_FIT = 0.2
 const GEAR_SMOOTH = 0.25
 const GEAR_INTRO_SLOWMO = 0.04
 const GEAR_INTRO_DELAY = 0.45
@@ -115,7 +125,7 @@ const GEAR_CLEAR_FRONT = 9
 const GEAR_CLEAR_RATE = 8
 const GEAR_CHASE = 7
 const GEAR_LOOK = 0.55
-const GEAR_IN = 0.45
+const GEAR_IN = 0.8
 const GEAR_OUT = 0.32
 const HERO_TAP_PAD = 12
 const HERO_TAP_WIDTH = 0.38
@@ -123,18 +133,11 @@ const MOVE_FX = 'move'
 const LOOT_FX = 'loot'
 const LAZY_INPUT_QUIET_MS = 1200
 const LAZY_POLL_MS = 250
-const MOVE_MARK = 'FX_Move_Click_1_1'
-const MOVE_MARK_SCALE = 1
-const MOVE_ARRIVE = 0.15
-const MOVE_SLACK = 0.75
 const GUIDE_ARROW = 'T_FX_Move_Click_1_1_A'
 const GUIDE_ENGAGE = 1.5
 const GUIDE_RELEASE = 3.5
 const GUIDE_LOOT_GAP = 0.5
 const _guideAt = new THREE.Vector3()
-const _ray = new THREE.Raycaster()
-const _ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
-const _ndc = new THREE.Vector2()
 const _up = new THREE.Vector3(0, 1, 0)
 const _zero = new THREE.Vector3()
 const ARENA_SHADOW_SPAN = 24
@@ -143,6 +146,9 @@ const SELECT_SHADOW = { bias: -0.0005, normalBias: 0.012, depthPad: 2, radius: {
 const SELECT_SHADOW_CENTER = new THREE.Vector3(0, 1, -0.4)
 const SELECT_SHADOW_MIN = new THREE.Vector3(-4.5, -0.1, -1.9)
 const SELECT_SHADOW_MAX = new THREE.Vector3(4.5, 2.9, 1.1)
+const SELECT_SINGLE_SHADOW_REACH = 2.6
+const _singleShadowMin = new THREE.Vector3()
+const _singleShadowMax = new THREE.Vector3()
 const KEY_DISTANCE = 40
 const _lightBasis = new THREE.Matrix4()
 const _corner = new THREE.Vector3()
@@ -151,6 +157,9 @@ const SELECT_VIEW_DIR = new THREE.Vector3(0, 3.1, 8.0).normalize()
 const SELECT_HERO_Z = -0.4
 const SELECT_HERO_TOP = 2.6
 const SELECT_ROW_HALF = 4.3
+const SELECT_HERO_HALF = 2.15
+const SELECT_SPACING = { row: 2.9, single: 4.2 }
+const SELECT_EDGE = 0.96
 const SELECT_CARD_LIFT = 14
 const SELECT_ROW_ASPECT = 0.64
 const INTRO_IN = 0.2
@@ -174,17 +183,16 @@ const STATE_KEYS = { KeyV: 'victory', KeyD: 'defeat', KeyR: 'restart' }
 const RETRY_DELAY = 160
 const BOOT_PROGRESS = { fetch: 0.8, parse: 0.15 }
 const SELECT_TEXTURE_WAIT = 4000
-const PIXEL_BUDGET = { low: 0.8e6, high: 3.7e6 }
-const MOBILE_MIN_RATIO = 0.75
+const PIXEL_BUDGET = { low: 1e6, high: 3.7e6 }
+const MOBILE_MIN_RATIO = 1
 const BLOOM_LEVELS = { low: 6, high: 8 }
-const SWINGS = new Set(['attack', 'attack2'])
-const ROOTING = new Set(['cast', 'morph', 'unmorph'])
 const BUSY_STATES = new Set(['attack', 'attack2', 'cast', 'morph', 'unmorph', 'roar'])
+const LAYERED_STATES = new Set(['attack', 'attack2', 'cast'])
+const TWIST_MAX = 1.45
 const _axis = [0, 0]
-const _steer = [0, 0]
 const _still = [0, 0]
-const NO_SKILL = { cd: 1 }
 const NO_OPTS = {}
+const TITAN_SWING = { slot: 'titan_swing', max: 2, steal: true }
 const _camVel = new THREE.Vector3()
 const _dampA = new THREE.Vector3()
 const _dampB = new THREE.Vector3()
@@ -222,11 +230,22 @@ function anyAlive(actors) {
 }
 const _fitCam = new THREE.PerspectiveCamera()
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a))
 const HAPTIC_MS = 12
 
 function haptic(ms = HAPTIC_MS) {
   if (!navigator.vibrate) return
   try { navigator.vibrate(ms) } catch {}
+}
+
+function enemyPeak(def) {
+  let peak = 1
+  for (const w of WAVES) {
+    let n = 0
+    for (const [type, count] of w.spawns) if (ENEMIES[type] === def) n += count
+    peak = Math.max(peak, n)
+  }
+  return peak
 }
 
 function enemyModel(def) {
@@ -280,7 +299,7 @@ export class Game {
     this.rescued = false
     this.variant = new URLSearchParams(location.search).get('v') || 'default'
     this.heroIndex = 0
-    this.cooldowns = { s1: 0, s2: 0, dash: 0, attack: 0 }
+    this.cooldowns = { s1: 0, s2: 0, attack: 0 }
     this.selectActors = []
     this.modelSpares = new Map()
     this.lazyQueue = []
@@ -294,19 +313,14 @@ export class Game {
     this.revealing = null
     this.hintTimers = []
     this.heroCueOn = false
-    this.attackPointer = null
-    this.moveTarget = null
     this.setupRenderer()
     this.input = new Input()
     this.input.attachStick(this.ui.stick)
     this.input.onTap = (x, y) => {
       if (this.tapOnHero(x, y)) this.toggleGear()
       else if (this.gearOpen) this.closeGear()
-      else this.tapGround(x, y)
     }
-    this.input.onFlick = (x, y) => this.flickDash(x, y)
     this.input.onSteer = () => {
-      if (this.attackPointer !== null && this.attackPointer === this.input.pointerId) this.releaseAttack()
       if (this.gearOpen) this.closeGear()
       if (!this.steered) this.finishMoveHint()
     }
@@ -396,7 +410,7 @@ export class Game {
       luminanceThreshold: BLOOM_THRESHOLD,
       luminanceSmoothing: 0.08,
       mipmapBlur: true,
-      radius: 0.7,
+      radius: 0.5,
       levels: BLOOM_LEVELS[this.quality],
     })
     if (this.quality === 'low') this.bloom.luminancePass.resolution.scale = 0.5
@@ -406,12 +420,15 @@ export class Game {
     this.battleContrast = new BrightnessContrastEffect({ contrast: BATTLE_POST.contrast })
     this.battlePasses = []
     if (this.quality === 'high') this.battlePasses.push(new EffectPass(this.camera, new FXAAEffect()))
-    this.battlePass = new EffectPass(this.camera, this.bloom, this.battleGrade, this.battleContrast, this.vignette)
+    this.battlePass = new EffectPass(this.camera, this.bloom, this.battleGrade, this.battleContrast, this.vignette, new SanitizeEffect())
     this.battlePasses.push(this.battlePass)
     for (const p of this.battlePasses) this.composer.addPass(p)
     this.buildLobbyPost()
 
-    addEventListener('resize', () => this.resize())
+    addEventListener('resize', () => {
+      this.resize()
+      this.render()
+    })
   }
 
   setupResolution(coarse) {
@@ -440,7 +457,7 @@ export class Game {
     this.lobbyVignette = new VignetteEffect({ offset: 0.3, darkness: LOBBY_POST.vignette })
     this.lobbyGrade = new LobbyGradeEffect()
     this.lobbySharpen = new FocusSharpenEffect()
-    const effects = [this.lobbySharpen, this.lobbyGrade, this.lobbyBloom, this.lobbySat, this.lobbyContrast, this.lobbyVignette]
+    const effects = [this.lobbySharpen, this.lobbyGrade, this.lobbyBloom, this.lobbySat, this.lobbyContrast, this.lobbyVignette, new SanitizeEffect()]
     this.lobbyPasses = []
     if (!this.softGPU && this.quality === 'high') {
       this.lobbyDof = new DepthOfFieldEffect(cam, { focusDistance: 8, focusRange: LOBBY_POST.focusRange, bokehScale: LOBBY_POST.bokeh, resolutionScale: 0.5 })
@@ -508,18 +525,6 @@ export class Game {
   }
 
   bindUI() {
-    this.bindAttack(this.ui.attackBtn)
-    for (const s of this.ui.skills) {
-      const k = s.dataset.k
-      if (k === 'attack') continue
-      this.bindTapButton(s, () => this.pressSkill(k))
-    }
-    this.bindTapButton(this.ui.ultBtn, () => this.pressUlt())
-    this.ui.animaCard.addEventListener('pointerdown', e => {
-      e.stopPropagation()
-      haptic()
-      this.transform()
-    })
     this.ui.end.querySelector('#cta').addEventListener('click', () => {
       audio.play('ui_click_main')
       openStore('end')
@@ -597,6 +602,8 @@ export class Game {
     this.guide = new GuideLine(this.scene)
     for (const h of HEROES) {
       if (h.skinMute) this.heroFx.muteSkin(h.vfx, h.skinMute)
+      if (h.lobbyMute) this.heroFx.muteLobby(h.vfx, h.lobbyMute)
+      if (h.castMute) this.heroFx.muteCast(h.vfx, h.castMute)
       if (h.lobbyFocus) this.heroFx.focusLobby(h.vfx, h.lobbyFocus)
     }
     await new Promise(r => requestAnimationFrame(r))
@@ -661,6 +668,7 @@ export class Game {
     }
     await this.quiet()
     await this.vfx.warm(this.renderer, this.camera, { names: this.lobbyFxNames(), target: this.composer.inputBuffer, onlyNamed: true, pause: nextFrame })
+    await this.warmLobbySpawns(nextFrame)
     this.attachSelectSkins()
     this.want(this.battleJobs(HEROES[this.heroIndex]))
     this.want(HEROES.map(h => [`bytes:${h.model}`, () => prefetchModel(h.model)]))
@@ -690,14 +698,14 @@ export class Game {
     await this.calm()
     const model = this.takeModel(data)
     await this.calm()
-    await prewarmObject(this.renderer, model.root, this.camera, this.scene, this.composer.inputBuffer)
+    await prewarmObject(this.renderer, model.root, this.camera, this.scene, this.composer.inputBuffer, () => this.calm())
     this.spareModel(model)
   }
 
   warmFxLibs(ids, pause = null) {
     const fresh = ids.filter(id => id && !this.fxWarms.has(id) && this.vfx.library(id))
     if (fresh.length) {
-      const names = [...this.loot.fxNames(), MOVE_MARK]
+      const names = this.loot.fxNames()
       const job = this.vfx.warm(this.renderer, this.camera, { names, target: this.composer.inputBuffer, libs: fresh, pause })
       fresh.forEach(id => this.fxWarms.set(id, job))
     }
@@ -766,21 +774,27 @@ export class Game {
   openGear(intro = null) {
     if (this.gearOpen) return
     this.gearOpen = true
-    this.moveTarget = null
     if (this.gear.items.length) this.gearHinted = true
     this.gearIntro = intro
     this.gearSlow = intro ? GEAR_INTRO_SLOWMO : GEAR_SLOWMO
     this.gearPower = this.gear.power()
     this.input.release()
+    this.cancelLeaps()
     this.cueHero(false)
     audio.play('ui_expand_in')
     this.gearSpan = null
     if (!this.heroLocked()) this.hero.rig.play('idle', { force: true, fade: 0.2 })
+    this.gearWant = this.gearHeroSpan()
     const span = this.placeGear()
-    if (this.gearK < 0.01) this.gearDist = clamp(span / (view.h * GEAR_HERO_SHARE), GEAR_NEAREST, 1)
+    if (this.gearK < 0.01) this.gearDist = clamp(span / this.gearWant, GEAR_NEAREST, 1)
     this.ui.openGear(this.gear, intro)
     if (!intro && this.underpowered() && this.gear.bestPower() >= POWER_GOAL) this.ui.gearRing.cueAuto(true)
-    gsap.to(this, { gearK: 1, duration: GEAR_IN, ease: 'power2.out', overwrite: true })
+    gsap.to(this, { gearK: 1, duration: GEAR_IN, ease: 'power2.inOut', overwrite: true })
+  }
+
+  gearHeroSpan() {
+    const safe = safeInsets()
+    return Math.min(view.h * GEAR_HERO_SHARE, ringHeroFit(view.w - safe.l - safe.r, this.ui.hudScale))
   }
 
   canIntroGear() {
@@ -833,6 +847,7 @@ export class Game {
     _v2.set(h.pos.x, h.pos.y + h.height * GEAR_TOP, h.pos.z).project(this.camera)
     const x = (footX + (_v2.x * 0.5 + 0.5) * view.w) / 2
     const top = (-_v2.y * 0.5 + 0.5) * view.h
+    if (this.gearOpen && this.gearWant) this.fitGearDist(bottom - top)
     const k = this.gearSpan ? GEAR_SMOOTH : 1
     const s = this.gearSpan || this.gearBox || (this.gearBox = { x, top, bottom })
     s.x += (x - s.x) * k
@@ -841,6 +856,12 @@ export class Game {
     this.gearSpan = s
     this.ui.gearRing.place(s.x, s.top, s.bottom)
     return s.bottom - s.top
+  }
+
+  fitGearDist(span) {
+    const reach = THREE.MathUtils.lerp(1, this.gearDist, this.gearK)
+    const fit = clamp(span * reach / this.gearWant, GEAR_NEAREST, 1)
+    this.gearDist += (fit - this.gearDist) * GEAR_FIT
   }
 
   closeGear() {
@@ -893,7 +914,7 @@ export class Game {
     setTimeout(() => {
       if (epoch !== this.epoch || !this.shieldUp || this.state !== 'battle') return
       this.ui.showBanner('TOO WEAK', `equip gear · reach ${POWER_GOAL.toLocaleString('en-US')} power`, 2.6)
-      audio.play('ui_button_locked')
+      audio.play('boss_laugh')
       setTimeout(() => {
         if (epoch !== this.epoch || !this.shieldUp || this.state !== 'battle' || this.hero.dead) return
         if (this.gearOpen) this.ui.gearRing.cueAuto(this.gear.bestPower() >= POWER_GOAL)
@@ -937,13 +958,25 @@ export class Game {
     if (!this.gearHinted) {
       if (this.canIntroGear()) this.introGear(added)
     } else if (nowReady && !ready) {
-      this.ui.showBanner('FULL SET', 'tap your hero to equip', 2)
+      this.ui.showBanner('FULL SET', '', 2)
+      audio.play('loot_drop_artifact')
       this.cueHero(true, GEAR_HINT_TIME)
     }
   }
 
   lobbyFxNames() {
-    return HEROES.flatMap(h => [...(h.intro || []).map(([, name]) => name), ...(h.lobbySkin === false ? [] : this.heroFx.skinNames(h.vfx, true))])
+    return HEROES.flatMap(h => this.heroLobbyFxNames(h))
+  }
+
+  heroLobbyFxNames(h) {
+    return [...(h.intro || []).map(([, name]) => name), ...(h.lobbySkin === false ? [] : this.heroFx.skinNames(h.vfx, true))]
+  }
+
+  async warmLobbySpawns(pause) {
+    const heroes = [...new Set([HEROES[this.heroIndex], ...HEROES])].filter(h => h.vfx)
+    for (const h of heroes) {
+      await this.vfx.warmSpawned(this.renderer, this.camera, h.vfx, this.heroLobbyFxNames(h), { target: this.composer.inputBuffer, scene: this.scene, focus: this.heroFx.lobbyFocus.get(h.vfx) || null, pause })
+    }
   }
 
   enemyDefs() {
@@ -984,7 +1017,10 @@ export class Game {
 
   async stageBattle(hero) {
     const datas = []
-    for (const def of this.enemyDefs()) datas.push(await settled(enemyModel(def)))
+    for (const def of this.enemyDefs()) {
+      const data = await settled(enemyModel(def))
+      for (let i = 0; i < enemyPeak(def); i++) datas.push(data)
+    }
     const titan = TITANS[hero.titan]
     if (titan) datas.push(await settled(loadModelData(titan.model)))
     const staged = []
@@ -994,6 +1030,7 @@ export class Game {
       model.root.position.set(0, -40, 0)
       this.scene.add(model.root)
       staged.push(model)
+      await new Promise(r => setTimeout(r))
     }
     return () => staged.forEach(m => this.spareModel(m))
   }
@@ -1071,7 +1108,13 @@ export class Game {
     s.bias = SELECT_SHADOW.bias
     s.normalBias = SELECT_SHADOW.normalBias
     s.radius = SELECT_SHADOW.radius[this.quality]
-    this.fitShadowBox(SELECT_SHADOW_MIN, SELECT_SHADOW_MAX, SELECT_SHADOW.depthPad)
+    if (this.selectShowsRow()) {
+      this.fitShadowBox(SELECT_SHADOW_MIN, SELECT_SHADOW_MAX, SELECT_SHADOW.depthPad)
+      return
+    }
+    _singleShadowMin.copy(SELECT_SHADOW_MIN).setX(this.camTarget.x - SELECT_SINGLE_SHADOW_REACH)
+    _singleShadowMax.copy(SELECT_SHADOW_MAX).setX(this.camTarget.x + SELECT_SINGLE_SHADOW_REACH)
+    this.fitShadowBox(_singleShadowMin, _singleShadowMax, SELECT_SHADOW.depthPad)
   }
 
   fitShadowBox(min, max, depthPad) {
@@ -1119,7 +1162,7 @@ export class Game {
       const h = HEROES[i]
       const data = await loadModelData(h.lobby || h.model)
       const a = new Actor(buildModel(data, { castShadow: true }), { targetHeight: 1.9 })
-      a.setPos((i - 1) * 2.9, SELECT_HERO_Z)
+      a.setPos((i - 1) * this.selectSpacing(), SELECT_HERO_Z)
       a.targetFacing = a.facing = (h.turn || 0) - (i - 1) * 0.16
       a.rig.play('pose', { force: true })
       a.rig.t = i * 1.7
@@ -1242,7 +1285,14 @@ export class Game {
     a.introT = 0
     a.introQueue = (HEROES[i].intro || []).map(([t, name, off]) => ({ t, name, off }))
     this.stopLobbySounds()
-    if (audio.unlocked()) audio.play(`${HEROES[i].model}_intro`)
+    a.introVoice = `${HEROES[i].model}_intro`
+    this.sayIntro(a)
+  }
+
+  sayIntro(a) {
+    if (!a.introVoice || a.introT > INTRO_VOICE_LATE || !audio.unlocked() || !audio.loaded(a.introVoice)) return
+    audio.play(a.introVoice)
+    a.introVoice = null
   }
 
   stopLobbySounds(fade = LOBBY_SOUND_FADE) {
@@ -1275,6 +1325,7 @@ export class Game {
       const rig = a.rig
       if (rig.state === 'intro') {
         a.introT += dt
+        this.sayIntro(a)
         while (a.introQueue.length && a.introQueue[0].t <= a.introT) {
           const e = a.introQueue.shift()
           const life = e.off ? e.off - e.t : Math.max(0.5, rig.total * INTRO_EXIT + INTRO_BLEND - e.t)
@@ -1304,11 +1355,23 @@ export class Game {
     this.confirming = true
     this.loadBattle(HEROES[this.heroIndex])
     this.confirmT = 0
-    this.ui.leaveSelect(CONFIRM_TIME)
+    this.ui.leaveSelect()
     setTimeout(() => this.startBattle(), CONFIRM_TIME * 1000)
   }
 
+  selectSpacing() {
+    return this.selectShowsRow() ? SELECT_SPACING.row : SELECT_SPACING.single
+  }
+
+  layoutSelect() {
+    if (!this.selectActors) return
+    const gap = this.selectSpacing()
+    for (let i = 0; i < this.selectActors.length; i++) this.selectActors[i].setPos((i - 1) * gap, SELECT_HERO_Z)
+    this.placeHeroLight()
+  }
+
   fitSelectCamera() {
+    this.layoutSelect()
     const h = view.h
     const titleBottom = this.ui.select.querySelector('.head').getBoundingClientRect().bottom
     const feetPx = this.ui.cards.getBoundingClientRect().top - SELECT_CARD_LIFT - h * 0.035
@@ -1330,7 +1393,7 @@ export class Game {
     const tooClose = dist => {
       const look = lookFor(dist)
       if (project(0, SELECT_HERO_TOP, dist, look).y > toNdc(headPx)) return true
-      return wholeRow && project(SELECT_ROW_HALF, 1, dist, look).x > 0.96
+      return project(wholeRow ? SELECT_ROW_HALF : SELECT_HERO_HALF, 1, dist, look).x > SELECT_EDGE
     }
     const dist = bisect(4.5, 14, tooClose)
     this.camOffset.copy(SELECT_VIEW_DIR).multiplyScalar(dist)
@@ -1339,10 +1402,14 @@ export class Game {
 
   highlightSelected() {
     const h = HEROES[this.heroIndex]
-    const picked = this.selectActors[this.heroIndex]
     this.heroLight.color.set(h.color)
-    this.heroLight.position.set(picked.pos.x, 2.6, picked.pos.z - 1.7)
+    this.placeHeroLight()
     this.heroLight.intensity = 22
+  }
+
+  placeHeroLight() {
+    const picked = this.selectActors[this.heroIndex]
+    if (picked) this.heroLight.position.set(picked.pos.x, 2.6, picked.pos.z - 1.7)
   }
 
   previewHero(i) {
@@ -1377,7 +1444,11 @@ export class Game {
 
   async startBattle() {
     const veiled = this.confirming
-    if (veiled) this.renderHold++
+    if (veiled) {
+      this.composer.render()
+      this.ui.freeze(this.renderer.domElement)
+      this.renderHold++
+    }
     this.state = 'intro'
     this.ui.show('select', false)
     this.setLobbyPost(false)
@@ -1415,10 +1486,8 @@ export class Game {
     this.applyGear()
     this.titanDef = TITANS[hero.titan]
     this.titanLoad = this.loadTitan(this.titanDef)
-    this.ui.setHud(hero)
     this.ui.setAnima(this.titanDef, hero)
     this.ui.setTitan(this.titan, this.titanReady, this.titanSecondsLeft())
-    this.ui.setUlt(this.ult, this.ultReady)
     this.ui.setHp(this.hero.hp, this.hero.maxHp)
     this.heroLight.color.set(hero.color)
 
@@ -1438,8 +1507,7 @@ export class Game {
     audio.layer('amb_battle', true)
     this.ui.show('hud', true)
     this.confirming = false
-    this.ui.veilOut()
-    this.moveTarget = null
+    this.thawAfterFrames()
     this.input.enabled = true
     this.startHints()
 
@@ -1447,6 +1515,12 @@ export class Game {
     this.state = 'battle'
     this.ui.setWaves(WAVES.map(w => !!w.boss))
     this.nextWave()
+  }
+
+  thawAfterFrames() {
+    let frames = THAW_FRAMES
+    const wait = () => (--frames > 0 ? requestAnimationFrame(wait) : this.ui.thaw())
+    requestAnimationFrame(wait)
   }
 
   nextWave() {
@@ -1461,7 +1535,8 @@ export class Game {
       this.loot.collectAll()
       this.raiseShield()
     }
-    audio.play(boss ? 'boss_laugh' : 'ui_braam')
+    audio.play('ui_braam')
+    this.clearT = 0
     this.pending = []
     let delay = 0.35
     for (const [type, n] of w.spawns) {
@@ -1485,7 +1560,7 @@ export class Game {
     const bossWave = WAVES.findIndex(w => w.boss) + 1
     const ahead = bossWave === n + 1 ? 'boss next wave' : bossWave ? `final boss on wave ${bossWave}` : 'incoming'
     const goal = POWER_GOAL.toLocaleString('en-US')
-    const dur = this.waveIndex === 0 ? 3.2 : this.underpowered() ? 2.4 : 1.8
+    const dur = this.waveIndex === 0 ? FIRST_WAVE_BANNER : this.underpowered() ? 2.4 : 1.8
     const sub = this.waveIndex === 0 ? `${ahead} · reach ${goal} power`
       : this.underpowered() ? `${ahead} · power ${this.gear.power().toLocaleString('en-US')} / ${goal}`
       : ahead
@@ -1529,8 +1604,9 @@ export class Game {
       a.cd = def.rate
       a.skillCd = Object.fromEntries(def.skills.map(s => [s.key, s.first ?? s.cd]))
       a.castGap = 0
-      this.placeBoss(a)
-    } else this.placeNearHero(a)
+    }
+    if (def.boss) this.placeBoss(a)
+    else this.placeNearHero(a)
     a.pos.y = def.fly || 0
     a.rig.play(def.fly ? 'fly' : 'idle', { force: true })
     a.rig.t = random() * 3
@@ -1545,6 +1621,7 @@ export class Game {
     if (def.boss) {
       this.boss = a
       this.shake(0.5, 0.5)
+      if (def.cry) audio.play(def.cry, { at: a.pos })
     }
   }
 
@@ -1591,6 +1668,7 @@ export class Game {
     if (c) {
       c.t += dt
       if (c.dash) this.bossDash(e, c)
+      if (c.leap) this.leapStep(e, c)
       if (c.t >= c.done && (e.rig.oneShotDone || c.t >= c.done + BOSS_CAST_OVERRUN)) {
         e.cast = null
         e.castGap = BOSS_CAST_GAP
@@ -1599,7 +1677,7 @@ export class Game {
     }
     e.castGap = Math.max(0, e.castGap - dt)
     const h = this.hero
-    if (e.castGap > 0 || !h || h.dead || e.rig.state === 'attack' && !e.rig.oneShotDone) return false
+    if (e.castGap > 0 || this.gearOpen || !h || h.dead || e.rig.state === 'attack' && !e.rig.oneShotDone) return false
     const d = Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z)
     const s = readySkill(e, d)
     if (!s) return false
@@ -1608,6 +1686,10 @@ export class Game {
   }
 
   bossCast(e, s, dist) {
+    if (s.kind === 'leap') {
+      this.leapCast(e, s)
+      return
+    }
     const h = this.hero
     e.skillCd[s.key] = s.cd
     e.faceTo(h.pos.x, h.pos.z)
@@ -1646,13 +1728,15 @@ export class Game {
     const color = e.def.color || 0xff4a3a
     this.shake(c.s.kind === 'nova' ? 0.9 : 0.45, c.s.kind === 'nova' ? 0.6 : 0.3)
     this.lights.flash(c.center, color, c.s.kind === 'nova' ? 6 : 4, Math.max(c.radius, c.width) * 2.4 + 4, 0.6, 1.2)
+    const hitSound = BOSS_HIT_SOUND[c.s.key]
+    if (hitSound) audio.play(hitSound, { at: c.center, slot: 'boss_hit', max: 1 })
     if (c.s.kind === 'charge') c.dash = { t0: c.t }
     else if (!this.enemyVfx(e.def)) {
       this.fx.shock(c.center.x, c.center.z, Math.max(c.radius, c.width) * 2.2, color, 0.6)
       this.fx.spark(c.center.x, 0.6, c.center.z, 50, color, 10)
     }
     const h = this.hero
-    if (!h || h.dead || this.invuln > 0 || this.state !== 'battle' || !this.insideCast(c, h)) return
+    if (!h || h.dead || this.state !== 'battle' || !this.insideCast(c, h)) return
     this.hurtHero(c.s.dmg)
     const vfxId = this.enemyVfx(e.def)
     if (vfxId) this.heroFx.skillHitFx(vfxId, c.s.fx, e, h)
@@ -1665,6 +1749,87 @@ export class Game {
     e.pos.x = THREE.MathUtils.lerp(c.from.x, c.to.x, eased)
     e.pos.z = THREE.MathUtils.lerp(c.from.z, c.to.z, eased)
     if (k >= 1) c.dash = null
+  }
+
+  leapCast(e, s) {
+    const h = this.hero
+    const rig = e.rig
+    e.skillCd[s.key] = s.cd
+    e.faceTo(h.pos.x, h.pos.z)
+    e.facing = e.targetFacing
+    const speed = s.speed || 1
+    rig.play('leap', { force: true, fade: 0.1, speed })
+    const air = rig.clips.get(LEAP_AIR_CLIP)
+    const lift = rig.impactAt * LEAP_LIFT
+    const land = rig.impactAt + ((air ? air.duration : 0) + (rig.impacts.get(LEAP_LAND_CLIP) || 0)) / speed
+    const to = h.pos.clone().setY(0)
+    const edge = Math.hypot(to.x, to.z)
+    const lim = ARENA_RADIUS - LEAP_EDGE
+    if (edge > lim) to.multiplyScalar(lim / edge)
+    const from = e.pos.clone().setY(0)
+    const dx = to.x - from.x
+    const dz = to.z - from.z
+    const length = Math.hypot(dx, dz)
+    const yaw = Math.atan2(dx, dz)
+    const c = { s, t: 0, impact: land, done: land + BOSS_RECOVER, yaw, radius: s.radius, arc: Math.PI, width: 0, length: 0, center: to, from, leap: { lift, land, landed: false } }
+    const trail = length - s.radius
+    if (trail > 0) {
+      const mid = trail / 2 / length
+      c.path = this.fx.warn({ x: from.x + dx * mid, z: from.z + dz * mid, yaw, width: s.width, length: trail, windup: land })
+    }
+    c.warn = this.fx.warn({ x: to.x, z: to.z, radius: s.radius, windup: land })
+    e.cast = c
+    audio.play(`${soundCode(e.def)}_skill_${s.fx}`, { at: e.pos, slot: 'enemy_skill', max: 2 })
+  }
+
+  cancelLeaps() {
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i]
+      if (e.dead || !e.cast || !e.cast.leap) continue
+      this.fx.dropWarn(e.cast.warn)
+      this.fx.dropWarn(e.cast.path)
+      e.cast = null
+      e.airborne = false
+      e.castGap = BOSS_CAST_GAP
+      e.rig.play('idle', { force: true, fade: 0.2 })
+    }
+  }
+
+  leapStep(e, c) {
+    const l = c.leap
+    if (l.landed) return
+    const k = clamp((c.t - l.lift) / (l.land - l.lift), 0, 1)
+    e.airborne = k > 0 && k < 1
+    e.knockX = e.knockZ = 0
+    if (k > 0) {
+      e.pos.x = THREE.MathUtils.lerp(c.from.x, c.center.x, k)
+      e.pos.z = THREE.MathUtils.lerp(c.from.z, c.center.z, k)
+    }
+    if (k < 1) return
+    l.landed = true
+    e.airborne = false
+    this.leapLand(e, c)
+  }
+
+  leapLand(e, c) {
+    if (e.dead || this.state === 'end') return
+    const at = c.center
+    const color = e.def.color || 0xff4a3a
+    this.shake(0.5, 0.35)
+    this.lights.flash(at, color, 4, c.radius * 2.4 + 4, 0.6, 1.2)
+    this.fx.decal(at.x, at.z, c.radius * 2, color, 0.9, this.fx.crack)
+    const vfxId = this.enemyVfx(e.def)
+    if (vfxId) {
+      const list = this.heroFx.entries(vfxId, c.s.fx)
+      const land = c.s.land || NO_OPTS
+      for (let i = 0; i < list.length; i++) this.heroFx.spawnAt(vfxId, list[i].fx, new THREE.Vector3(at.x, 0.03, at.z), e.facing, land.scale || e.scale, 3, land.mute || null)
+    } else {
+      this.fx.shock(at.x, at.z, c.radius * 2.2, color, 0.6)
+      this.fx.spark(at.x, 0.6, at.z, 40, color, 9)
+    }
+    const h = this.hero
+    if (!h || h.dead || this.state !== 'battle' || this.gearOpen || !this.insideCast(c, h)) return
+    this.hurtHero(c.s.dmg)
   }
 
   insideCast(c, a) {
@@ -1688,7 +1853,9 @@ export class Game {
   cancelBossCast(e) {
     if (!e.cast) return
     this.fx.endWarn(e.cast.warn)
+    if (e.cast.path) this.fx.endWarn(e.cast.path)
     e.cast = null
+    e.airborne = false
   }
 
   shake(amp, dur) {
@@ -1719,78 +1886,33 @@ export class Game {
     const s = this.activeDef().skills[SKILL_SLOT[key]]
     if (!s) return false
     this.cooldowns[key] = s.cd
-    this.moveTarget = null
     this.castSkill(s)
     return true
   }
 
-  skillPressed(key) {
-    if (key === 'ult') this.ultUsed = true
-    else this.skillUsed = true
-    if (this.ui.cuedSkill) this.ui.cueSkill(null)
-    this.ui.showGestureHint(false, 'skill')
+  steering() {
+    const axis = this.input.axis()
+    return axis[0] !== 0 || axis[1] !== 0
   }
 
-  bindTapButton(btn, fire) {
-    btn.addEventListener('pointerdown', e => {
-      e.stopPropagation()
-      try { btn.setPointerCapture(e.pointerId) } catch {}
-    })
-    btn.addEventListener('pointerup', e => {
-      if (this.input.tapOn(e.pointerId)) fire()
-    })
-  }
-
-  pressSkill(k) {
-    haptic()
-    if (this.state === 'battle' && this.cooldowns[k] > 0) audio.play('ui_button_locked')
-    if (this.useSkill(k)) this.skillPressed(k)
-  }
-
-  pressUlt() {
-    haptic()
-    if (this.castUltimate()) this.skillPressed('ult')
-    else if (this.state === 'battle') audio.play('ui_button_locked')
-  }
-
-  bindAttack(btn) {
-    const letGo = e => {
-      if (this.attackPointer !== e.pointerId) return
-      this.attackPointer = null
-      this.attackHeld = false
-      btn.classList.remove('held')
+  autoCombat() {
+    const hero = this.hero
+    if (!hero || hero.dead || this.heroLocked() || this.heroBusy()) return
+    const near = this.nearestEnemy()
+    if (!near) return
+    const def = this.activeDef()
+    const slack = this.steering() ? 0 : AUTO_ATTACK_SLACK
+    if (this.ultReady && near.d < this.heroDef.ult.reach * AUTO_ULT_SHARE && this.castUltimate()) return
+    for (const key of AUTO_SKILLS) {
+      const skill = def.skills[SKILL_SLOT[key]]
+      if (skill && this.cooldowns[key] <= 0 && near.d < this.skillReach(skill, def) && this.useSkill(key)) return
     }
-    btn.addEventListener('pointerdown', e => {
-      e.stopPropagation()
-      haptic()
-      try { btn.setPointerCapture(e.pointerId) } catch {}
-      this.attackPointer = e.pointerId
-      this.attackHeld = true
-      btn.classList.add('held')
-      if (this.state === 'battle') this.attackPressed()
-    })
-    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(type, letGo)
+    if (this.cooldowns.attack <= 0 && near.d < def.atkRange + slack) this.attack()
   }
 
-  releaseAttack() {
-    this.attackPointer = null
-    this.attackHeld = false
-    this.ui.attackBtn.classList.remove('held')
-  }
-
-  wantsAttack() {
-    if (this.attackHeld) return true
-    const keys = this.input.keys
-    for (let i = 0; i < ATTACK_KEYS.length; i++) if (keys.has(ATTACK_KEYS[i])) return true
-    return false
-  }
-
-  attackPressed() {
-    if (this.attackUsed) return
-    this.attackUsed = true
-    if (this.ui.cuedSkill === 'attack') this.ui.cueSkill(null)
-    this.ui.showGestureHint(false, 'attack')
-    if (this.steered) this.queueSkillHint()
+  skillReach(skill, def) {
+    if (skill.type === 'volley' || skill.at === 'target') return def.atkRange + AUTO_ATTACK_SLACK
+    return (skill.radius || def.atkRange) + (skill.ahead || 0) + AUTO_SKILL_SLACK
   }
 
   activeDef() {
@@ -1816,6 +1938,7 @@ export class Game {
       this.hero.facing = this.hero.targetFacing
     }
     this.combo = ((this.combo || 0) + 1) % 2
+    this.layerLegs()
     this.hero.rig.play(this.combo ? 'attack' : 'attack2', { force: true })
     if (h.combo && h.combo.next) this.cooldowns.attack = this.hero.rig.release
     this.hero.attackT = 0
@@ -1833,8 +1956,8 @@ export class Game {
         e.stagger = 0.2
       },
     }) : null
-    if (!(fxRes && fxRes.ranged)) this.hero.pendingHit = { dmg: h.atkDmg, range: h.atkRange, arc: this.titanMode ? 2.6 : 1.9, delay: fxRes && fxRes.scripted ? fxRes.hitAt : hitAt, fx: fxRes ? combo : null, vfx: vfxId }
-    audio.play(this.attackSound(h, this.hero.rig))
+    if (!(fxRes && fxRes.ranged)) this.hero.pendingHit = { dmg: h.atkDmg, range: h.atkRange, arc: this.titanMode ? 2.6 : 1.9, delay: fxRes && fxRes.scripted ? fxRes.hitAt : hitAt, fx: fxRes ? combo : null, vfx: vfxId, aim: this.hero.facing }
+    audio.play(this.attackSound(h, this.hero.rig), this.titanMode ? TITAN_SWING : NO_OPTS)
     if (fxRes) return
 
     const f = this.hero.facing
@@ -1844,6 +1967,12 @@ export class Game {
       if (!this.hero) return
       this.fx.slash(px, this.hero.height * 0.55, pz, f, this.titanMode ? 6.5 : 2.6, h.color, 0.2)
     }, Math.max(0, hitAt - 0.04) * 1000)
+  }
+
+  layerLegs() {
+    const h = this.hero
+    h.aimYaw = h.facing
+    if (this.steering()) h.rig.setLegs(true, this.runRate(h, this.activeDef()))
   }
 
   aheadOf(actor, dist) {
@@ -1862,65 +1991,9 @@ export class Game {
     return rig.state === 'cast' && !rig.oneShotDone
   }
 
-  tapGround(x, y) {
-    const h = this.hero
-    if (this.state !== 'battle' || !h || h.dead || this.heroLocked() || !this.input.enabled) return
-    const point = this.groundAt(x, y)
-    if (!point) return
-    const speed = this.activeDef().speed
-    this.moveTarget = { x: point.x, z: point.z, left: Math.hypot(point.x - h.pos.x, point.z - h.pos.z) / speed + MOVE_SLACK }
-    this.vfx.spawn(MOVE_FX, MOVE_MARK, { pos: point, scale: MOVE_MARK_SCALE, lifetime: 1 })
-    haptic()
-    if (!this.steered) this.finishMoveHint()
-  }
-
-  groundAt(x, y) {
-    _ndc.set(x / view.w * 2 - 1, 1 - y / view.h * 2)
-    _ray.setFromCamera(_ndc, this.camera)
-    _ground.constant = -this.hero.pos.y
-    const point = _ray.ray.intersectPlane(_ground, new THREE.Vector3())
-    if (!point) return null
-    const r = Math.hypot(point.x, point.z)
-    const lim = ARENA_RADIUS - 1.2
-    if (r > lim) point.multiplyScalar(lim / r).setY(this.hero.pos.y)
-    point.y += 0.02
-    return point
-  }
-
-  steerAxis() {
-    const axis = this.moveAxis()
-    const t = this.moveTarget
-    if (!t) return axis
-    if (axis[0] || axis[1] || !this.input.enabled || t.left <= 0) {
-      this.moveTarget = null
-      return axis
-    }
-    const dx = t.x - this.hero.pos.x
-    const dz = t.z - this.hero.pos.z
-    const d = Math.hypot(dx, dz)
-    if (d < MOVE_ARRIVE) {
-      this.moveTarget = null
-      return axis
-    }
-    _steer[0] = dx / d
-    _steer[1] = dz / d
-    return _steer
-  }
-
-  passMoveTarget(ax, az, dt) {
-    const t = this.moveTarget
-    if (!t) return
-    t.left -= dt
-    if ((t.x - this.hero.pos.x) * ax + (t.z - this.hero.pos.z) * az <= 0) this.moveTarget = null
-  }
-
   startHints() {
     const epoch = this.epoch
     this.steered = false
-    this.skillHintQueued = false
-    this.attackUsed = false
-    this.skillUsed = false
-    this.ultUsed = false
     this.hintTimers = [
       setTimeout(() => {
         if (epoch !== this.epoch || this.steered || this.state !== 'battle') return
@@ -1934,55 +2007,12 @@ export class Game {
     if (this.steered) return
     this.steered = true
     this.ui.showGestureHint(false, 'move')
-    if (this.attackUsed) this.queueSkillHint()
-    else this.queueAttackHint()
-  }
-
-  hintBlocked() {
-    return this.heroCueOn || this.state !== 'battle' || this.titanMode || this.titanReady
-  }
-
-  queueAttackHint() {
-    const epoch = this.epoch
-    this.hintTimers.push(setTimeout(() => {
-      if (epoch !== this.epoch || this.attackUsed) return
-      if (this.hintBlocked()) {
-        this.queueSkillHint()
-        return
-      }
-      this.ui.showGestureHint(true, 'attack')
-      this.ui.cueSkill('attack')
-      this.hintTimers.push(setTimeout(() => {
-        if (epoch !== this.epoch || this.attackUsed) return
-        this.ui.showGestureHint(false, 'attack')
-        if (this.ui.cuedSkill === 'attack') this.ui.cueSkill(null)
-        this.queueSkillHint()
-      }, ATTACK_HINT_TIME * 1000))
-    }, ATTACK_HINT_DELAY * 1000))
-  }
-
-  queueSkillHint() {
-    if (this.skillHintQueued || this.skillUsed || this.state !== 'battle' || this.titanMode) return
-    this.skillHintQueued = true
-    const epoch = this.epoch
-    this.hintTimers.push(setTimeout(() => {
-      if (epoch !== this.epoch || this.skillUsed || this.heroCueOn || this.state !== 'battle' || this.titanMode || this.titanReady) return
-      this.ui.showGestureHint(true, 'skill')
-      this.ui.cueSkill('s1')
-      this.hintTimers.push(setTimeout(() => {
-        if (epoch !== this.epoch) return
-        this.ui.showGestureHint(false, 'skill')
-        if (this.ui.cuedSkill === 's1') this.ui.cueSkill(null)
-      }, SKILL_HINT_TIME * 1000))
-    }, SKILL_HINT_DELAY * 1000))
   }
 
   clearHints() {
     for (const t of this.hintTimers || []) clearTimeout(t)
     this.hintTimers = []
-    this.skillHintQueued = false
-    for (const mode of ['move', 'attack', 'skill', 'titan']) this.ui.showGestureHint(false, mode)
-    this.ui.cueSkill(null)
+    this.ui.showGestureHint(false, 'move')
     this.cueHero(false)
   }
 
@@ -1992,33 +2022,9 @@ export class Game {
     if (on) {
       this.steered = true
       this.ui.showGestureHint(false, 'move')
-      this.ui.showGestureHint(false, 'attack')
-      this.ui.showGestureHint(false, 'skill')
-      this.ui.cueSkill(null)
     }
     this.ui.cueHero(on)
     if (on && secs) this.heroCueTimer = setTimeout(() => this.cueHero(false), secs * 1000)
-  }
-
-  flickDash(x, y) {
-    if (this.state !== 'battle' || !this.hero || this.hero.dead || this.heroLocked()) return
-    if (this.cooldowns.dash > 0) return
-    haptic()
-    this.dash(this.screenAxis(x, y))
-  }
-
-  dash(axis = this.moveAxis()) {
-    this.cooldowns.dash = 2.4
-    const [ax, az] = axis
-    let dx = ax, dz = az
-    if (!dx && !dz) { dx = Math.sin(this.hero.facing); dz = Math.cos(this.hero.facing) }
-    const l = Math.hypot(dx, dz) || 1
-    this.dashVec = new THREE.Vector3(dx / l, 0, dz / l)
-    this.dashT = 0.28
-    this.hero.rig.play('dash', { force: true })
-    audio.play('dash')
-    this.fx.dashDust(this.hero.pos.x, this.hero.pos.z, this.dashVec.x, this.dashVec.z)
-    this.invuln = 0.34
   }
 
   castSkillFx(vfxId, s) {
@@ -2030,6 +2036,7 @@ export class Game {
       hero.faceTo(target.pos.x, target.pos.z)
       hero.facing = hero.targetFacing
     }
+    this.layerLegs()
     hero.rig.play('cast', { force: true, skill: SKILL_SLOT[s.key] + 1 })
     audio.play(`${this.activeDef().model}_skill_${SKILL_SLOT[s.key] + 1}`)
     const color = this.activeDef().color
@@ -2133,6 +2140,7 @@ export class Game {
       this.castSkillFx(vfxId, s)
       return
     }
+    this.layerLegs()
     hero.rig.play('cast', { force: true, skill: SKILL_SLOT[s.key] + 1 })
     audio.play(`${this.activeDef().model}_skill_${SKILL_SLOT[s.key] + 1}`)
     const color = this.activeDef().color
@@ -2239,11 +2247,10 @@ export class Game {
     this.titan = clamp(this.titan + v, 0, 1)
     if (this.titan >= 1) {
       this.titanReady = true
+      this.titanWait = TITAN_AUTO_DELAY
       audio.play('vo_titan_charge')
       this.ui.showBanner('TITAN READY', '', 1.4)
-      this.ui.cueSkill(null)
       if (this.heroCueOn) this.cueHero(false)
-      this.ui.showGestureHint(true, 'titan')
     }
     this.ui.setTitan(this.titan, this.titanReady, this.titanSecondsLeft())
   }
@@ -2255,20 +2262,9 @@ export class Game {
   addUlt(v) {
     if (this.ultReady || this.titanMode || this.state === 'morph') return
     this.ult = clamp(this.ult + v, 0, 1)
-    if (this.ult >= 1) {
-      this.ultReady = true
-      if (!this.ultUsed && !this.titanReady && !this.heroCueOn) this.cueUlt()
-    }
-    this.ui.setUlt(this.ult, this.ultReady)
+    if (this.ult >= 1) this.ultReady = true
   }
 
-  cueUlt() {
-    const epoch = this.epoch
-    this.ui.cueSkill('ult')
-    this.hintTimers.push(setTimeout(() => {
-      if (epoch === this.epoch && this.ui.cuedSkill === 'ult') this.ui.cueSkill(null)
-    }, ULT_HINT_TIME * 1000))
-  }
 
   castUltimate() {
     if (!this.ultReady || this.titanMode || this.state !== 'battle' || !this.hero || this.hero.dead || this.heroLocked()) return false
@@ -2276,10 +2272,7 @@ export class Game {
     const def = this.heroDef
     const u = def.ult
     this.ultReady = false
-    this.moveTarget = null
     this.ult = 0
-    this.ui.setUlt(0, false)
-    this.ui.fireUlt()
     const foes = this.enemies
       .filter(e => !e.dead && e.pos.distanceTo(h.pos) <= u.reach)
       .sort((a, b) => a.pos.distanceTo(h.pos) - b.pos.distanceTo(h.pos))
@@ -2288,6 +2281,7 @@ export class Game {
       h.faceTo(foes[0].pos.x, foes[0].pos.z)
       h.facing = h.targetFacing
     }
+    this.layerLegs()
     h.rig.play('cast', { force: true, skill: 4 })
     audio.play(`${def.model}_ult`)
     const hit = (e, i, share = 1) => {
@@ -2317,8 +2311,7 @@ export class Game {
   transform() {
     if (!this.titanReady || this.titanMode || this.state !== 'battle') return
     this.titanReady = false
-    this.ui.showGestureHint(false, 'titan')
-    this.ui.cueSkill(null)
+    this.finishMoveHint()
     if (this.gearOpen) this.closeGear()
     this.state = 'morph'
     this.ui.setTitan(1, false, 0)
@@ -2390,7 +2383,6 @@ export class Game {
     this.state = 'battle'
     this.input.enabled = true
     this.resetSkillCooldowns()
-    this.ui.setTitanHud(def)
 
     this.heroLight.color.set(def.color)
     this.heroLight.intensity = 40
@@ -2441,8 +2433,6 @@ export class Game {
     this.titan = 0
     this.ui.setTitan(0, false, this.titanSecondsLeft())
     this.ui.setTitanTimer(0, false)
-    this.ui.setHud(this.heroDef)
-    this.ui.setUlt(this.ult, this.ultReady)
     const t = this.hero
     const h = this.heroBase
     this.heroFx.detachSkin(t)
@@ -2476,6 +2466,8 @@ export class Game {
     sayOnce('solved')
     const epoch = this.epoch
     this.ui.show('hud', false)
+    audio.duck(0.3, 400)
+    audio.play('ingame_victory')
     this.shake(0.4, 0.5)
     if (this.hero) this.hero.rig.play('roar', { force: true })
     for (let i = 0; i < 5; i++) {
@@ -2515,7 +2507,8 @@ export class Game {
     const defeat = kind === 'defeat'
     audio.layer('amb_battle', false, 500)
     audio.track('music_endcard', 500)
-    audio.play(defeat ? 'outcome_defeat' : 'outcome_victory', { delay: defeat ? 0.06 : 0 })
+    audio.stop(`${this.heroDef.model}_death`, 300)
+    if (defeat) audio.play('outcome_defeat', { delay: 0.06 })
     audio.play(defeat ? 'outcome_defeat_vo' : 'outcome_victory_vo', { delay: defeat ? 0.46 : 0.45 })
     audio.play('outcome_card_plate', { delay: 0.06 })
     audio.play('outcome_card_shine', { delay: 0.16 })
@@ -2578,13 +2571,14 @@ export class Game {
     this.lights.clear()
     this.titan = this.titanT = this.ult = 0
     this.titanReady = this.titanMode = this.ultReady = false
+    this.titanWait = 0
     this.unmorphing = this.summoning = false
     this.kills = this.lootWait = 0
     this.timeScale = 1
     this.rescued = this.rescueActive = false
     this.shieldUp = false
     this.ui.setShield(false)
-    this.immuneT = this.dashT = this.invuln = 0
+    this.immuneT = 0
     for (const k in this.cooldowns) this.cooldowns[k] = 0
     this.ui.setTitanTimer(0, false)
     this.heroLight.intensity = 22
@@ -2610,29 +2604,19 @@ export class Game {
     const h = this.hero
     if (!h || h.dead) return
     const def = this.activeDef()
-    const steer = this.steerAxis()
+    const steer = this.moveAxis()
     const hold = this.gearOpen && !steer[0] && !steer[1]
     const axis = hold ? _still : steer
     const ax = axis[0]
     const az = axis[1]
     if (hold) h.targetFacing = this.camYaw
-    const dashing = this.dashT > 0
-    const committed = SWINGS.has(h.rig.state) && !h.rig.oneShotDone && !!h.pendingHit
-    const rooted = committed || (ROOTING.has(h.rig.state) && !h.rig.oneShotDone)
-    const moving = (ax || az) && !dashing && !rooted
+    const moving = (ax || az) && !this.heroLocked()
 
-    if (dashing) {
-      this.dashT = Math.max(0, this.dashT - dt)
-      const s = 26 * Math.max(0.25, this.dashT / 0.28)
-      h.pos.addScaledVector(this.dashVec, s * dt)
-      h.targetFacing = Math.atan2(this.dashVec.x, this.dashVec.z)
-      this.fx.spark(h.pos.x, 0.5, h.pos.z, 2, this.heroDef.color, 1.5, 0.2, 0.2)
-    } else if (moving) {
+    if (moving) {
       const sp = def.speed * (this.titanMode ? 1 : 1)
       h.pos.x += ax * sp * dt
       h.pos.z += az * sp * dt
       h.targetFacing = Math.atan2(ax, az)
-      this.passMoveTarget(ax, az, dt)
     }
 
     const r = Math.hypot(h.pos.x, h.pos.z)
@@ -2642,11 +2626,11 @@ export class Game {
       h.pos.z *= lim / r
     }
 
-    const swinging = SWINGS.has(h.rig.state) && !h.rig.oneShotDone
-    if (moving && swinging) h.pendingHit = null
-    const busy = BUSY_STATES.has(h.rig.state) && !h.rig.oneShotDone && !(moving && swinging)
-    if (this.dashT > 0) { /* dash pose active */ }
-    else if (!busy && (moving || h.rig.finished) && h.rig.state !== (moving ? 'run' : 'idle')) h.rig.play(moving ? 'run' : 'idle', moving ? { speed: this.runRate(h, def) } : NO_OPTS)
+    const busy = BUSY_STATES.has(h.rig.state) && !h.rig.oneShotDone
+    const layered = !!moving && busy && LAYERED_STATES.has(h.rig.state)
+    h.rig.setLegs(layered, this.runRate(h, def))
+    h.rig.aim(layered ? clamp(wrapAngle((h.aimYaw ?? h.facing) - h.facing), -TWIST_MAX, TWIST_MAX) : 0)
+    if (!busy && (moving || h.rig.finished) && h.rig.state !== (moving ? 'run' : 'idle')) h.rig.play(moving ? 'run' : 'idle', moving ? { speed: this.runRate(h, def) } : NO_OPTS)
 
     if (h.pendingHit) {
       h.attackT += dt
@@ -2661,7 +2645,7 @@ export class Game {
           const d = Math.hypot(dx, dz)
           if (d > p.range + e.radius) continue
           const ang = Math.atan2(dx, dz)
-          let da = ang - h.facing
+          let da = ang - (p.aim ?? h.facing)
           while (da > Math.PI) da -= Math.PI * 2
           while (da < -Math.PI) da += Math.PI * 2
           if (Math.abs(da) > p.arc) continue
@@ -2679,8 +2663,6 @@ export class Game {
         }
       }
     }
-
-    if (this.invuln > 0) this.invuln -= dt
 
     this.heroLight.position.set(h.pos.x, 2.6, h.pos.z)
   }
@@ -2712,8 +2694,14 @@ export class Game {
         }
         continue
       }
+      if (this.state === 'end' || !h || h.dead) {
+        const rest = e.def.fly ? 'fly' : 'idle'
+        if (e.rig.state !== rest && e.rig.oneShotDone) e.rig.play(rest, { fade: 0.25 })
+        e.update(dt)
+        continue
+      }
       if (e.knockX || e.knockZ) this.slide(e, dt)
-      if (e.def.boss) e.stagger = 0
+      if (e.def.boss || e.def.steady || e.cast) e.stagger = 0
       if (e.stagger > 0) {
         e.stagger -= dt
         if (e.rig.state !== 'hit') e.rig.play('hit', { force: true, fade: 0.06 })
@@ -2721,7 +2709,8 @@ export class Game {
         continue
       }
       if (e.def.skills && this.updateBossCast(e, dt)) {
-        this.settleEnemy(e, h, dt)
+        if (e.airborne) e.update(dt)
+        else this.settleEnemy(e, h, dt)
         continue
       }
 
@@ -2731,7 +2720,10 @@ export class Game {
       e.faceTo(h.pos.x, h.pos.z)
       const range = e.def.range + (this.titanMode ? 2.2 : 0)
 
-      if (d > range) {
+      const keep = d > range && d < (e.def.keep || 0)
+      if (keep) {
+        if (e.rig.state !== 'idle' && e.rig.oneShotDone) e.rig.play('idle', { fade: 0.18 })
+      } else if (d > range) {
         const sp = e.def.speed * (this.titanMode ? 0.7 : 1)
         e.pos.x += (dx / d) * sp * dt
         e.pos.z += (dz / d) * sp * dt
@@ -2802,10 +2794,11 @@ export class Game {
 
   enemyAttack(e, range) {
     e.cd = e.def.rate
+    if (this.state !== 'battle' || !this.hero || this.hero.dead) return
     e.rig.play('attack', { force: true, fade: 0.08 })
     audio.play(this.attackSound(e.def, e.rig), { at: e.pos, slot: 'enemy_attack', max: 3 })
     const land = () => {
-      if (this.invuln > 0 || !this.hero || this.hero.dead) return false
+      if (!this.hero || this.hero.dead) return false
       this.hurtHero(e.def.dmg)
       audio.play(`${soundCode(e.def)}_hit_combo`, { at: e.pos, slot: 'enemy_hit', max: 2, gap: 0.08 })
       return true
@@ -2863,7 +2856,7 @@ export class Game {
     if (e.def.fly) e.pos.y = e.def.fly + Math.sin(this.t * 2.4 + e.rig.t) * 0.25
     e.update(dt)
     const stepSound = e.stepSound || (e.stepSound = { at: e.pos, slot: 'enemy_step', max: 2 })
-    this.footsteps(e, soundCode(e.def), e.def.boss ? 'step_big_anima_bosses' : 'step_ground', stepSound)
+    this.footsteps(e, soundCode(e.def), e.def.boss ? 'step_big_middle_bosses' : 'step_ground', stepSound)
   }
 
   hurtHero(dmg) {
@@ -2972,10 +2965,11 @@ export class Game {
     const p = this.portraitAmount()
     const playing = this.state === 'battle' || this.state === 'intro' || this.state === 'end' || this.titanMode
     const zoom = playing ? p : 0
-    const follow = THREE.MathUtils.lerp(0.72 + 0.28 * p, 1, this.gearK)
+    const selecting = this.state === 'select'
+    const centred = selecting && !this.selectShowsRow()
+    const follow = centred ? 1 : THREE.MathUtils.lerp(0.72 + 0.28 * p, 1, this.gearK)
     const target = this.cameraFocus()
     _v.set(target.x * follow, 0, target.z * follow)
-    const selecting = this.state === 'select'
     if (this.camSnap) this.camTarget.copy(_v)
     else if (selecting && dt > 0) smoothDamp(this.camTarget, _v, _camVel, SELECT_CAM_SMOOTH, dt)
     else this.camTarget.lerp(_v, Math.min(1, dt * (3.2 + GEAR_CHASE * this.gearK)))
@@ -3023,6 +3017,7 @@ export class Game {
     if (ratio === null) return
     this.renderer.setPixelRatio(ratio)
     this.resize()
+    this.render()
   }
 
   loop() {
@@ -3077,15 +3072,9 @@ export class Game {
 
     if (this.state === 'battle') {
       for (const k in this.cooldowns) {
-        if (this.cooldowns[k] > 0) {
-          this.cooldowns[k] -= dt
-          const max = k === 'attack' ? this.activeDef().atkRate
-            : k === 'dash' ? 2.4 : (this.activeDef().skills[SKILL_SLOT[k]] || NO_SKILL).cd
-          this.ui.cooldown(k, clamp(this.cooldowns[k] / max, 0, 1), this.cooldowns[k])
-        } else {
-          this.ui.cooldown(k, 0, 0)
-        }
+        if (this.cooldowns[k] > 0) this.cooldowns[k] -= dt
       }
+      this.ui.updateSkillbar(this.activeDef(), this.titanMode, this.cooldowns, this.ult, this.ultReady)
 
       this.tallyWaveKills()
       if (this.pending.length) {
@@ -3094,7 +3083,10 @@ export class Game {
           this.spawnEnemy(this.pending.shift().type)
         }
       } else if (!this.spawning && !anyAlive(this.enemies)) {
-        if (this.waveIndex < WAVES.length - 1) this.nextWave()
+        if (this.waveIndex < WAVES.length - 1) {
+          this.clearT = (this.clearT || 0) + dt
+          if (this.clearT >= (WAVES[this.waveIndex + 1].boss ? BOSS_ENTRANCE_PAUSE : 0)) this.nextWave()
+        }
         else if (!this.loot.busy || this.lootWait >= LOOT_VICTORY_WAIT) this.victory()
         else {
           this.lootWait += dt
@@ -3108,10 +3100,12 @@ export class Game {
         if (this.titanT <= 0) this.endTitan()
       } else if (!this.titanReady) {
         this.addTitan(dt / TITAN_CHARGE_TIME)
+      } else if (!this.gearOpen) {
+        this.titanWait -= dt
+        if (this.titanWait <= 0) this.transform()
       }
 
-      if (this.wantsAttack()) this.moveTarget = null
-      if (this.wantsAttack() && !this.gearOpen && this.cooldowns.attack <= 0 && !(this.dashT > 0) && !this.heroLocked() && !this.heroBusy()) this.attack()
+      if (!this.gearOpen) this.autoCombat()
     }
 
     if (this.rescueActive) {
@@ -3132,6 +3126,7 @@ export class Game {
     }
 
     this.updateCamera(this.gearK > 0 ? this.realDt : dt)
+    if (this.arena) aimArenaCut(this.camera, this.arena.shadowCatcher.position.y)
     if (this.state !== 'select') this.fitBattleShadow()
     if (this.loot && this.hero) this.loot.update(dt, this.hero, this.lootAnchor())
     if (this.guide) this.updateGuide()
@@ -3150,7 +3145,10 @@ export class Game {
     }
     _v.set(h.pos.x, h.pos.y + h.height * 1.08 + 0.55, h.pos.z).project(this.camera)
     const visible = !h.dead && !this.gearOpen && _v.z < 1 && Math.abs(_v.x) < 1.2 && Math.abs(_v.y) < 1.2
-    this.ui.placeHeroBar((_v.x * 0.5 + 0.5) * view.w, (-_v.y * 0.5 + 0.5) * view.h, visible)
+    const barX = (_v.x * 0.5 + 0.5) * view.w
+    const barY = (-_v.y * 0.5 + 0.5) * view.h
+    _v.set(h.pos.x, h.pos.y, h.pos.z).project(this.camera)
+    this.ui.placeHeroBar(barX, barY, visible, (-_v.y * 0.5 + 0.5) * view.h)
     if (!this.heroCueOn) return
     _v.set(h.pos.x, h.pos.y + h.height * 0.5, h.pos.z).project(this.camera)
     this.ui.placeHeroCue((_v.x * 0.5 + 0.5) * view.w, (-_v.y * 0.5 + 0.5) * view.h, visible)
@@ -3213,6 +3211,9 @@ export class Game {
       const d = Math.hypot(e.pos.x - this.hero.pos.x, e.pos.z - this.hero.pos.z)
       if (d < bd) { bd = d; best = e }
     }
-    return best ? { e: best, d: bd } : null
+    if (!best) return null
+    _near.e = best
+    _near.d = bd
+    return _near
   }
 }

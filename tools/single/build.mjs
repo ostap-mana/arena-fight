@@ -19,6 +19,7 @@ const OUT_DIR = path.join(ROOT, 'dist-single')
 const OUT_NAME = 'invokers.html'
 const APP_DIR = path.join(CACHE, 'app')
 const BOOT_LIST = path.join(import.meta.dirname, 'boot.json')
+const LOOT_MUTED = /^PS_Beam_\d+_1$/
 const MIME = { glb: 'model/gltf-binary', json: 'application/json', mp3: 'audio/mpeg', woff2: 'font/woff2', js: 'text/javascript', css: 'text/css', avif: 'image/avif', webp: 'image/webp', png: 'image/png', svg: 'image/svg+xml' }
 const report = new Map()
 const started = Date.now()
@@ -44,7 +45,7 @@ function manifest() {
     const vfx = /^assets\/vfx\/(\w+)\.json$/.exec(file)
     if (!vfx) continue
     const lib = JSON.parse(readPublic(file))
-    const pruned = vfx[1] === 'loot' ? lib : pruneVfx(lib, vfx[1], sourceText())
+    const pruned = vfx[1] === 'loot' ? pruneLoot(lib, sourceText()) : pruneVfx(lib, vfx[1], sourceText())
     libs.push(pruned)
     for (const t of Object.values(lib.textures || {})) before.add(`assets/vfx/${t.f}`)
     for (const t of Object.values(pruned.textures || {})) after.add(`assets/vfx/${t.f}`)
@@ -110,13 +111,54 @@ function pruneVfx(lib, code, source) {
     if (source.includes(`'${name}'`)) used.add(name)
   }
   if (script && script.models) script.models = Object.fromEntries(Object.entries(script.models).filter(([name]) => used.has(name)))
-  const prefabs = Object.fromEntries(Object.entries(lib.prefabs).filter(([name]) => used.has(name)))
+  const mutes = enemyMutes(lib, code)
+  const prefabs = Object.fromEntries(Object.entries(lib.prefabs).filter(([name]) => used.has(name)).map(([name, nodes]) => {
+    const muted = mutes.get(name)
+    return [name, muted ? dropNodes(nodes, { test: n => muted.has(n) }) : nodes]
+  }))
   const refs = strings(prefabs, strings(script))
   const materials = Object.fromEntries(Object.entries(lib.materials || {}).filter(([name]) => refs.has(name)))
   const meshes = Object.fromEntries(Object.entries(lib.meshes || {}).filter(([name]) => refs.has(name)))
   const texRefs = strings(materials, refs)
+  for (const name of Object.keys(lib.textures || {})) if (source.includes(`'${name}'`)) texRefs.add(name)
   const textures = Object.fromEntries(Object.entries(lib.textures || {}).filter(([name]) => texRefs.has(name)))
   return { ...lib, skills, script, prefabs, materials, meshes, textures }
+}
+
+function enemyMutes(lib, code) {
+  const out = new Map()
+  for (const foe of Object.values(ENEMIES)) {
+    if (foe.vfx !== code || !foe.skills) continue
+    for (const s of foe.skills) {
+      const mute = s.land && s.land.mute
+      const skill = mute && lib.skills && lib.skills[s.fx]
+      if (!skill) continue
+      for (const e of skill.fx) out.set(e.fx, new Set([...(out.get(e.fx) || []), ...mute]))
+    }
+  }
+  return out
+}
+
+function dropNodes(nodes, muted) {
+  const index = new Map()
+  const kept = []
+  nodes.forEach((n, i) => {
+    if (muted.test(n.n) || (n.p >= 0 && !index.has(n.p))) return
+    index.set(i, kept.length)
+    kept.push(n.p >= 0 ? { ...n, p: index.get(n.p) } : n)
+  })
+  return kept
+}
+
+function pruneLoot(lib, source) {
+  const prefabs = Object.fromEntries(Object.entries(lib.prefabs).map(([name, nodes]) => [name, dropNodes(nodes, LOOT_MUTED)]))
+  const refs = strings(prefabs)
+  const materials = Object.fromEntries(Object.entries(lib.materials || {}).filter(([name]) => refs.has(name)))
+  const meshes = Object.fromEntries(Object.entries(lib.meshes || {}).filter(([name]) => refs.has(name)))
+  const texRefs = strings(materials, refs)
+  for (const name of Object.keys(lib.textures || {})) if (source.includes(`'${name}'`)) texRefs.add(name)
+  const textures = Object.fromEntries(Object.entries(lib.textures || {}).filter(([name]) => texRefs.has(name)))
+  return { ...lib, prefabs, materials, meshes, textures }
 }
 
 function fxModels(libs) {
@@ -129,9 +171,9 @@ function processJson(file) {
   const data = readPublic(file)
   let parsed = JSON.parse(data)
   const vfx = /^assets\/vfx\/(\w+)\.json$/.exec(file)
-  if (vfx && vfx[1] !== 'loot') {
+  if (vfx) {
     vfxSource ??= sourceText()
-    parsed = pruneVfx(parsed, vfx[1], vfxSource)
+    parsed = vfx[1] === 'loot' ? pruneLoot(parsed, vfxSource) : pruneVfx(parsed, vfx[1], vfxSource)
   }
   const entries = []
   if (vfx && vfx[1] !== 'loot' && parsed.meshes && Object.keys(parsed.meshes).length) {
@@ -150,7 +192,7 @@ function processGlb(file) {
   const data = readPublic(file)
   const profile = profileFor(GLB, file)
   if (!profile) throw new Error(`no glb profile for ${file}`)
-  const key = hash('glb9', data, keyOf(profile))
+  const key = hash('glb10', data, keyOf(profile))
   const anim = profile.anim && /"animations"/.test(data.subarray(0, 20 + data.readUInt32LE(12)).toString('utf8'))
   const animFile = path.join(CACHE, `${key}.anim`)
   const out = cached(key, '.glb', () => {
@@ -195,21 +237,40 @@ function heroSkillSound(code, rest) {
   return !!slot && !!hero && Number(slot[1]) <= hero.skills.length
 }
 
-function soundKeys(bank, sourceText) {
+function enemyAttackSound(foes, code, rest) {
+  const slot = /^attack_(\d+)$/.exec(rest)
+  if (!slot) return false
+  const foe = foes.find(e => (e.sfx || e.model) === code)
+  const profile = foe && profileFor(GLB, `assets/glb/${foe.model}.glb`)
+  const clip = `ComboAttack_${slot[1]}`
+  return !profile || (!(profile.dropClips && profile.dropClips.test(clip)) && (!profile.keepClips || profile.keepClips.test(clip)))
+}
+
+function enemySkillSound(foes, code, rest) {
+  const slot = /^skill_(\d+)$/.exec(rest)
+  return !!slot && foes.some(e => (e.sfx || e.model) === code && !!e.skills && e.skills.some(s => s.fx === Number(slot[1])))
+}
+
+function emitterLive(prefab, list) {
+  const code = /^(?:B_)?FX_([A-Z]+\d+)/.exec(prefab)
+  return !code || list.includes(`assets/vfx/${code[1].toLowerCase()}.json`)
+}
+
+function soundKeys(bank, sourceText, list) {
   const heroes = HEROES.map(h => h.model)
   const titans = [...new Set(HEROES.map(h => TITANS[h.titan].model))]
   const foes = [...new Set(WAVES.flatMap(w => w.spawns.map(([type]) => ENEMIES[type])))]
   const enemies = foes.filter(e => !e.boss).map(e => e.sfx || e.model)
   const boss = foes.filter(e => e.boss).map(e => e.sfx || e.model)
   const literal = key => sourceText.includes(`'${key}'`)
-  const emitted = new Set(Object.values(bank.emitters || {}))
+  const emitted = new Set(Object.entries(bank.emitters || {}).filter(([prefab]) => emitterLive(prefab, list)).map(([, key]) => key))
   return key => {
     const code = key.split('_')[0]
     const rest = key.slice(code.length + 1)
     if (literal(key) || emitted.has(key)) return true
     if (heroes.includes(code)) return /^(intro|attack_\d+|ult|hit_combo|damage|death)$/.test(rest) || heroSkillSound(code, rest)
     if (titans.includes(code)) return /^(summon_vo|attack_\d+|skill_\d+|hit_combo|damage|death|morph|demorph)$/.test(rest)
-    if (enemies.includes(code)) return /^(attack_\d+|take_damage|damage|death|hit_combo)$/.test(rest)
+    if (enemies.includes(code)) return /^(take_damage|damage|death|hit_combo)$/.test(rest) || enemyAttackSound(foes, code, rest) || enemySkillSound(foes, code, rest)
     if (boss.includes(code)) return /^(attack_\d+|skill_\d+|ult|take_damage|damage|death|hit_combo)$/.test(rest)
     return /^(step_ground|step_big_anima_bosses|dash|freeze|mob_spawn)$/.test(key)
   }
@@ -230,7 +291,7 @@ function sourceText() {
 
 function processAudio(list) {
   const bank = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/sounds.json'), 'utf8'))
-  const keep = soundKeys(bank, sourceText())
+  const keep = soundKeys(bank, sourceText(), list)
   const job = { rate: AUDIO.rate, music: [], sprites: [] }
   const outputs = []
   const capFor = key => (AUDIO.sfx.caps.find(([pattern]) => pattern.test(key)) || [null, AUDIO.sfx.cap])[1]

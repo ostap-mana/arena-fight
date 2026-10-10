@@ -6,7 +6,7 @@ const random = stream('audio')
 
 const SFX = {
   ui_braam: 0.65, boss_laugh: 0.7, explosion: 0.8,
-  outcome_victory: 0.76, outcome_defeat: 0.6, outcome_victory_vo: 0.86, outcome_defeat_vo: 0.97,
+  outcome_defeat: 0.6, outcome_victory_vo: 0.86, outcome_defeat_vo: 0.97,
   outcome_card_plate: 0.73, outcome_card_shine: 0.97, outcome_select: 0.27, outcome_cta: 0.49,
 }
 
@@ -30,6 +30,7 @@ const PAN_DEPTH = 0.55
 const PAN_SPAN = 14
 const FAR_GAIN = 0.3
 const OMNI_DISTANCE = 100
+const STEAL_FADE = 90
 
 export const STEPS = BANK.steps || {}
 
@@ -160,6 +161,12 @@ class Audio {
     return !!BANK.sounds[key]
   }
 
+  loaded(key) {
+    const s = BANK.sounds[key]
+    const h = s && this.group(s.g)
+    return !!h && h.state() === 'loaded'
+  }
+
   listen(x, z, yaw) {
     const l = this.listener || (this.listener = { x: 0, z: 0, yaw: 0 })
     l.x = x
@@ -205,7 +212,12 @@ class Audio {
       if (v.h.playing(v.id)) live[keep++] = v
     }
     live.length = keep
-    if (opts.max && live.length >= opts.max) return
+    if (opts.max && live.length >= opts.max) {
+      if (!opts.steal) return
+      const old = live.shift()
+      old.h.fade(old.h.volume(old.id), 0, STEAL_FADE, old.id)
+      setTimeout(() => old.h.stop(old.id), STEAL_FADE + 20)
+    }
     const id = h.play(`${key}#${(random() * s.n) | 0}`)
     live.push({ h, id, key })
     this.lastAt[slot] = now

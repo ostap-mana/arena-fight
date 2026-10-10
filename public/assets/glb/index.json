@@ -3080,5 +3080,167 @@
   "size": 1811824,
   "root": "MDL_ING_ANIMLTS004",
   "name": "ANIMLTS004"
+ },
+ {
+  "id": "GIA067",
+  "file": "gia067.glb",
+  "bones": 24,
+  "meshes": [
+   "MESH_Body"
+  ],
+  "textures": [
+   "T_ING_GIA067_Albedo",
+   "T_ING_GIA067_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_1",
+    "duration": 0.7333,
+    "bones": 63,
+    "channels": 39
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 0.8667,
+    "bones": 63,
+    "channels": 43
+   },
+   {
+    "name": "Death",
+    "duration": 2.3333,
+    "bones": 63,
+    "channels": 28
+   },
+   {
+    "name": "Death_2",
+    "duration": 2.9,
+    "bones": 63,
+    "channels": 28
+   },
+   {
+    "name": "Death_3",
+    "duration": 2.0333,
+    "bones": 63,
+    "channels": 28
+   },
+   {
+    "name": "Death_4",
+    "duration": 2.6,
+    "bones": 63,
+    "channels": 28
+   },
+   {
+    "name": "Death_5",
+    "duration": 1.8667,
+    "bones": 63,
+    "channels": 28
+   },
+   {
+    "name": "Flinch",
+    "duration": 0.6333,
+    "bones": 63,
+    "channels": 32
+   },
+   {
+    "name": "Freeze",
+    "duration": 0.3333,
+    "bones": 63,
+    "channels": 31
+   },
+   {
+    "name": "Idle",
+    "duration": 1.6667,
+    "bones": 63,
+    "channels": 31
+   },
+   {
+    "name": "LaunchAirOut",
+    "duration": 0.9333,
+    "bones": 63,
+    "channels": 31
+   },
+   {
+    "name": "LaunchAirProcess",
+    "duration": 0.7,
+    "bones": 63,
+    "channels": 26
+   },
+   {
+    "name": "LaunchGrndOut",
+    "duration": 0.6667,
+    "bones": 63,
+    "channels": 31
+   },
+   {
+    "name": "LaunchGrndProcess",
+    "duration": 0.0667,
+    "bones": 63,
+    "channels": 29
+   },
+   {
+    "name": "LaunchIn",
+    "duration": 0.3,
+    "bones": 63,
+    "channels": 30
+   },
+   {
+    "name": "Paralyze",
+    "duration": 1.0,
+    "bones": 63,
+    "channels": 63,
+    "static": true
+   },
+   {
+    "name": "Run",
+    "duration": 0.6,
+    "bones": 63,
+    "channels": 28
+   },
+   {
+    "name": "Shock",
+    "duration": 0.2667,
+    "bones": 63,
+    "channels": 32
+   },
+   {
+    "name": "Skill_1_Cast",
+    "duration": 0.4,
+    "bones": 63,
+    "channels": 38
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.2333,
+    "bones": 63,
+    "channels": 45
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 1.0,
+    "bones": 63,
+    "channels": 38
+   },
+   {
+    "name": "Sleep",
+    "duration": 1.6667,
+    "bones": 63,
+    "channels": 30
+   },
+   {
+    "name": "Stun",
+    "duration": 1.6667,
+    "bones": 63,
+    "channels": 28
+   },
+   {
+    "name": "Walk",
+    "duration": 7.4667,
+    "bones": 63,
+    "channels": 26
+   }
+  ],
+  "size": 792424,
+  "root": "MDL_ING_GIA067",
+  "name": "GIA067"
  }
 ]

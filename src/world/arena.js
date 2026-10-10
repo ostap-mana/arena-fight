@@ -8,6 +8,27 @@ import { fetchBuffer, fetchJson } from '../core/fetch.js'
 
 export const ARENA_RADIUS = 18.5
 
+const CUT_REACH = 2.5
+const CUT_HEIGHT = 2.2
+const CUT_OFF = 1e6
+const ARENA_CUT = {
+  uCutDir: { value: new THREE.Vector2(0, -1) },
+  uCutFrom: { value: CUT_OFF },
+  uCutY: { value: CUT_OFF },
+}
+
+export function aimArenaCut(camera, floorY = 0) {
+  const { x, z } = camera.position
+  const reach = Math.hypot(x, z)
+  if (reach < ARENA_RADIUS) {
+    ARENA_CUT.uCutFrom.value = CUT_OFF
+    return
+  }
+  ARENA_CUT.uCutDir.value.set(x / reach, z / reach)
+  ARENA_CUT.uCutFrom.value = ARENA_RADIUS + CUT_REACH
+  ARENA_CUT.uCutY.value = floorY + CUT_HEIGHT
+}
+
 const LIGHTMAP_INTENSITY = 3.6
 const ARENA_DIR = 'assets/locations/'
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
@@ -220,8 +241,27 @@ function patchLightmapUv(material) {
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_LIGHTMAP\n\tvLightMapUv = uv1 * lmST.xy + lmST.zw;\n#endif')
     if (dynamic) patchDynamicLights(shader)
     if (material.userData.terrain) patchTerrain(shader, material.userData.terrain)
+    patchCameraCut(shader)
   }
   material.customProgramCacheKey = () => (material.userData.terrain ? 'spire-terrain' : 'spire-lm') + (dynamic ? '-dyn' : '')
+}
+
+function patchCameraCut(shader) {
+  Object.assign(shader.uniforms, ARENA_CUT)
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vCutWorld;')
+    .replace(
+      '#include <project_vertex>',
+      `#include <project_vertex>
+	vec4 cutWorld = vec4( transformed, 1.0 );
+	#ifdef USE_INSTANCING
+		cutWorld = instanceMatrix * cutWorld;
+	#endif
+	vCutWorld = ( modelMatrix * cutWorld ).xyz;`
+    )
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform vec2 uCutDir;\nuniform float uCutFrom;\nuniform float uCutY;\nvarying vec3 vCutWorld;')
+    .replace('void main() {', 'void main() {\n\tif ( vCutWorld.y > uCutY && dot( vCutWorld.xz, uCutDir ) > uCutFrom ) discard;')
 }
 
 function patchDynamicLights(shader) {

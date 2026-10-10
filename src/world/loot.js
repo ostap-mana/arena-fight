@@ -18,8 +18,8 @@ const FLY_TIME = 0.62
 const FLY_PER_UNIT = 0.025
 const FLY_EXTRA_MAX = 0.3
 const SCATTER = [1.1, 2.5]
-const FLANK_DIST = 2.4
-const FLANK_SLOTS = [[-1, 0.12], [1, 0.12], [-0.7, 0.72], [0.7, 0.72], [-0.7, -0.72], [0.7, -0.72]]
+const AWAY = [3.6, 5.4]
+const AWAY_FAN = 1.4
 const REST_HOLD = 0.9
 const FLOOR_LIMIT = ARENA_RADIUS - 1.2
 const ARC = [1.7, 2.7]
@@ -28,18 +28,22 @@ const BOB = 0.09
 const BOB_SPEED = 2.6
 const SPIN = 1.7
 const TUMBLE = 7
-const PICK_RADIUS = 1.9
-const PICK_TIME = 0.42
-const PICK_LIFT = 0.8
-const PICK_SHRINK = 0.45
+const PICK_RADIUS = 2
+const PICK_POP = 0.1
+const PICK_POP_LIFT = 0.7
+const PICK_POP_SCALE = 1.25
+const PICK_FLY = 0.24
+const PICK_LIFT = 0.5
+const PICK_SHRINK = 0.55
+const PICK_SPIN = 5
 const STAGGER = 0.09
 const HIT_LIFETIME = 1.2
+const HIGHLIGHT_MUTE = new Set(['PS_Beam_3_1', 'PS_Beam_4_1', 'PS_Beam_5_1'])
 const _v = new THREE.Vector3()
+const _lift = new THREE.Vector3()
 const _box = new THREE.Box3()
 const _size = new THREE.Vector3()
 const _center = new THREE.Vector3()
-const _right = new THREE.Vector3()
-const _up = new THREE.Vector3()
 
 function pickWeighted(weights) {
   const entries = Object.entries(weights || { common: 1 })
@@ -170,7 +174,7 @@ export class Loot {
       for (const item of rest) if (this.onCollect) this.onCollect(item)
       return
     }
-    rest.forEach((item, i) => this.queue.push({ item, at: new THREE.Vector3(at.x, LAUNCH_Y, at.z), delay: i * STAGGER, spread: 0.8, claimed: true }))
+    rest.forEach((item, i) => this.queue.push({ item, at: new THREE.Vector3(at.x, LAUNCH_Y, at.z), delay: i * STAGGER, spread: 0.8 }))
   }
 
   dropFrom(actor, table, boss = false) {
@@ -192,35 +196,17 @@ export class Loot {
     }
   }
 
-  freeFlank() {
-    const taken = new Set(this.drops.filter(d => d.phase !== 'pick').map(d => d.flank))
-    for (let i = 0; i < FLANK_SLOTS.length; i++) if (!taken.has(i)) return i
-    return this.drops.length % FLANK_SLOTS.length
-  }
-
-  flankOffset(slot) {
-    const e = this.camera.matrixWorld.elements
-    _right.set(e[0], 0, e[2]).normalize()
-    _up.set(-e[8], 0, -e[10]).normalize()
-    const [r, u] = FLANK_SLOTS[slot]
-    return new THREE.Vector3().addScaledVector(_right, r * FLANK_DIST).addScaledVector(_up, u * FLANK_DIST)
-  }
-
-  besideHero(d, hero) {
-    return keepOnFloor(d.to.set(hero.pos.x + d.offset.x, HOVER_Y, hero.pos.z + d.offset.z))
-  }
-
-  launch({ item, at, spread, claimed }, hero) {
+  launch({ item, at, spread }, hero) {
     const template = this.templates[item.slot]
     if (!template) return
     const mesh = template.clone(true)
     mesh.position.copy(at)
     this.group.add(mesh)
-    const flank = hero && this.camera ? this.freeFlank() : -1
-    const offset = flank >= 0 ? this.flankOffset(flank) : null
     let to
-    if (offset) {
-      to = keepOnFloor(new THREE.Vector3(hero.pos.x + offset.x, HOVER_Y, hero.pos.z + offset.z))
+    if (hero) {
+      const away = Math.atan2(at.x - hero.pos.x, at.z - hero.pos.z) + (random() - 0.5) * AWAY_FAN
+      const dist = between(AWAY)
+      to = keepOnFloor(new THREE.Vector3(hero.pos.x + Math.sin(away) * dist, HOVER_Y, hero.pos.z + Math.cos(away) * dist))
     } else {
       const ang = random() * Math.PI * 2
       const dist = between(SCATTER) * spread
@@ -233,8 +219,6 @@ export class Loot {
       mesh,
       from: at.clone(),
       to,
-      flank,
-      offset,
       dur: FLY_TIME + Math.min(FLY_EXTRA_MAX, travel * FLY_PER_UNIT),
       arc: between(ARC),
       phase: 'fly',
@@ -244,7 +228,6 @@ export class Loot {
       look,
       trail: this.vfx.spawn(LIB, look.trail, { follow: mesh }),
       glow: null,
-      claimed: !!claimed,
     })
     const rare = RARITIES.indexOf(item.rarity) >= 3
     audio.play(rare ? 'loot_drop_artifact' : 'loot_drop_equip', { at, slot: 'loot_drop', max: 3, gap: 0.05 })
@@ -256,7 +239,7 @@ export class Loot {
     d.mesh.quaternion.identity()
     if (d.trail) d.trail.stop()
     d.trail = null
-    d.glow = this.vfx.spawn(LIB, d.look.highlight, { pos: new THREE.Vector3(d.to.x, 0.02, d.to.z) })
+    d.glow = this.vfx.spawn(LIB, d.look.highlight, { pos: new THREE.Vector3(d.to.x, 0.02, d.to.z), mute: HIGHLIGHT_MUTE })
   }
 
   pick(d) {
@@ -293,9 +276,7 @@ export class Loot {
   collectAll() {
     for (const q of this.queue) {
       q.delay = 0
-      q.claimed = true
     }
-    for (const d of this.drops) d.claimed = true
   }
 
   update(dt, hero, anchor) {
@@ -313,7 +294,6 @@ export class Loot {
       const m = d.mesh
       if (d.phase === 'fly') {
         const k = Math.min(1, d.t / d.dur)
-        if (d.offset && target) this.besideHero(d, target)
         m.position.lerpVectors(d.from, d.to, k)
         m.position.y += 4 * d.arc * k * (1 - k)
         m.rotateOnAxis(d.tumble, TUMBLE * dt)
@@ -322,16 +302,23 @@ export class Loot {
         m.position.y = HOVER_Y + Math.sin(d.t * BOB_SPEED) * BOB
         m.rotation.y += d.spin * dt
         const near = target && Math.hypot(target.pos.x - m.position.x, target.pos.z - m.position.z) < PICK_RADIUS + target.radius
-        if (target && d.t >= REST_HOLD && (near || d.claimed)) this.pick(d)
+        if (near && d.t >= REST_HOLD) this.pick(d)
       } else {
-        const k = Math.min(1, d.t / PICK_TIME)
+        m.rotation.y += d.spin * PICK_SPIN * dt
+        if (d.t < PICK_POP) {
+          const p = 1 - (1 - d.t / PICK_POP) ** 2
+          m.position.set(d.from.x, d.from.y + PICK_POP_LIFT * p, d.from.z)
+          m.scale.setScalar(1 + (PICK_POP_SCALE - 1) * p)
+          continue
+        }
+        const k = Math.min(1, (d.t - PICK_POP) / PICK_FLY)
         if (target) _v.set(target.pos.x, target.pos.y + target.height * 0.55, target.pos.z)
         else _v.copy(d.from)
-        const e = k * k
-        m.position.lerpVectors(d.from, _v, e)
-        m.position.y += Math.sin(Math.PI * k) * PICK_LIFT
-        m.scale.setScalar(1 - PICK_SHRINK * e)
-        m.rotation.y += d.spin * 3 * dt
+        _lift.set(d.from.x, d.from.y + PICK_POP_LIFT, d.from.z)
+        const e = k * k * k
+        m.position.lerpVectors(_lift, _v, e)
+        m.position.y += Math.sin(Math.PI * k) * PICK_LIFT * (1 - k)
+        m.scale.setScalar(PICK_POP_SCALE * (1 - PICK_SHRINK * e))
         if (k >= 1) {
           this.drops.splice(i, 1)
           this.finish(d, anchor)

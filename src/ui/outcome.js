@@ -12,7 +12,7 @@ const CROWN_W = { portrait: 0.5, landscape: 0.6 }
 const CROWN_SEAT = 0.1
 const CROWN_DROP = { at: 0.34, duration: 0.62, lift: 0.55, scale: 1.18 }
 const CROWN_BOB = { rate: 1.4, px: 2.2 }
-const PLAY_ART = { w: 640, h: 164 }
+const PLAY_ART = { w: 685, h: 164 }
 const RETRY_ART = { w: 472, h: 128 }
 
 const SCRIM = {
@@ -23,6 +23,8 @@ const SCRIM = {
     [0.0, 0.88], [0.13, 0.5], [0.26, 0.64], [0.44, 0.84], [0.64, 0.87], [0.82, 0.76], [1.0, 0.88],
   ],
 }
+const SCRIM_TINT = '34, 8, 7'
+const SCRIM_DEPTH = 0.62
 
 const SIDE = {
   victory: {
@@ -32,7 +34,6 @@ const SIDE = {
     bloom: '245, 198, 90',
     lamp: 0.42,
     idle: 0.36,
-    drop: { portrait: 0.82, landscape: 0.62 },
   },
   defeat: {
     band: defeatBandUrl,
@@ -41,20 +42,19 @@ const SIDE = {
     bloom: '201, 80, 42',
     lamp: 0.3,
     idle: 0.26,
-    drop: { portrait: 0.12, landscape: 0.12 },
   },
 }
 
 const VERDICT_W = { portrait: 1.0, landscape: 0.52 }
 const VERDICT_H = { portrait: 0.2, landscape: 0.2 }
-const PLATE_Y = { portrait: 0.47, landscape: 0.42 }
+const STACK_Y = { portrait: 0.48, landscape: 0.5 }
+const STACK_GAP = { portrait: 0.4, landscape: 0.3 }
+const STACK_EDGE = 4
 
 const RETRY_W = { portrait: 0.68, landscape: 0.34 }
 const RETRY_MAX = { portrait: 0.26, landscape: 0.3 }
 const PLAY_W = { portrait: 1, landscape: 0.54 }
-const CONTROL_SILL = { portrait: 0.83, landscape: 0.9 }
 const PLATE_EDGE_AIR = 6
-const RETRY_AIR = 12
 const RETRY_LABEL_W = 0.6
 const RETRY_LABEL_H = 0.4
 
@@ -76,7 +76,7 @@ function warmImage(url) {
 }
 
 function scrimGradient(stops) {
-  return `linear-gradient(180deg, ${stops.map(([at, a]) => `rgba(8,8,9,${a}) ${at * 100}%`).join(', ')})`
+  return `linear-gradient(180deg, ${stops.map(([at, a]) => `rgba(${SCRIM_TINT},${(a * SCRIM_DEPTH).toFixed(3)}) ${at * 100}%`).join(', ')})`
 }
 
 function fitArt(art, w, maxH) {
@@ -141,7 +141,6 @@ export class Outcome {
     const key = portrait ? 'portrait' : 'landscape'
     const ui = clamp(Math.min(w, h) / 375, 0.72, 3.2)
     const cx = w / 2
-    const cy = h * PLATE_Y[key]
 
     this.scrim.style.background = scrimGradient(SCRIM[key])
 
@@ -153,38 +152,35 @@ export class Outcome {
       pw = (ph * VERDICT_ART.w) / VERDICT_ART.h
     }
 
-    place(this.band, cx - pw / 2, cy - ph / 2, pw, ph)
-
     const crownW = pw * CROWN_W[key]
     const crownH = (crownW * CROWN_ART.h) / CROWN_ART.w
-    const crownTop = Math.max(4 * ui, cy - ph / 2 + ph * CROWN_SEAT - crownH)
-    place(this.crown, cx - crownW / 2, crownTop, crownW, crownH)
+    const crownRise = crownH - ph * CROWN_SEAT
+
+    const offer = defeat => Math.min(
+      w * (defeat ? RETRY_W[key] : PLAY_W[key]),
+      Math.max(44 * ui, pw),
+      Math.max(44 * ui, ((w / 2 - PLATE_EDGE_AIR * ui) * 2) / (defeat ? 1 : 1 + PLAY_BEAT.kick)),
+    )
+    const maxH = clamp(h * RETRY_MAX[key], 40 * ui, 340 * ui)
+    const playBox = fitArt(PLAY_ART, offer(false), maxH)
+    const box = this.defeat ? fitArt(RETRY_ART, offer(true), maxH) : playBox
+
+    const gap = ph * STACK_GAP[key]
+    const stack = crownRise + ph + gap + playBox.h
+    const bandTop = Math.max(STACK_EDGE * ui, h * STACK_Y[key] - stack / 2) + crownRise
+    const cy = bandTop + ph / 2
+
+    place(this.band, cx - pw / 2, bandTop, pw, ph)
+    place(this.crown, cx - crownW / 2, bandTop + ph * CROWN_SEAT - crownH, crownW, crownH)
     this.crownH = crownH
     this.ui = ui
-    this.crown.style.setProperty('--crown-glow', `${Math.round(10 * ui)}px`)
 
     const bw = Math.max(80, pw * 0.62)
     const bh = Math.max(80, ph * 3.4)
     place(this.bloom, cx - bw / 2, cy - bh / 2, bw, bh)
 
-    const air = RETRY_AIR * ui
-    const roof = cy + ph / 2 + air
-    const beating = this.defeat ? 1 : 1 + PLAY_BEAT.kick
-    const offered = Math.min(
-      w * (this.defeat ? RETRY_W[key] : PLAY_W[key]),
-      Math.max(44 * ui, pw),
-      Math.max(44 * ui, ((w / 2 - PLATE_EDGE_AIR * ui) * 2) / beating),
-    )
-    const sill = h * CONTROL_SILL[key] - air
-    const room = Math.max(44 * ui, sill - roof)
-    const maxH = Math.min(clamp(h * RETRY_MAX[key], 40 * ui, 340 * ui), room)
-    const box = fitArt(this.defeat ? RETRY_ART : PLAY_ART, offered, maxH)
-    const y = clamp(
-      roof + (sill - roof) * this.side.drop[key],
-      roof + box.h / 2,
-      Math.max(roof + box.h / 2, sill - box.h / 2),
-    )
-    place(this.control, cx - box.w / 2, y - box.h / 2, box.w, box.h)
+    const controlMid = bandTop + ph + gap + playBox.h / 2
+    place(this.control, cx - box.w / 2, controlMid - box.h / 2, box.w, box.h)
 
     if (this.defeat) this.fitLabel(box)
   }

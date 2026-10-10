@@ -2,7 +2,7 @@ import { BUILD_PIECES, formatStat, GEAR_SLOTS, STAT_LABEL } from '../core/gear.j
 import { POWER_GOAL, SET_NAME } from '../data/builds.js'
 import { deferImages } from './lazy.js'
 import { TAP } from './tapcue.js'
-import { view } from '../core/viewport.js'
+import { view, safeInsets } from '../core/viewport.js'
 
 const RELIC_ART = import.meta.glob('../assets/GENERAL/HUD/loot/relic-*.webp', { eager: true, import: 'default' })
 const GEAR_ART = import.meta.glob('../assets/GENERAL/HUD/gear/*.webp', { eager: true, import: 'default' })
@@ -23,6 +23,8 @@ const PLATE_W = 4.6
 const STACK_GAP = 12
 const STRIP_CELL = 0.84
 const STRIP_SLOTS = 6
+const SIDE_PLATE_MIN = 0.7
+const SIDE_STRIP_MIN = 3.4
 const COUNT_MS = 650
 const FLY_MS = 360
 const OPEN_MS = 420
@@ -47,6 +49,26 @@ const GUIDE_FADE_OUT = 0.5
 const guideLengths = new Float32Array(GUIDE_SAMPLES + 1)
 const guidePoint = { x: 0, y: 0, a: 0 }
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+
+function stripWidth(s) {
+  return s * STRIP_CELL * (STRIP_SLOTS + 1.3) + s * 0.6
+}
+
+function ringWidth(heroH, k) {
+  const s = clamp(heroH * SLOT_OF_HERO, SLOT_MIN * k, SLOT_MAX * k)
+  return 2 * (heroH * HERO_HALF + s * 0.5 + COLUMN_GAP * k + s * BULGE + s / 2 + EDGE)
+}
+
+export function ringHeroFit(width, k = 1) {
+  let low = 40
+  let high = 4000
+  for (let i = 0; i < 24; i++) {
+    const mid = (low + high) / 2
+    if (ringWidth(mid, k) <= width) low = mid
+    else high = mid
+  }
+  return low
+}
 
 function art(name) {
   return GEAR_ART[`../assets/GENERAL/HUD/gear/${name}.webp`] || ''
@@ -83,6 +105,7 @@ export class GearRing {
     this.seq = 0
     this.spots = {}
     this.center = { x: 0, y: 0 }
+    this.scale = 1
     this.build()
   }
 
@@ -97,7 +120,6 @@ export class GearRing {
         <span class="plabel">Invoker power</span>
         <div class="pv"><i class="picon"></i><b class="pvalue">0</b><span class="pgoal">/ ${POWER_GOAL.toLocaleString('en-US')}</span></div>
         <div class="gbar"><i class="gfill"></i></div>
-        <i class="orn"></i>
         <span class="pdelta"></span>
         <button class="buildchip"><img class="bset" alt="" draggable="false"><span class="bname"></span><span class="pips">${'<i></i>'.repeat(BUILD_PIECES)}</span></button>
         <span class="bbonus"></span>
@@ -293,17 +315,20 @@ export class GearRing {
   place(cx, top, bottom) {
     const W = view.w
     const H = view.h
+    const safe = safeInsets()
     const heroH = Math.max(40, bottom - top)
-    const s = clamp(heroH * SLOT_OF_HERO, SLOT_MIN, SLOT_MAX)
+    const k = this.scale
+    const gap = STACK_GAP * k
+    const s = clamp(heroH * SLOT_OF_HERO, SLOT_MIN * k, SLOT_MAX * k)
     if (setPx(this.el, '--s', s)) {
       this.plateH = null
       this.guideMeasure = true
     }
     const bulge = s * BULGE
-    let off = heroH * HERO_HALF + s * 0.5 + COLUMN_GAP
-    const room = Math.min(cx, W - cx) - EDGE - s / 2 - bulge
+    let off = heroH * HERO_HALF + s * 0.5 + COLUMN_GAP * k
+    const room = Math.min(cx - safe.l, W - cx - safe.r) - EDGE - s / 2 - bulge
     if (off > room) off = Math.max(s * 0.6, room)
-    const x = clamp(cx, off + bulge + s / 2 + EDGE, W - off - bulge - s / 2 - EDGE)
+    const x = clamp(cx, off + bulge + s / 2 + EDGE + safe.l, W - off - bulge - s / 2 - EDGE - safe.r)
     const step = Math.max(s * ROW_STEP, (heroH - s) / 3)
     const cy = (top + bottom) / 2
     const half = step * 1.5 + s / 2
@@ -318,24 +343,65 @@ export class GearRing {
     this.placeShade(x, cy, off + s * 0.1, half + s * 0.15)
     for (let i = 0; i < LEFT.length; i++) this.putSlot(LEFT[i], -1, i, x, cy, off, bulge, step, s)
     for (let i = 0; i < RIGHT.length; i++) this.putSlot(RIGHT[i], 1, i, x, cy, off, bulge, step, s)
-    const plateW = Math.min(W - EDGE * 2, s * PLATE_W)
-    const stripW = Math.min(W - EDGE * 2, s * STRIP_CELL * (STRIP_SLOTS + 1.3) + s * 0.6)
-    setPx(this.plate, 'width', plateW)
-    setPx(this.strip, 'width', stripW)
-    if (this.plateH == null) {
-      this.plateH = this.plate.offsetHeight
-      this.stripH = this.strip.offsetHeight
-    }
-    const plateY = Math.min(top, cy - half) - STACK_GAP - this.plateH
-    setShift(this.plate, clamp(x - plateW / 2, EDGE, W - plateW - EDGE), Math.max(EDGE, plateY))
-    const stripY = Math.max(bottom, cy + half) + STACK_GAP
-    this.stripX = clamp(x - stripW / 2, EDGE, W - stripW - EDGE)
-    this.stripY = Math.min(H - this.stripH - EDGE, stripY)
-    setShift(this.strip, this.stripX, this.stripY)
+    this.measurePanels(s)
+    const ringW = off + bulge + s / 2
+    const ringTop = Math.min(top, cy - half)
+    const ringBottom = Math.max(bottom, cy + half)
+    const lowY = EDGE + safe.t
+    const highY = H - EDGE - safe.b
+    const stackFits = ringTop - gap - this.plateAt(s) >= lowY && ringBottom + gap + this.stripH <= highY
+    const leftRoom = x - ringW - gap - EDGE - safe.l
+    const rightRoom = W - safe.r - EDGE - gap - x - ringW
+    const sides = !stackFits && leftRoom >= s * PLATE_W * SIDE_PLATE_MIN && rightRoom >= s * SIDE_STRIP_MIN
+    if (sides) this.placeSides(x, cy, ringW, s, gap, leftRoom, rightRoom, lowY, highY)
+    else this.placeStacked(x, s, gap, ringTop, ringBottom, W, safe, lowY, highY)
     setPx(this.halo, 'left', x)
     setPx(this.halo, 'top', bottom)
     setPx(this.halo, 'width', off * 2 + s * 1.6)
     this.placeGuide(s)
+  }
+
+  measurePanels(s) {
+    if (this.plateH != null) return
+    setPx(this.plate, '--s', s)
+    this.plateS = s
+    this.plateH = this.plate.offsetHeight
+    this.stripH = this.strip.offsetHeight
+  }
+
+  plateAt(ps) {
+    return this.plateH * ps / this.plateS
+  }
+
+  scalePlate(ps) {
+    if (!setPx(this.plate, '--s', ps)) return
+    this.plateH = this.plate.offsetHeight
+    this.plateS = ps
+  }
+
+  placeStacked(x, s, gap, ringTop, ringBottom, W, safe, lowY, highY) {
+    this.scalePlate(s)
+    const span = W - EDGE * 2 - safe.l - safe.r
+    const plateW = Math.min(span, s * PLATE_W)
+    const stripW = Math.min(span, stripWidth(s))
+    setPx(this.plate, 'width', plateW)
+    setPx(this.strip, 'width', stripW)
+    setShift(this.plate, clamp(x - plateW / 2, EDGE + safe.l, W - plateW - EDGE - safe.r), Math.max(lowY, ringTop - gap - this.plateH))
+    this.stripX = clamp(x - stripW / 2, EDGE + safe.l, W - stripW - EDGE - safe.r)
+    this.stripY = Math.min(highY - this.stripH, ringBottom + gap)
+    setShift(this.strip, this.stripX, this.stripY)
+  }
+
+  placeSides(x, cy, ringW, s, gap, leftRoom, rightRoom, lowY, highY) {
+    this.scalePlate(Math.min(s, Math.floor(leftRoom / PLATE_W)))
+    const plateW = this.plateS * PLATE_W
+    const stripW = Math.min(rightRoom, stripWidth(s))
+    setPx(this.plate, 'width', plateW)
+    setPx(this.strip, 'width', stripW)
+    setShift(this.plate, x - ringW - gap - plateW, clamp(cy - this.plateH / 2, lowY, highY - this.plateH))
+    this.stripX = x + ringW + gap
+    this.stripY = clamp(cy - this.stripH / 2, lowY, highY - this.stripH)
+    setShift(this.strip, this.stripX, this.stripY)
   }
 
   pickGuide() {

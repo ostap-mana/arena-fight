@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { safeFragment } from './safe-shader.js'
 import { stream } from '../core/rng.js'
 import { fetchJson } from '../core/fetch.js'
 import { markRange } from './buffer-range.js'
@@ -269,7 +270,7 @@ class Batch {
       },
       defines,
       vertexShader: VS,
-      fragmentShader: FS,
+      fragmentShader: safeFragment(FS),
       transparent: true,
       depthWrite: false,
       blending: THREE.CustomBlending,

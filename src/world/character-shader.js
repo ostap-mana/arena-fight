@@ -170,7 +170,7 @@ const FRAGMENT_PARS = `
     float NdotH = clamp(dot(N, H), 0.0, 1.0);
     float LdotH = clamp(dot(L, H), 0.0, 1.0);
     float d = NdotH * NdotH * (r2 - 1.0) + 1.00001;
-    float specTerm = r2 / ((d * d) * max(LdotH * LdotH, 0.1) * (r * 4.0 + 2.0));
+    float specTerm = min(r2 / ((d * d) * max(LdotH * LdotH, 0.1) * (r * 4.0 + 2.0)), 100.0);
     vec3 brdf = specColor * specTerm + diffuse;
     float NdotV = dot(N, V);
     vec3 R = reflect(-V, N);
@@ -292,7 +292,7 @@ const LOBBY_PARS = `
     vec3 L = normalize(uLobbyLightDir);
     vec4 mse = texture2D(uMse, uv);
     float metallic = mse.r;
-    float skin = mse.a * uSkinToggle;
+    float skin = clamp(mse.a * 2.00787 - 1.00787, 0.0, 1.0) * uSkinToggle;
     float emission = mse.b * uEmissionToggle;
     float NdotV = clamp(dot(N, V), 0.0, 1.0);
     float fresnel = pow(1.0 - NdotV, 4.0);
@@ -312,7 +312,7 @@ const LOBBY_PARS = `
     float NdotH = clamp(dot(N, H), 0.0, 1.0);
     float LdotH = clamp(dot(L, H), 0.0, 1.0);
     float d = NdotH * NdotH * (r2 - 1.0) + 1.00001;
-    float specTerm = r2 / ((d * d) * max(LdotH * LdotH, 0.1) * (r * 4.0 + 2.0));
+    float specTerm = min(r2 / ((d * d) * max(LdotH * LdotH, 0.1) * (r * 4.0 + 2.0)), 100.0);
     vec3 direct = (diffuseLight * albedo + specTerm * specColor) * (NdotL * uLobbyLightColor);
     vec3 R = reflect(-V, N);
     float mip = pr * (1.7 - 0.7 * pr) * 6.0;
@@ -348,6 +348,9 @@ const HAIR_PARS = `
   uniform vec3 uEmissiveColor;
   uniform vec3 uLobbyRimDir;
   uniform vec3 uLobbyRimColor;
+  vec3 safeNormal(vec3 v) {
+    return v * inversesqrt(max(dot(v, v), 1e-12));
+  }
   float strandLobe(vec3 T, vec3 H, float exponent) {
     float th = dot(T, H);
     return clamp(th + 1.0, 0.0, 1.0) * pow(max(1.0 - th * th, 1e-5), max(exponent, 1e-3));
@@ -356,16 +359,16 @@ const HAIR_PARS = `
     vec3 N = normalize(inverseTransformDirection(nView, viewMatrix));
     vec3 V = normalize(inverseTransformDirection(normalize(vViewPosition), viewMatrix));
     vec3 L = normalize(uLobbyLightDir);
-    vec3 Hv = normalize(normalize(vViewPosition) + normalize((viewMatrix * vec4(L, 0.0)).xyz));
-    vec3 H = normalize(vec3(dot(normalize(frame[0]), Hv), dot(normalize(frame[1]), Hv), dot(normalize(frame[2]), Hv)));
+    vec3 Hv = safeNormal(safeNormal(vViewPosition) + safeNormal((viewMatrix * vec4(L, 0.0)).xyz));
+    vec3 H = safeNormal(vec3(dot(safeNormal(frame[0]), Hv), dot(safeNormal(frame[1]), Hv), dot(safeNormal(frame[2]), Hv)));
     vec2 strandUv = vec2(uv.x, 1.0 - uv.y) * uTiling.xy + uTiling.zw;
     float strand = texture2D(uStrand, vec2(strandUv.x, 1.0 - strandUv.y)).g - 0.5;
     vec4 aose = texture2D(uAose, uv);
-    vec3 n = normalize(nTangent);
-    vec3 along = normalize(vec3(0.0, n.z, -n.y));
+    vec3 n = safeNormal(nTangent);
+    vec3 along = safeNormal(vec3(0.0, n.z, -n.y));
     vec2 shift = uSpecParams.xy + uHighlight.y + strand;
-    vec3 highlight = strandLobe(normalize(shift.x * n + along), H, uSpecParams.z * 90.0) * uSpec1
-      + strandLobe(normalize(shift.y * n + along), H, uSpecParams.w * 90.0) * uSpec2;
+    vec3 highlight = strandLobe(safeNormal(shift.x * n + along), H, uSpecParams.z * 90.0) * uSpec1
+      + strandLobe(safeNormal(shift.y * n + along), H, uSpecParams.w * 90.0) * uSpec2;
     float NdotL = clamp(dot(N, L), 0.0, 1.0) * shadow;
     float smoothness = aose.g * uHighlight.x;
     float pr = 1.0 - smoothness;

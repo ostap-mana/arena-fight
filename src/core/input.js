@@ -1,11 +1,8 @@
 import * as THREE from 'three'
 
-const IGNORED = '#animacard, #gearring, button, .card, .store, .replay'
-const CONTROLS = '.skill, #ultbtn'
+const IGNORED = '#gearring, button, .card, .store, .replay'
 const TAP_TIME = 500
 const TAP_SLOP = 14
-const FLICK_TIME = 320
-const FLICK_DIST = 46
 const STICK_RANGE = 100 / 216
 const STICK_DEAD = 0.2
 
@@ -20,12 +17,11 @@ export class Input {
     this.knob = null
     this.radius = 56
     this.enabled = false
-    this.pressed = { s1: false, s2: false, dash: false, attack: false }
+    this.held = false
     this.start = new THREE.Vector2()
     this.downAt = 0
     this.travel = 0
     this.onTap = null
-    this.onFlick = null
     this.onSteer = null
     this.bind()
   }
@@ -33,18 +29,6 @@ export class Input {
   attachStick(el) {
     this.stick = el
     this.knob = el.querySelector('.knob')
-  }
-
-  overControls(x, y) {
-    const pad = 10
-    for (const el of document.querySelectorAll('#skills .skill, #ultbtn')) {
-      const r = el.getBoundingClientRect()
-      if (!r.width || getComputedStyle(el).opacity === '0') continue
-      const cx = r.left + r.width / 2
-      const cy = r.top + r.height / 2
-      if (Math.hypot(x - cx, y - cy) < r.width / 2 + pad) return true
-    }
-    return false
   }
 
   stickRadius() {
@@ -58,8 +42,15 @@ export class Input {
     this.stick.style.bottom = `${innerHeight - this.origin.y - half}px`
   }
 
+  grab() {
+    this.held = true
+    this.placeStick()
+    if (this.stick) this.stick.classList.add('held')
+  }
+
   release() {
     this.pointerId = null
+    this.held = false
     this.move.set(0, 0)
     if (this.knob) this.knob.style.transform = 'translate(0,0)'
     if (this.stick) {
@@ -88,9 +79,8 @@ export class Input {
       if (this.pointerId !== null && e.pointerId !== this.pointerId) return
       const t = e.target
       if (t.closest && t.closest(IGNORED)) return
-      const onControl = !!(t.closest && t.closest(CONTROLS)) || this.overControls(e.clientX, e.clientY)
       this.pointerId = e.pointerId
-      this.fromControl = onControl
+      this.held = false
       this.radius = this.stickRadius()
       this.origin.set(e.clientX, e.clientY)
       this.start.set(e.clientX, e.clientY)
@@ -98,8 +88,6 @@ export class Input {
       this.travel = 0
       this.move.set(0, 0)
       if (this.knob) this.knob.style.transform = 'translate(0,0)'
-      if (onControl) return
-      this.placeStick()
     }
     const move = e => {
       if (e.pointerId !== this.pointerId) return
@@ -108,15 +96,11 @@ export class Input {
         return
       }
       this.travel = Math.max(this.travel, Math.hypot(e.clientX - this.start.x, e.clientY - this.start.y))
-      if (this.fromControl) {
+      if (!this.held) {
         if (this.travel <= TAP_SLOP) return
-        this.fromControl = false
-        this.placeStick()
+        this.grab()
       }
-      if (this.travel > TAP_SLOP) {
-        if (this.stick) this.stick.classList.add('held')
-        if (this.onSteer) this.onSteer()
-      }
+      if (this.onSteer) this.onSteer()
       let dx = e.clientX - this.origin.x
       let dy = e.clientY - this.origin.y
       const len = Math.hypot(dx, dy)
@@ -132,30 +116,15 @@ export class Input {
     }
     const up = e => {
       if (e.pointerId !== this.pointerId) return
-      if (this.fromControl) {
-        this.fromControl = false
-        this.release()
-        return
-      }
-      const held = performance.now() - this.downAt
-      const fx = e.clientX - this.start.x
-      const fy = e.clientY - this.start.y
-      const dist = Math.hypot(fx, fy)
-      const tapped = e.type === 'pointerup' && held < TAP_TIME && this.travel < TAP_SLOP
-      const flicked = e.type === 'pointerup' && held < FLICK_TIME && dist >= FLICK_DIST
+      const tapped = e.type === 'pointerup' && !this.held && performance.now() - this.downAt < TAP_TIME
       this.release()
       if (tapped && this.onTap) this.onTap(e.clientX, e.clientY)
-      else if (flicked && this.onFlick) this.onFlick(fx / dist, fy / dist)
     }
 
     addEventListener('pointerdown', down, { passive: true, capture: true })
     addEventListener('pointermove', move, { passive: true })
     addEventListener('pointerup', up, { passive: true })
     addEventListener('pointercancel', up, { passive: true })
-  }
-
-  tapOn(pointerId) {
-    return this.enabled && this.pointerId === pointerId && this.fromControl
   }
 
   stickAxis() {
@@ -187,15 +156,5 @@ export class Input {
     out[0] = x
     out[1] = y
     return out
-  }
-
-  consume(name) {
-    if (this.pressed[name]) { this.pressed[name] = false; return true }
-    return false
-  }
-
-  keyOnce(code) {
-    if (this.keys.has(code)) { this.keys.delete(code); return true }
-    return false
   }
 }
