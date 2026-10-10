@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { safeFragment } from './safe-shader.js'
 import gsap from 'gsap'
-import { T, tiled, paletteFor } from './fx.js'
+import { T, paletteFor } from './fx.js'
 import { Flipbooks } from './flipbook.js'
 import { LobbyAmbient } from './lobby-ambient.js'
 import { stream } from '../core/rng.js'
@@ -16,15 +16,11 @@ const PICKED_RIM = 0
 const IDLE_RIM_COLOR = new THREE.Color(0x9fb4d8)
 const FOCUS_TIME = 0.35
 const CIRCLE_SIZE = 3.6
-const WALL_RADIUS = CIRCLE_SIZE * 0.4
-const WALL_HEIGHT = 0.38
 const CONTACT_SIZE = 1.6
 const STAND_Y = 0.04
 const PORTRAIT_STAND = 0.82
 const PORTRAIT_IDLE = 0.3
 const EXPOSURE = { fire: 0.66 }
-const SHOCK_TIME = 0.7
-const REVEAL_TIME = 0.3
 const FLASH_DECAY = 3.5
 const FLOOR_BOOK = 'stand_floor'
 const FLAME_BOOK = 'stand_flame'
@@ -41,7 +37,6 @@ const SELECT_FOG = 0.03
 const SELECT_FOG_TINT = 0.45
 const SELECT_SHADOW = 0.85
 const floorGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
-const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 96, 1, true).translate(0, 0.5, 0)
 const smooth = k => k * k * (3 - 2 * k)
 
 const FLOOR_VS = `
@@ -61,158 +56,48 @@ const CONTACT_FS = `
   }`
 
 const CIRCLE_FS = `
-  uniform sampler2D uGlow;
-  uniform sampler2D uRunes;
-  uniform sampler2D uRing;
   uniform vec3 uColor;
   uniform float uTime;
   uniform float uOn;
   uniform float uIdle;
   uniform float uExposure;
   uniform float uFlash;
-  uniform float uShock;
-  uniform float uReveal;
   varying vec2 vUv;
   const float TAU = 6.2831853;
   const float SECTOR = TAU / 3.0;
-  const float TRI_R = 0.74;
-  const float INNER_R = 0.37;
-  const float INNER_GAP = 0.034;
-  const float CORE_R = 0.31;
-  const float NODE_R = 0.056;
-  const float PULSE_PERIOD = 2.8;
-  vec2 spin(vec2 p, float a, float scale) {
-    float c = cos(a);
-    float s = sin(a);
-    return vec2(c * p.x - s * p.y, s * p.x + c * p.y) / scale * 0.5 + 0.5;
-  }
-  vec2 rotate(vec2 p, float a) {
-    float c = cos(a);
-    float s = sin(a);
-    return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
-  }
-  vec2 triangle(vec2 p, float radius) {
-    float k = floor(mod(atan(p.y, p.x) - TAU * 0.25, TAU) / SECTOR);
-    float mid = TAU * 0.25 + (k + 0.5) * SECTOR;
-    vec2 n = vec2(cos(mid), sin(mid));
-    float along = dot(p, vec2(-n.y, n.x)) / (radius * 1.7320508) + 0.5;
-    return vec2(dot(p, n) - radius * 0.5, (k + clamp(along, 0.0, 1.0)) / 3.0);
-  }
-  float nodeDistance(vec2 p) {
-    float k = floor(mod(atan(p.y, p.x) - TAU * 0.25 + SECTOR * 0.5, TAU) / SECTOR);
-    float a = TAU * 0.25 + k * SECTOR;
-    return length(p - TRI_R * vec2(cos(a), sin(a)));
-  }
+  const float RING_R = 0.78;
+  const float INNER_R = 0.39;
+  const float SPIN = 0.5;
   float stroke(float d, float width) {
-    float aa = fwidth(d) + 1e-4;
-    return 1.0 - smoothstep(width - aa, width + aa, d);
+    float aa = max(fwidth(d), 1e-5);
+    float w = max(width, aa);
+    return 1.0 - smoothstep(w - aa * 0.5, w + aa * 0.5, d);
   }
-  float comets(float perimeter, float edge, float t) {
-    float band = exp(-edge * edge / 0.00025);
-    float sum = 0.0;
-    for (int i = 0; i < 3; i++) {
-      float behind = fract(fract(t * 0.11 + float(i) / 3.0) - perimeter);
-      sum += band * (exp(-behind * 7.0) * 1.1 + exp(-behind * 80.0) * 2.6);
-    }
-    return sum;
+  float triangleEdge(vec2 p, float angle, float spin) {
+    float k = floor(mod(angle - spin - TAU * 0.25, TAU) / SECTOR);
+    float mid = TAU * 0.25 + spin + (k + 0.5) * SECTOR;
+    return dot(p, vec2(cos(mid), sin(mid))) - RING_R * 0.5;
   }
   void main() {
     vec2 p = vUv * 2.0 - 1.0;
     float r = length(p);
     if (r > 1.0) discard;
-    float t = uTime;
-    float ang = r > 1e-4 ? atan(p.y, p.x) : 0.0;
-    float turn = ang / TAU + 0.5;
-    float front = r > 1e-4 ? abs(atan(p.x, -p.y)) / 3.14159265 : 0.0;
+    float angle = r > 1e-5 ? atan(p.y, p.x) : 0.0;
+    float spin = uTime * SPIN;
+    float dRing = abs(r - RING_R);
+    float dTri = abs(triangleEdge(p, angle, spin));
+    float dInner = abs(r - INNER_R);
+    float ring = stroke(dRing, 0.012);
+    float tri = stroke(dTri, 0.009);
+    float inner = stroke(dInner, 0.008);
+    float halo = exp(-dRing * 34.0) + exp(-dTri * 40.0) * 0.8 + exp(-dInner * 44.0) * 0.7;
+    float behind = 1.0 - fract((angle - spin - TAU * 0.25) / SECTOR);
+    float streak = exp(-dRing * dRing / 0.00018) * (exp(-behind * 6.0) * 0.9 + exp(-behind * 24.0) * 1.6) * smoothstep(0.0, 0.006, behind);
     float idle = (1.0 - uOn) * uIdle;
-    float open = mix(0.8, 1.0, uOn);
-    float sweep = uReveal * 1.08;
-    float drawn = smoothstep(front, front + 0.08, sweep);
-    float edge = exp(-abs(front + 0.04 - sweep) * 28.0) * smoothstep(1.0, 0.8, uReveal);
-    float lit = uOn * drawn;
-
-    float glint = pow(max(0.5 + 0.5 * cos((turn - t * 0.09) * TAU), 0.0), 10.0);
-    float glint2 = pow(max(0.5 + 0.5 * cos((turn + t * 0.13 + 0.5) * TAU), 0.0), 14.0);
-
-    vec2 tp = rotate(p, -t * 0.05) / open;
-    vec2 ip = rotate(p, t * 0.09) / open;
-    vec2 tri = triangle(tp, TRI_R);
-    vec2 core = triangle(-ip, CORE_R);
-    float node = nodeDistance(tp);
-    float knock = smoothstep(NODE_R, NODE_R + 0.012, node);
-    float clear = smoothstep(0.012, 0.034, abs(tri.x)) * knock;
-    float ir = length(ip);
-
-    vec2 runeUv = spin(p, t * 0.07, 0.78 * open);
-    float runes = texture2D(uRunes, runeUv).r * clear;
-    float runeHalo = texture2D(uRunes, runeUv, 3.0).r * clear;
-    float ring = texture2D(uRing, spin(p, -t * 0.02, 0.84 * open)).r * knock;
-    float glow = texture2D(uGlow, vUv).r;
-    float pulseT = fract(t / PULSE_PERIOD);
-    float pulse = texture2D(uRing, spin(p, 0.0, mix(0.42, 1.02, pulseT))).r * pow(1.0 - pulseT, 2.0) * smoothstep(0.0, 0.08, pulseT);
-
-    float triLine = (stroke(abs(tri.x), 0.015) + stroke(abs(tri.x + 0.034), 0.004) * 0.7) * knock;
-    float triHalo = exp(-abs(tri.x) * 30.0) * knock;
-    float plate = step(tri.x, 0.0) * smoothstep(INNER_R, INNER_R + 0.05, ir) * (0.25 + 0.75 * exp(tri.x * 12.0));
-    float tick = stroke(abs(fract(ir > 1e-4 ? atan(ip.y, ip.x) / TAU * 48.0 : 0.0) - 0.5) * TAU * ir / 48.0, 0.004)
-      * step(INNER_R - INNER_GAP, ir) * step(ir, INNER_R);
-    float inner = stroke(abs(ir - INNER_R), 0.008) + stroke(abs(ir - INNER_R + INNER_GAP), 0.0035) * 0.8 + tick * 0.6;
-    float coreLine = stroke(abs(core.x), 0.006) + stroke(abs(ir - CORE_R * 0.5), 0.004) * 0.7;
-    float nodes = stroke(abs(node - NODE_R), 0.007) + stroke(abs(node - NODE_R * 0.55), 0.004) * 0.8;
-    float shockT = max(1.0 - uShock, 0.0);
-    float shock = exp(-abs(triangle(tp, mix(0.12, 1.15, uShock)).x) * 45.0) * shockT * shockT;
-    float fill = smoothstep(0.15, 0.78, r) * smoothstep(0.84, 0.74, r);
-
-    float line = runes * (0.14 * idle + lit * (1.0 + 1.4 * glint))
-      + ring * (0.12 * idle + lit * (0.7 + 0.9 * glint2))
-      + triLine * (0.12 * idle + lit * (0.95 + 0.9 * glint2))
-      + nodes * (0.08 * idle + lit * 0.9)
-      + inner * (0.06 * idle + lit * (0.7 + 0.5 * glint))
-      + coreLine * (0.04 * idle + lit * 0.5)
-      + comets(tri.y, tri.x, t) * knock * lit
-      + (runes + triLine + inner) * uFlash * 1.4;
-    float soft = runeHalo * lit * 0.18
-      + triHalo * lit * 0.32
-      + plate * lit * 0.1
-      + glow * (0.02 + 0.04 * uOn)
-      + fill * lit * 0.03
-      + pulse * lit * 0.55
-      + shock * uOn * 1.4
-      + edge * uOn * step(r, 0.86) * smoothstep(0.2, 0.5, r) * 0.9;
-    float hot = (stroke(abs(tri.x), 0.006) * knock + nodes * 0.5 + stroke(abs(ir - INNER_R), 0.003) * 0.6) * lit;
-    vec3 col = 1.0 - exp(-uColor * uExposure * (line * 3.0 + soft * 1.7) - hot * 0.9);
-    gl_FragColor = vec4(col, 1.0);
-  }`
-
-const WALL_VS = `
-  varying vec2 vUv;
-  varying vec2 vLocal;
-  void main() {
-    vUv = uv;
-    vLocal = position.xz;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }`
-
-const WALL_FS = `
-  uniform sampler2D uNoise;
-  uniform vec3 uColor;
-  uniform float uTime;
-  uniform float uOn;
-  uniform float uReveal;
-  uniform float uFlash;
-  varying vec2 vUv;
-  varying vec2 vLocal;
-  void main() {
-    float front = abs(atan(vLocal.x, vLocal.y)) / 3.14159265;
-    float drawn = smoothstep(front, front + 0.08, uReveal * 1.08);
-    float h = vUv.y;
-    float streak = texture2D(uNoise, vec2(vUv.x * 9.0, h * 0.35 - uTime * 0.45)).r;
-    float streak2 = texture2D(uNoise, vec2(vUv.x * 17.0 + 0.3, h * 0.6 - uTime * 0.8)).r;
-    float rise = streak * streak2 * 2.2;
-    float fade = pow(max(1.0 - h, 0.0), 2.2);
-    float base = exp(-h * 14.0);
-    float k = (fade * (0.28 + rise * 1.3) + base * 0.9 + uFlash * fade * 1.8) * uOn * drawn;
-    vec3 col = 1.0 - exp(-uColor * k * 2.0);
+    float lit = uOn * (1.0 + 0.8 * uFlash);
+    float energy = (ring + tri * 0.9 + inner * 0.8) * lit * 2.2 + halo * lit * 0.45 + streak * uOn * 2.4 + ring * idle * 0.35;
+    float hot = ((ring + tri + inner) * (0.1 + 0.45 * uFlash) + streak * 0.5) * uOn;
+    vec3 col = 1.0 - exp(-uColor * uExposure * energy - hot);
     gl_FragColor = vec4(col, 1.0);
   }`
 
@@ -274,11 +159,7 @@ export class Showcase {
     this.group = new THREE.Group()
     scene.add(this.group)
     this.time = 0
-    this.glow = T('T_character_highlight_2', false)
     this.contact = T('T_character_highlight_3', false)
-    this.runes = T('T_FX_Decal_47_2', false)
-    this.ring = T('T_FX_Circle_12_1', false)
-    this.noise = tiled(T('T_FX_Noise_45_1', false))
     this.books = new Flipbooks(this.group)
     this.picked = -1
     this.camera = null
@@ -311,39 +192,21 @@ export class Showcase {
     contact.renderOrder = 2
 
     const circle = new THREE.Mesh(floorGeo, additive(FLOOR_VS, CIRCLE_FS, {
-      uGlow: { value: this.glow },
-      uRunes: { value: this.runes },
-      uRing: { value: this.ring },
-      uNoise: { value: this.noise },
       uColor: { value: color },
       uTime: { value: 0 },
       uOn: { value: 0 },
       uIdle: { value: 1 },
       uExposure: { value: EXPOSURE[hero.element] ?? 1 },
       uFlash: { value: 0 },
-      uShock: { value: 1 },
-      uReveal: { value: 1 },
     }))
     circle.scale.set(CIRCLE_SIZE, 1, CIRCLE_SIZE)
     circle.renderOrder = 3
     circle.onBeforeRender = (renderer, scene, camera) => { this.camera = camera }
 
-    const cu = circle.material.uniforms
-    const wall = new THREE.Mesh(wallGeo, additive(WALL_VS, WALL_FS, {
-      uNoise: cu.uNoise,
-      uColor: cu.uColor,
-      uTime: cu.uTime,
-      uOn: cu.uOn,
-      uReveal: cu.uReveal,
-      uFlash: cu.uFlash,
-    }, { side: THREE.DoubleSide }))
-    wall.renderOrder = 4
-    wall.visible = false
-
     const stand = new THREE.Group()
-    stand.add(contact, circle, wall)
+    stand.add(contact, circle)
     this.group.add(stand)
-    return { actor, color, palette: paletteFor(color.getHex()), stand, contact, circle, wall, rims: rimsOf(actor), focus: 0, weight: 0, flashT: Infinity, pickedAt: 0, fx: null }
+    return { actor, color, palette: paletteFor(color.getHex()), stand, contact, circle, rims: rimsOf(actor), focus: 0, weight: 0, flashT: Infinity, pickedAt: 0, fx: null }
   }
 
   syncStandFx(selected) {
@@ -418,16 +281,12 @@ export class Showcase {
       s.stand.position.set(s.actor.pos.x, STAND_Y, s.actor.pos.z)
       s.stand.scale.setScalar(standScale)
       s.contact.material.uniforms.uAlpha.value = 0.5 + 0.15 * w
-      s.wall.visible = w > 1e-3
-      s.wall.scale.set(WALL_RADIUS, WALL_HEIGHT * w, WALL_RADIUS)
       s.flashT += dt
       const cu = s.circle.material.uniforms
       cu.uTime.value = t + i * 3.1
       cu.uOn.value = w
       cu.uIdle.value = idleGain
-      cu.uShock.value = Math.min(1, s.flashT / SHOCK_TIME)
       cu.uFlash.value = Math.exp(-s.flashT * FLASH_DECAY)
-      cu.uReveal.value = 1 - (1 - Math.min(1, s.flashT / REVEAL_TIME)) ** 2
       for (const r of s.rims) {
         r.uStandRim.value = IDLE_RIM + (PICKED_RIM - IDLE_RIM) * w
         r.uStandDim.value = IDLE_DIM + (PICKED_GAIN - IDLE_DIM) * w
@@ -446,7 +305,7 @@ export class Showcase {
         r.uStandDim.value = 1
       }
       s.actor.root.traverse(o => { if (o.isMesh) o.receiveShadow = false })
-      for (const o of [s.contact, s.circle, s.wall]) o.material.dispose()
+      for (const o of [s.contact, s.circle]) o.material.dispose()
     }
     this.ambient.dispose()
     this.books.dispose()
