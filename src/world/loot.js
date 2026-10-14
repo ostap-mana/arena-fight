@@ -39,11 +39,20 @@ const PICK_RADIUS = 3.2
 const MAGNET_FEEL = 2.2
 const MAGNET_LEAN = 0.55
 const MAGNET_BOB_SPEED = 9
+const PULL_POP = 0.16
+const PULL_POP_LIFT = 0.8
+const PULL_POP_SCALE = 1.4
+const PULL_FLY = 0.36
+const PULL_ARC = 1.1
+const PULL_END_SCALE = 0.3
+const PULL_SPIN = 6
+const CHEST = 0.55
 const STAGGER = 0.09
 const HIT_LIFETIME = 1.2
 const HIGHLIGHT_MUTE = new Set(['PS_Beam_3_1', 'PS_Beam_4_1', 'PS_Beam_5_1'])
 const TAKE_MUTE = new Set(['PS_G_Glow_1_2_Fade', 'PS_Star_1_1_ReUse', 'PS_Star_1_1_ReUse '])
 const _box = new THREE.Box3()
+const _goal = new THREE.Vector3()
 const _size = new THREE.Vector3()
 const _center = new THREE.Vector3()
 
@@ -340,8 +349,48 @@ export class Loot {
     return false
   }
 
-  finish(d, anchor) {
+  pick(d) {
+    d.phase = 'pull'
+    d.t = 0
+    d.from.copy(d.mesh.position)
+    d.to.copy(d.mesh.position)
     if (d.trail) this.vfx.kill(d.trail)
+    if (d.glow) d.glow.stop()
+    this.auras.release(d.aura)
+    d.glow = null
+    d.aura = null
+    d.trail = this.vfx.spawn(LIB, d.look.trail, { follow: d.mesh })
+  }
+
+  chest(target, anchor) {
+    if (anchor && anchor !== target.root) return _goal.setFromMatrixPosition(anchor.matrixWorld)
+    return _goal.set(target.pos.x, target.pos.y + target.height * CHEST, target.pos.z)
+  }
+
+  pull(d, target, anchor, dt) {
+    const m = d.mesh
+    m.rotation.y += d.spin * PULL_SPIN * dt
+    const sy = d.from.y + PULL_POP_LIFT
+    if (d.t < PULL_POP) {
+      const p = easeOutBack(d.t / PULL_POP)
+      m.position.set(d.from.x, d.from.y + PULL_POP_LIFT * p, d.from.z)
+      m.scale.setScalar(1 + (PULL_POP_SCALE - 1) * p)
+      return false
+    }
+    if (target) d.to.copy(this.chest(target, anchor))
+    const k = Math.min(1, (d.t - PULL_POP) / PULL_FLY)
+    const e = k * k
+    m.position.set(
+      d.from.x + (d.to.x - d.from.x) * e,
+      sy + (d.to.y - sy) * e + 2 * (1 - e) * e * PULL_ARC,
+      d.from.z + (d.to.z - d.from.z) * e,
+    )
+    m.scale.setScalar(PULL_POP_SCALE + (PULL_END_SCALE - PULL_POP_SCALE) * e)
+    return k >= 1
+  }
+
+  finish(d, anchor) {
+    if (d.trail) d.trail.stop()
     if (d.glow) this.vfx.kill(d.glow)
     this.auras.release(d.aura)
     d.trail = null
@@ -394,7 +443,9 @@ export class Loot {
         m.position.y += 4 * d.arc * k * (1 - k)
         m.rotateOnAxis(d.tumble, TUMBLE * dt)
         if (k >= 1) this.land(d)
-      } else if (this.rest(d, target, dt)) {
+      } else if (d.phase === 'rest') {
+        if (this.rest(d, target, dt)) this.pick(d)
+      } else if (this.pull(d, target, anchor, dt)) {
         this.drops.splice(i, 1)
         this.finish(d, anchor)
       }
