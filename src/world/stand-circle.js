@@ -15,12 +15,15 @@ const CURTAIN_SEGMENTS = 160
 const CURTAIN_RISE_TIME = 0.42
 const CURTAIN_LIFT = 0.006
 const OVERSHOOT = 1.70158
-const GLYPH_COUNT = 12
-const GLYPH_LIFE = 2.6
-const GLYPH_RISE = 0.5
-const GLYPH_SIZE = 0.15
+const GLYPH_COUNT = 14
+const GLYPH_LIFE = 2.4
+const GLYPH_RISE = 0.95
+const GLYPH_DRIFT = 0.3
+const GLYPH_SIZE = 0.3
 const GLYPH_RADIUS = 0.69
 const GLYPH_ARC = 3.3
+const RUNE_CUT = 0.4
+const RUNE_SHARP = 0.6
 
 const LOOK = {
   fire: {
@@ -52,8 +55,8 @@ const GLSL_CONSTANTS = `
   const float PI = 3.1415927;
   const float RING = ${RING.toFixed(4)};
   const float INNER = ${INNER.toFixed(4)};
-  const float RUNE_IN = 0.622;
-  const float RUNE_OUT = 0.738;
+  const float RUNE_IN = 0.61;
+  const float RUNE_OUT = 0.75;
   const float RUNE_TOP = 0.82;
   const float RUNE_BOTTOM = 0.16;
   const float RUNE_TILES = 4.0;
@@ -115,6 +118,10 @@ const ARCANE_FS = `
   }
   float polar(sampler2D tex, vec2 uv, vec2 gA, vec2 gR, float su, float sv) {
     return textureGrad(tex, uv, vec2(gA.x * su, gR.x * sv), vec2(gA.y * su, gR.y * sv)).r;
+  }
+  float crisp(float m) {
+    float aa = max(fwidth(m) * 0.6, 0.015);
+    return smoothstep(${RUNE_CUT.toFixed(3)} - aa, ${RUNE_CUT.toFixed(3)} + aa, m);
   }
   void main() {
     vec2 p = vUv * 2.0 - 1.0;
@@ -181,8 +188,9 @@ const ARCANE_FS = `
       float su = RUNE_TILES / TAU;
       float sv = (RUNE_BOTTOM - RUNE_TOP) / (RUNE_OUT - RUNE_IN);
       float band = smoothstep(0.0, 0.1, rv) * (1.0 - smoothstep(0.9, 1.0, rv));
-      runes = polar(uRunes, ruv, gA, gR, su, sv) * band;
-      runeSoft = polar(uRunes, ruv, gA * 7.0, gR * 7.0, su, sv) * band;
+      float rm = polar(uRunes, ruv, gA * ${RUNE_SHARP.toFixed(3)}, gR * ${RUNE_SHARP.toFixed(3)}, su, sv);
+      runes = crisp(rm) * band;
+      runeSoft = smoothstep(0.18, ${RUNE_CUT.toFixed(3)}, rm) * band;
     }
 
     float corona = 0.0;
@@ -238,7 +246,7 @@ const ARCANE_FS = `
 
     float flash = 1.0 + 0.9 * uFlash;
     float picked = lit * drawn * flash;
-    float runeLit = runes * (0.6 + 0.7 * flow) * (0.8 + 4.2 * ignite + 3.0 * pulse) + runeSoft * (1.0 - runes) * (0.35 + 1.6 * ignite + pulse);
+    float runeLit = runes * (0.75 + 0.6 * flow) * (1.0 + 4.2 * ignite + 3.0 * pulse) + runeSoft * (1.0 - runes) * 0.04 * ignite;
     float energy = (ringE + ringGlow * 0.4 + ringBody * ignite * 1.6 + inCore * (0.8 + 2.0 * pulse) + inGlow * 0.14 + runeLit
                   + streakTail * 8.0 + streakHot * 9.0 + glint * 2.5 + corona * (0.35 + 5.5 * ignite)) * picked
                  + (sealE * (1.0 + 1.5 * pulse) + sealHalo * 0.6 + pool * (0.8 + 2.5 * pulse) + pulse * 0.16) * lit * flash
@@ -323,12 +331,14 @@ const GLYPH_VS = `
   varying float vGlyph;
   const float GLYPH_LIFE = ${GLYPH_LIFE.toFixed(3)};
   const float GLYPH_RISE = ${GLYPH_RISE.toFixed(3)};
+  const float GLYPH_DRIFT = ${GLYPH_DRIFT.toFixed(3)};
   void main() {
     float life = fract(uTime / GLYPH_LIFE * aSeed.w + aSeed.y);
     float born = step(life * GLYPH_LIFE / aSeed.w, uAge);
     float ang = aSeed.x + life * 0.35;
-    float lift = life * GLYPH_RISE * (0.75 + 0.25 * aSeed.w);
-    vec3 base = vec3(cos(ang) * uRadius, 0.04 + lift, -sin(ang) * uRadius);
+    float lift = (1.0 - (1.0 - life) * (1.0 - life)) * GLYPH_RISE * (0.75 + 0.25 * aSeed.w);
+    float reach = uRadius + life * GLYPH_DRIFT;
+    vec3 base = vec3(cos(ang) * reach, 0.04 + lift, -sin(ang) * reach);
     vec4 mv = modelViewMatrix * vec4(base, 1.0);
     float grow = smoothstep(0.0, 0.2, life) * (1.0 - 0.25 * life);
     mv.xy += position.xy * uSize * grow * uOn * born;
@@ -353,11 +363,13 @@ const GLYPH_FS = `
   ${SHARED_GLSL}
   void main() {
     vec2 g = vec2((vGlyph + vUv.x) / 6.0, mix(RUNE_BOTTOM, RUNE_TOP, vUv.y));
-    float shape = texture2D(uRunes, g).r;
-    float soft = textureLod(uRunes, g, 3.0).r;
-    float fade = smoothstep(0.0, 0.14, vLife) * (1.0 - smoothstep(0.5, 1.0, vLife));
-    float energy = (shape * 1.6 + soft * 0.5) * fade * uOn * (1.0 + 0.6 * uFlash) * uExposure;
-    float hot = shape * fade * (1.0 - vLife) * 0.5 * uOn;
+    float m = texture(uRunes, g, -0.75).r;
+    float aa = max(fwidth(m) * 0.6, 0.015);
+    float shape = smoothstep(${RUNE_CUT.toFixed(3)} - aa, ${RUNE_CUT.toFixed(3)} + aa, m);
+    float rim = smoothstep(0.22, ${RUNE_CUT.toFixed(3)}, m) * (1.0 - shape);
+    float fade = smoothstep(0.0, 0.1, vLife) * (1.0 - smoothstep(0.6, 1.0, vLife));
+    float energy = (shape * 2.4 + rim * 0.1) * fade * uOn * (1.0 + 0.6 * uFlash) * uExposure;
+    float hot = shape * fade * (1.0 - vLife) * 0.7 * uOn;
     gl_FragColor = vec4(toneMap(uDeep, uColor, uHot, energy, hot), 1.0);
   }`
 
