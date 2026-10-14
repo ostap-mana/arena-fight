@@ -11,6 +11,7 @@ import { Showcase } from '../world/showcase.js'
 import { LobbyGradeEffect, FocusSharpenEffect, SanitizeEffect } from '../world/lobby-post.js'
 import { Vfx } from '../world/vfx.js'
 import { HeroFx, prefabRole, yawOf } from '../world/hero-fx.js'
+import { MomentFx, MOMENT_FX } from '../world/moment-fx.js'
 import { loadCharacterLighting, tickCharacters, setLobbyView, CHARACTER_LIGHT, LOBBY_LIGHT, SHADOW_MODE, dissolveLook, resetDissolve } from '../world/character-shader.js'
 import { DynamicLights } from '../world/lights.js'
 import { Loot } from '../world/loot.js'
@@ -786,6 +787,7 @@ export class Game {
     this.vfx = new Vfx(this.scene)
     this.heroFx = new HeroFx(this.vfx, this.camera)
     this.heroFx.onSpawn = (name, pos) => audio.emit(name, pos)
+    this.moments = new MomentFx(this.vfx, this.camera)
     this.loot = new Loot(this.scene, this.vfx, this.camera)
     this.loot.onCollect = item => this.collectLoot(item)
     this.guide = new GuideLine(this.scene)
@@ -883,6 +885,7 @@ export class Game {
       ...enemyVfx.map(id => fx(id, () => this.vfx.preload([id]))),
       fx(LOOT_FX, () => this.loadLoot()),
       fx(MOVE_FX, () => this.vfx.preload([MOVE_FX])),
+      fx(MOMENT_FX, () => this.vfx.preload([MOMENT_FX])),
     ].filter(Boolean)
   }
 
@@ -1639,9 +1642,13 @@ export class Game {
     const hidden = new THREE.Vector3(0, -40, 0)
     const fresh = ids.filter(id => id && !this.warmedFx.has(id))
     fresh.forEach(id => this.warmedFx.add(id))
-    const shared = [LOOT_FX, MOVE_FX]
+    const shared = [LOOT_FX, MOVE_FX, MOMENT_FX]
     await this.warmFxLibs([...ids, ...shared])
     const warm = fresh.flatMap(id => this.heroFx.warmSkills(id, hidden))
+    if (!this.warmedFx.has(MOMENT_FX) && this.moments.ready) {
+      this.warmedFx.add(MOMENT_FX)
+      warm.push(...this.moments.warm(hidden))
+    }
     const probe = this.loot.ready ? this.loot.warmProbe(LOOT_WARM_AT, LOOT_WARM_SCALE) : null
     const moveLib = this.vfx.library(MOVE_FX)
     if (moveLib && !this.guide.ready) this.guide.setMap(moveLib.texture(GUIDE_ARROW))
@@ -2089,6 +2096,7 @@ export class Game {
     a.rig.t = random() * 3
     this.scene.add(a.root)
     this.enemies.push(a)
+    this.moments.spawned(a)
     if (this.enemyVfx(def)) this.heroFx.attachSkin(def.vfx, a)
     this.ui.trackEnemy(a, def.boss ? 'boss' : k >= ELITE_SIZE ? 'elite' : 'regular')
 
@@ -4259,6 +4267,7 @@ export class Game {
     if (this.state !== 'select') this.fitBattleShadow()
     if (this.loot && this.hero) this.loot.update(dt, this.hero, this.lootAnchor())
     if (this.guide) this.updateGuide()
+    if (this.moments) this.moments.update(this, dt)
     if (this.heroFx) this.heroFx.update(dt)
     if (this.vfx) this.vfx.update(heroDt, this.camera)
     this.updateEnemyBars()

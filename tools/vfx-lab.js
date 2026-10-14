@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { EffectComposer, RenderPass, EffectPass, BloomEffect } from 'postprocessing'
 import { loadModelData, buildModel } from '../src/core/model.js'
 import { Actor } from '../src/entities/actor.js'
-import { Vfx, vfxTexturesReady } from '../src/world/vfx.js'
+import { Vfx } from '../src/world/vfx.js'
 import { HeroFx } from '../src/world/hero-fx.js'
 
 const params = new URLSearchParams(location.search)
@@ -64,7 +64,7 @@ async function init() {
   scene.add(target.root)
   await vfx.preload([vfxId])
   vfx.warm(renderer, camera)
-  await vfxTexturesReady()
+  await new Promise(r => setTimeout(r, 2000))
   lab.actor = actor
   lab.target = target
   lab.THREE = THREE
