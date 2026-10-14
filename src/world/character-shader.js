@@ -3,6 +3,7 @@ import { DYN_LIGHTS, DYN_LIGHTS_GLSL } from './lights.js'
 import { fetchJson } from '../core/fetch.js'
 
 const BASE = 'assets/glb/'
+const STATUS_MASK = { file: 'tex/T_FX_StatusEffectMasks_G.webp', srgb: 0 }
 const cubeLoader = new THREE.CubeTextureLoader()
 const imageLoader = bitmapsDecodeOffThread()
   ? new THREE.ImageBitmapLoader().setOptions({ imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
@@ -149,7 +150,14 @@ const FRAGMENT_PARS = `
   uniform vec4 uNoiseColor;
   uniform vec4 uVfxParams;
   uniform vec4 uNoiseParams;
+  uniform float uDissolve;
+  uniform sampler2D uStatusMask;
   ${DYN_LIGHTS_GLSL}
+  float dissolveCut(float albedoR, vec2 uv) {
+    float n = 0.5 * (1.0 - albedoR) + 0.5 * texture2D(uStatusMask, uv).g;
+    float x = clamp((n - (uDissolve * 1.3 - 0.3)) * 3.333333, 0.0, 1.0);
+    return x * x * (3.0 - 2.0 * x);
+  }
   vec3 characterShade(vec3 albedo, vec3 nView, vec2 uv) {
     vec3 N = normalize(inverseTransformDirection(nView, viewMatrix));
     vec3 V = normalize(inverseTransformDirection(normalize(vViewPosition), viewMatrix));
@@ -226,6 +234,8 @@ export function characterMaterial(source, extras) {
     uNoiseColor: { value: vec4(extras.NoiseColor, [0, 0, 0, 1]) },
     uVfxParams: { value: vec4(extras.vfxEmissionParams, [1, 1, 0, 0]) },
     uNoiseParams: { value: vec4(extras.NoiseParams, [1, 1, 0, 0]) },
+    uDissolve: { value: 0 },
+    uStatusMask: { value: BLACK },
   }
   m.userData.character = uniforms
   m.userData.hitRim = !!(extras.VFX_Mask && extras.CharacterInGameVfxRimAndNoise > 0)
@@ -247,7 +257,14 @@ export function characterMaterial(source, extras) {
       .replace('#include <transmission_fragment>', '')
       .replace(
         'vec3 outgoingLight = totalDiffuse + totalSpecular + totalEmissiveRadiance;',
-        'vec3 outgoingLight = characterShade(diffuseColor.rgb, normal, vMapUv) + totalEmissiveRadiance;',
+        [
+          'vec3 outgoingLight = characterShade(diffuseColor.rgb, normal, vMapUv) + totalEmissiveRadiance;',
+          '#ifdef CHAR_DISSOLVE',
+          'float dissolveKeep = dissolveCut(diffuseColor.r, vMapUv);',
+          'if (diffuseColor.a - (1.0 - dissolveKeep) < 0.1) discard;',
+          'outgoingLight *= dissolveKeep;',
+          '#endif',
+        ].join('\n'),
       )
   }
   m.customProgramCacheKey = () => 'invokers-character'
@@ -551,4 +568,21 @@ export function addProjectedShadow(model) {
   }
   model.shadows = shadows
   return shadows
+}
+
+export function dissolveLook(material, amount) {
+  const u = material.userData.character
+  if (!u || !u.uDissolve) return false
+  if (!material.defines || material.defines.CHAR_DISSOLVE === undefined) {
+    material.defines = { ...material.defines, CHAR_DISSOLVE: '' }
+    material.needsUpdate = true
+  }
+  if (u.uStatusMask.value === BLACK) u.uStatusMask.value = mask(STATUS_MASK)
+  u.uDissolve.value = amount
+  return true
+}
+
+export function resetDissolve(material) {
+  const u = material.userData.character
+  if (u && u.uDissolve) u.uDissolve.value = 0
 }

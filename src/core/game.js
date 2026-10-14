@@ -11,7 +11,7 @@ import { Showcase } from '../world/showcase.js'
 import { LobbyGradeEffect, FocusSharpenEffect, SanitizeEffect } from '../world/lobby-post.js'
 import { Vfx } from '../world/vfx.js'
 import { HeroFx, prefabRole, yawOf } from '../world/hero-fx.js'
-import { loadCharacterLighting, tickCharacters, setLobbyView, CHARACTER_LIGHT, LOBBY_LIGHT, SHADOW_MODE } from '../world/character-shader.js'
+import { loadCharacterLighting, tickCharacters, setLobbyView, CHARACTER_LIGHT, LOBBY_LIGHT, SHADOW_MODE, dissolveLook, resetDissolve } from '../world/character-shader.js'
 import { DynamicLights } from '../world/lights.js'
 import { Loot } from '../world/loot.js'
 import { GuideLine } from '../world/guide-line.js'
@@ -210,6 +210,9 @@ const GEAR_OUT = 0.32
 const HERO_TAP_PAD = 12
 const HERO_TAP_WIDTH = 0.38
 const MOVE_FX = 'move'
+const CORPSE_MELT_START = 0.7
+const CORPSE_MELT_TIME = 0.8
+const CORPSE_SHADOW_OFF = 0.55
 const LOOT_FX = 'loot'
 const LAZY_INPUT_QUIET_MS = 1200
 const LAZY_POLL_MS = 250
@@ -1354,6 +1357,7 @@ export class Game {
       model.skins.forEach((s, i) => {
         s.material.transparent = model.fade[i][0]
         s.material.opacity = model.fade[i][1]
+        resetDissolve(s.material)
       })
       useSharedLook(model)
       return model
@@ -1407,6 +1411,7 @@ export class Game {
       const ghost = stage(data)
       useOwnLook(ghost)
       for (const s of ghost.skins) {
+        if (dissolveLook(s.material, 0.5)) continue
         s.material.transparent = true
         s.material.opacity = 0.99
       }
@@ -3498,12 +3503,14 @@ export class Game {
               e.pos.z *= lim / r
             }
           }
-          const k = clamp(1 - (e.dying - 0.8) / 0.7, 0, 1)
+          const melt = clamp((e.dying - CORPSE_MELT_START) / CORPSE_MELT_TIME, 0, 1)
           useOwnLook(e.model)
           for (const s of e.model.skins) {
+            if (dissolveLook(s.material, melt)) continue
             s.material.transparent = true
-            s.material.opacity = k
+            s.material.opacity = 1 - melt
           }
+          if (melt > CORPSE_SHADOW_OFF && e.model.body) e.model.body.castShadow = false
           e.update(fadeDt)
         }
         continue
