@@ -104,6 +104,13 @@ const TITAN_DMG = 1.4
 const TITAN_SMASH = 3
 const TITAN_END_CALM = 3.6
 const TITAN_END_GAP = 1.2
+const TITAN_WAVE_CAP = 0.65
+const TITAN_BOSS_WOUND = 0.3
+const TITAN_BOSS_TRICKLE = 25
+const TITAN_BOSS_DMG = 0.85
+const TITAN_RESCUE = 0.3
+const TITAN_RESCUE_DELAY = 0.25
+const TITAN_HEAL = 0.3
 const BOSS_SPAWN_DIST = 13
 const BOSS_CAST_GAP = 1.4
 const BOSS_RECOVER = 0.35
@@ -1117,7 +1124,8 @@ export class Game {
     const canWin = this.gear.bestPower() >= POWER_GOAL && this.underpowered()
     this.ui.setPower(this.gear.power(), POWER_GOAL, canWin)
     const waiting = this.gearHinted && this.gear.hasUpgrade()
-    this.ui.setTip(this.shieldUp ? 'Boss immune · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : '')
+    const calling = this.bossWave() && this.boss && !this.boss.dead && !this.titanMode && !this.titanReady
+    this.ui.setTip(this.shieldUp ? 'Boss immune · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : calling ? 'Hit the boss · call your titan' : '')
   }
 
   raiseShield() {
@@ -1945,6 +1953,7 @@ export class Game {
     if (def.boss) {
       this.boss = a
       this.shake(0.5, 0.5)
+      this.showPower()
     }
   }
 
@@ -2698,12 +2707,13 @@ export class Game {
     }
     const mods = this.gearMods
     const smash = this.titanMode && !(e.def && e.def.boss)
-    const crit = smash || (!!mods && random() < mods.crit)
-    if (mods) amount *= mods.atk * (crit ? mods.critMult : 1)
-    amount *= this.titanMode ? TITAN_DMG * (smash ? TITAN_SMASH : 1) : 1 - WEAK_DEAL * this.painNow()
+    const crit = !!mods && random() < mods.crit
+    if (mods) amount *= mods.atk * (crit || smash ? mods.critMult : 1)
+    amount *= this.titanMode ? (smash ? TITAN_DMG * TITAN_SMASH : TITAN_BOSS_DMG) : 1 - WEAK_DEAL * this.painNow()
     amount *= (e.armor || 1) * (1 + (rollRandom() * 2 - 1) * HIT_ROLL)
     const dealt = e.hit(amount)
     if (!dealt) return false
+    this.woundTitan(e, dealt)
     const code = e.def && soundCode(e.def)
     const boss = !!(e.def && e.def.boss)
     this.lights.flash(e.pos, color || 0xffd070, crit ? 2.6 : 1.8, crit ? 4.2 : 3.4, crit ? 0.3 : 0.22, e.height * 0.5)
@@ -2778,12 +2788,41 @@ export class Game {
       audio.play('vo_titan_charge')
       this.ui.showBanner('TITAN READY', '', 1.4)
       if (this.heroCueOn) this.cueHero(false)
+      this.showPower()
     }
     this.ui.setTitan(this.titan, this.titanReady, this.titanSecondsLeft())
   }
 
   titanSecondsLeft() {
-    return (1 - this.titan) * TITAN_CHARGE_TIME
+    return this.titan < TITAN_WAVE_CAP ? (TITAN_WAVE_CAP - this.titan) * TITAN_CHARGE_TIME : null
+  }
+
+  bossWave() {
+    return !!(WAVES[this.waveIndex] && WAVES[this.waveIndex].boss)
+  }
+
+  chargeTitan(dt) {
+    if (this.titan < TITAN_WAVE_CAP) this.addTitan(Math.min(dt / TITAN_CHARGE_TIME, TITAN_WAVE_CAP - this.titan))
+    else if (this.bossWave() && this.boss && !this.boss.dead) this.addTitan(dt * (1 - TITAN_WAVE_CAP) / TITAN_BOSS_TRICKLE)
+  }
+
+  woundTitan(e, dealt) {
+    if (this.titanMode || this.titanReady || !e.def.boss || this.state !== 'battle') return
+    this.addTitan(dealt / e.maxHp / TITAN_BOSS_WOUND * (1 - TITAN_WAVE_CAP))
+  }
+
+  rescueTitan() {
+    const h = this.hero
+    if (this.titanRescued || this.titanMode || this.state !== 'battle' || this.shieldUp || !h || h.dead) return
+    if (h.hp <= 0 || h.hp >= h.maxHp * TITAN_RESCUE || !this.bossWave() || !this.boss || this.boss.dead) return
+    this.titanRescued = true
+    this.titan = 1
+    this.titanReady = true
+    this.titanWait = TITAN_RESCUE_DELAY
+    audio.play('vo_titan_charge')
+    this.ui.showBanner('TITAN', 'to the rescue', 1.4)
+    this.ui.setTitan(1, true, null)
+    this.showPower()
   }
 
   addUlt(v) {
@@ -2958,7 +2997,7 @@ export class Game {
     this.heroFx.detachSkin(t)
     h.setPos(t.pos.x, t.pos.z)
     h.facing = h.targetFacing = t.facing
-    h.hp = Math.max(h.maxHp * 0.55, h.hp)
+    h.hp = Math.min(h.maxHp, h.hp + h.maxHp * TITAN_HEAL)
     h.rig.play('unmorph', { force: true })
     this.scene.remove(t.root)
     this.retireActor(t)
@@ -2973,6 +3012,7 @@ export class Game {
     this.key.intensity = 2.5
     this.bloom.intensity = BLOOM_BASE
     this.ui.setHp(h.hp, h.maxHp)
+    this.showPower()
     const battleView = this.battleOffset()
     gsap.to(this.camOffset, { x: battleView.x, y: battleView.y, z: battleView.z, duration: 1.0, ease: 'power2.inOut' })
     gsap.to(this.camLook, { y: BATTLE_LOOK_Y, duration: 1.0 })
@@ -3087,7 +3127,7 @@ export class Game {
     this.vfx.clear()
     this.lights.clear()
     this.titan = this.titanT = this.ult = 0
-    this.titanReady = this.titanMode = this.ultReady = false
+    this.titanReady = this.titanMode = this.ultReady = this.titanRescued = false
     this.titanWait = 0
     this.unmorphing = this.summoning = false
     this.kills = this.lootWait = 0
@@ -3539,6 +3579,7 @@ export class Game {
     const pain = Math.max(this.shieldUp ? SHIELD_HIT_MULT : 1, 1 + WEAK_HURT * weak)
     const mult = (this.titanMode ? 0.25 : 1) * (this.gearMods ? this.gearMods.taken : 1) * pain
     this.hero.hp = Math.max(0, this.hero.hp - dmg * mult)
+    this.rescueTitan()
     this.hero.flashColor = kind.rim
     this.hero.flash = tick ? DOT_FLASH : 0.16
     this.ui.setHp(this.hero.hp, this.hero.maxHp)
@@ -3912,7 +3953,7 @@ export class Game {
         this.ui.setTitanTimer(Math.max(0, this.titanT) / this.titanDef.duration, true)
         if (this.titanT <= 0 && (!this.heroWindup() || this.titanT < -TITAN_OVERTIME)) this.endTitan()
       } else if (!this.titanReady) {
-        this.addTitan(dt / TITAN_CHARGE_TIME)
+        this.chargeTitan(dt)
       } else if (!this.gearOpen) {
         this.titanWait -= dt
         if (this.titanWait <= 0) this.transform()

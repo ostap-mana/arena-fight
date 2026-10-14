@@ -662,11 +662,11 @@ export class UI {
       this.animaShownR = r
       this.animaFill.style.setProperty('--r', String(r / BAR_STEPS))
     }
-    const secs = Math.max(0, secondsLeft)
-    const tenths = secs >= 10 ? Math.ceil(secs) * 10 : Math.round(secs * 10)
+    const secs = secondsLeft === null ? -1 : Math.max(0, secondsLeft)
+    const tenths = secs < 0 ? -1 : secs >= 10 ? Math.ceil(secs) * 10 : Math.round(secs * 10)
     if (tenths !== this.animaShownTenths) {
       this.animaShownTenths = tenths
-      this.animaCooldown.textContent = secs >= 10 ? String(tenths / 10) : (tenths / 10).toFixed(1)
+      this.animaCooldown.textContent = secs < 0 ? '' : secs >= 10 ? String(tenths / 10) : (tenths / 10).toFixed(1)
     }
     const was = this.animaReady
     this.animaReady = ready
