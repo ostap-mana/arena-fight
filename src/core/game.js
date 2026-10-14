@@ -218,15 +218,24 @@ const CORPSE_MELT_TIME = 0.8
 const CORPSE_SHADOW_OFF = 0.55
 const GATES = ARENA_GATES[DEFAULT_LOCATION] || []
 const ENTRY_GATES = 3
-const ENTRY_BEHIND = 1.4
+const ENTRY_BEHIND = 1.2
+const ENTRY_INSET = 1
+const ENTRY_INNER_MIN = 8
 const ENTRY_LANE = 1.15
-const ENTRY_STEP = 0.2
-const ENTRY_STEP_JITTER = 0.1
+const ENTRY_START = 0.35
+const ENTRY_GATE_STAGGER = 0.3
+const ENTRY_STEP = 0.16
+const ENTRY_STEP_JITTER = 0.08
 const ENTRY_RUSH = 2.2
+const ENTRY_RUSH_TIME = 2.2
 const ENTRY_NEAR = 7
 const ENTRY_MAX = 4
 const ENTRY_CLOSE = 6
+const ENTRY_BOSS_CLOSE = 16
 const ENTRY_DIST_COST = 0.02
+const CAM_SAFE_NDC = 0.72
+const CAM_SAFE_DROP = 3
+const CAM_SAFE_RISE = 0.8
 const GATE_LOOK_TIME = 2.6
 const GATE_LOOK_RATE = 2.4
 const GATE_FOCUS = 0.6
@@ -602,6 +611,8 @@ export class Game {
     this.gateView = 0
     this.gateLookT = 0
     this.gateIndex = -1
+    this.waveGates = []
+    this.camSafe = 1
     this.gateAt = new THREE.Vector3()
     this.camTarget = new THREE.Vector3()
     this.camYaw = 0
@@ -2047,17 +2058,25 @@ export class Game {
     this.pending = []
     let delay = 0.35
     const gates = boss ? null : this.entryGates()
+    this.waveGates = gates || []
+    const clock = gates ? gates.map((_, k) => ENTRY_START + k * ENTRY_GATE_STAGGER) : null
     let pack = 0
     for (const p of this.wavePlan[this.waveIndex]) {
       const ang = random() * Math.PI * 2
-      const gate = gates ? gates[pack++ % gates.length] : undefined
+      const slot = gates ? pack++ % gates.length : -1
+      let t = gates ? clock[slot] : delay
       for (let i = 0; i < p.count; i++) {
-        this.pending.push({ type: p.type, t: delay, hp: p.hp, dmg: p.dmg, ang, gate, lane: i - (p.count - 1) / 2 })
-        delay += gates ? ENTRY_STEP + random() * ENTRY_STEP_JITTER : 0.06 + random() * 0.08
+        this.pending.push({ type: p.type, t, hp: p.hp, dmg: p.dmg, ang, gate: gates ? gates[slot] : undefined, lane: i - (p.count - 1) / 2 })
+        t += gates ? ENTRY_STEP + random() * ENTRY_STEP_JITTER : 0.06 + random() * 0.08
       }
-      delay += 0.2 + random() * 0.2
+      t += 0.2 + random() * 0.2
+      if (gates) clock[slot] = t
+      else delay = t
     }
-    if (gates) this.lookAtGate(gates[0])
+    if (gates) {
+      this.pending.sort((a, b) => a.t - b.t)
+      this.lookAtGate(gates[0])
+    }
     this.waveTimer = 0
     this.waveTotal = this.pending.length
     this.waveKills = 0
@@ -2140,7 +2159,7 @@ export class Game {
       this.placeBoss(a)
       a.rig.comboHold = true
       a.turnAccel = BOSS_TURN_ACCEL
-    } else if (spot.gate !== undefined) this.placeAtGate(a, spot.gate, spot.lane || 0)
+    } else if (spot.gate !== undefined) this.placeAtGate(a, this.freeGate(spot.gate), spot.lane || 0)
     else this.placeNearHero(a, spot.ang)
     a.pos.y = def.fly || 0
     a.rig.play(def.fly ? 'fly' : 'idle', { force: true })
@@ -2195,17 +2214,30 @@ export class Game {
     a.setPos(x, z)
   }
 
-  entryGates() {
+  entryGates(min = ENTRY_CLOSE) {
     const h = this.hero
     if (!GATES.length || !h) return null
     const ax = -Math.sin(this.camYaw)
     const az = -Math.cos(this.camYaw)
-    return GATES.map((g, i) => {
+    const ranked = GATES.map((g, i) => {
       const dx = g.x - h.pos.x
       const dz = g.z - h.pos.z
       const d = Math.hypot(dx, dz) || 1
-      return { i, score: (dx * ax + dz * az) / d - d * ENTRY_DIST_COST - (d < ENTRY_CLOSE ? 2 : 0) }
-    }).sort((a, b) => b.score - a.score).slice(0, ENTRY_GATES).map(o => o.i)
+      return { i, d, score: (dx * ax + dz * az) / d - d * ENTRY_DIST_COST }
+    }).sort((a, b) => b.score - a.score)
+    const far = ranked.filter(o => o.d >= min)
+    return (far.length ? far : ranked).slice(0, ENTRY_GATES).map(o => o.i)
+  }
+
+  freeGate(index) {
+    const h = this.hero
+    const gate = GATES[index]
+    if (!h || !gate || Math.hypot(gate.x - h.pos.x, gate.z - h.pos.z) >= ENTRY_CLOSE) return index
+    for (let k = 0; k < this.waveGates.length; k++) {
+      const g = GATES[this.waveGates[k]]
+      if (Math.hypot(g.x - h.pos.x, g.z - h.pos.z) >= ENTRY_CLOSE) return this.waveGates[k]
+    }
+    return index
   }
 
   placeAtGate(a, index, lane) {
@@ -2213,22 +2245,66 @@ export class Game {
     const r = Math.hypot(gate.x, gate.z) || 1
     const nx = gate.x / r
     const nz = gate.z / r
-    const out = r + ENTRY_BEHIND + a.radius
-    a.setPos(nx * out - nz * lane * ENTRY_LANE, nz * out + nx * lane * ENTRY_LANE)
-    const h = this.hero
-    a.faceTo(h ? h.pos.x : 0, h ? h.pos.z : 0)
+    const side = lane * ENTRY_LANE
+    const inner = Math.max(ENTRY_INNER_MIN, ARENA_RADIUS - ENTRY_INSET - a.radius)
+    a.setPos(nx * (r + ENTRY_BEHIND) - nz * side, nz * (r + ENTRY_BEHIND) + nx * side)
+    a.entryX = nx * inner - nz * side
+    a.entryZ = nz * inner + nx * side
+    a.entryR = Math.hypot(a.entryX, a.entryZ)
+    a.faceTo(a.entryX, a.entryZ)
     a.facing = a.targetFacing
     a.entering = true
     a.entryT = 0
+    a.rushT = 0
   }
 
   enterArena(e, h, dt) {
     e.entryT += dt
-    const inside = Math.hypot(e.pos.x, e.pos.z) < ARENA_RADIUS - 0.4
-    const near = Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z) < ENTRY_NEAR
-    if (!inside || (!e.def.boss && !near && e.entryT < ENTRY_MAX)) return
-    e.entering = false
-    if (!e.def.boss && !e.def.fly && e.rig.state === 'run') e.rig.play('run', { force: true, fade: 0.18, speed: this.runRate(e, e.def) })
+    const r = Math.hypot(e.pos.x, e.pos.z)
+    const close = r < ARENA_RADIUS - 0.4 && Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z) < e.range + h.radius + 1
+    if (r <= e.entryR + 0.05 || e.entryT > ENTRY_MAX || close) {
+      e.entering = false
+      e.rushT = e.def.boss ? 0 : ENTRY_RUSH_TIME
+      if (e.def.boss) this.bossSeenAt = this.t
+      return false
+    }
+    const dx = e.entryX - e.pos.x
+    const dz = e.entryZ - e.pos.z
+    const left = Math.hypot(dx, dz) || 1
+    e.targetFacing = Math.atan2(dx, dz)
+    const slow = this.titanMode ? 0.7 : 1
+    if (e.def.boss) {
+      if (e.rig.state !== 'run') e.rig.play('run', { fade: BOSS_RUN_FADE })
+      this.bossStride(e, dt)
+    } else {
+      const step = Math.min(left, e.moveSpeed * ENTRY_RUSH * slow * dt)
+      e.pos.x += (dx / left) * step
+      e.pos.z += (dz / left) * step
+      if (e.def.fly) {
+        if (e.rig.state !== 'fly' && e.rig.finished) e.rig.play('fly', { fade: 0.18 })
+      } else if (e.rig.state !== 'run') e.rig.play('run', { fade: 0.18, speed: this.runRate(e, e.def) * ENTRY_RUSH * slow })
+    }
+    this.settleEnemy(e, h, dt)
+    return true
+  }
+
+  easeRush(e, h, dt) {
+    e.rushT -= dt
+    if (e.rushT > 0 && Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z) > ENTRY_NEAR) return
+    e.rushT = 0
+    if (!e.def.fly && e.rig.state === 'run') e.rig.play('run', { force: true, fade: 0.18, speed: this.runRate(e, e.def) * (this.titanMode ? 0.7 : 1) })
+  }
+
+  keepHeroInFrame(dt) {
+    const h = this.hero
+    if (!h || this.gearK > 0) {
+      this.camSafe = Math.min(1, this.camSafe + dt * CAM_SAFE_RISE)
+      return
+    }
+    this.camera.updateMatrixWorld()
+    _v.set(h.pos.x, h.pos.y + h.height * 0.5, h.pos.z).project(this.camera)
+    const edge = Math.max(Math.abs(_v.x), Math.abs(_v.y))
+    this.camSafe = edge > CAM_SAFE_NDC ? Math.max(0, this.camSafe - dt * CAM_SAFE_DROP) : Math.min(1, this.camSafe + dt * CAM_SAFE_RISE)
   }
 
   lookAtGate(index) {
@@ -2240,7 +2316,7 @@ export class Game {
   }
 
   placeBoss(a) {
-    const gates = this.entryGates()
+    const gates = this.entryGates(ENTRY_BOSS_CLOSE)
     if (gates) {
       this.placeAtGate(a, gates[0], 0)
       return
@@ -3464,6 +3540,8 @@ export class Game {
     this.gateView = 0
     this.gateLookT = 0
     this.gateIndex = -1
+    this.waveGates = []
+    this.camSafe = 1
     this.pending = []
     this.spawning = 0
     this.loot.clear()
@@ -3608,7 +3686,7 @@ export class Game {
             this.slide(e, fadeDt)
             const r = Math.hypot(e.pos.x, e.pos.z)
             const lim = ARENA_RADIUS - 0.4
-            if (r > lim) {
+            if (r > lim && !e.entering) {
               e.pos.x *= lim / r
               e.pos.z *= lim / r
             }
@@ -3632,7 +3710,8 @@ export class Game {
         continue
       }
       if (e.knockX || e.knockZ) this.slide(e, dt)
-      if (e.entering) this.enterArena(e, h, dt)
+      if (e.entering && this.enterArena(e, h, dt)) continue
+      if (e.rushT > 0) this.easeRush(e, h, dt)
       if (e.poise > 0) e.poise -= dt
       if (e.def.boss || e.def.steady || e.cast || this.committed(e)) e.stagger = 0
       if (e.stagger > 0) {
@@ -3672,7 +3751,7 @@ export class Game {
       if (e.def.boss) e.turnRate = e.chasing ? BOSS_RUN_TURN : BOSS_TURN
 
       if (e.chasing) {
-        const slow = (this.titanMode && !e.def.boss ? 0.7 : 1) * (e.entering && !e.def.boss ? ENTRY_RUSH : 1)
+        const slow = (this.titanMode && !e.def.boss ? 0.7 : 1) * (e.rushT > 0 && !e.def.boss ? ENTRY_RUSH : 1)
         const sp = e.moveSpeed * slow
         if (!e.def.boss) {
           e.pos.x += Math.sin(e.facing) * sp * dt
@@ -3736,7 +3815,7 @@ export class Game {
     const cz = vz / vl
     const zone = this.ui.gearRing.zone
     for (const e of this.enemies) {
-      if (e.dead || e.def.boss) continue
+      if (e.dead || e.def.boss || e.entering) continue
       const dx = e.pos.x - h.pos.x
       const dz = e.pos.z - h.pos.z
       const reach = GEAR_CLEAR + e.radius
@@ -4173,7 +4252,7 @@ export class Game {
     const follow = centred ? 1 : THREE.MathUtils.lerp(0.72 + 0.28 * p, 1, this.gearK)
     const target = this.cameraFocus()
     _v.set(target.x * follow, 0, target.z * follow)
-    const bossLook = playing && this.boss && this.hero ? this.bossView * (1 - this.gearK) : 0
+    const bossLook = playing && this.boss && this.hero ? this.bossView * (1 - this.gearK) * this.camSafe : 0
     if (bossLook > 0) {
       const dx = this.boss.pos.x - target.x
       const dz = this.boss.pos.z - target.z
@@ -4183,7 +4262,7 @@ export class Game {
     }
     if (this.gateLookT > 0) this.gateLookT -= dt
     this.gateView += ((playing && this.gateLookT > 0 && this.hero ? 1 : 0) - this.gateView) * Math.min(1, dt * GATE_LOOK_RATE)
-    const gateLook = this.gateView * (1 - this.gearK) * (1 - bossLook)
+    const gateLook = this.gateView * (1 - this.gearK) * (1 - bossLook) * this.camSafe
     if (gateLook > 0.001) {
       const dx = this.gateAt.x - target.x
       const dz = this.gateAt.z - target.z
@@ -4216,6 +4295,7 @@ export class Game {
     _v2.z += Math.cos(this.camYaw) * 2.1 * near * zoom * (1 - this.gearK)
     this.camera.lookAt(_v2)
     if (playing) this.fitBoss(dt)
+    if (playing) this.keepHeroInFrame(dt)
 
     if (this.shakeT > 0) {
       this.shakeT -= dt
