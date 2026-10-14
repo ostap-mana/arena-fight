@@ -11,6 +11,7 @@ const random = stream('sim')
 const LIB = 'loot'
 const MODELS = 'loot'
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary']
+const EPIC_RANK = RARITIES.indexOf('epic')
 const SLOTS = ['weapon', 'shield', 'helmet', 'pauldrons', 'gauntlets', 'chestplate', 'belt', 'boots']
 const SETS = ['attack', 'lifesteal', 'criticaldamage']
 const RELIC_SIZE = 0.78
@@ -150,6 +151,8 @@ export class Loot {
     this.onCollect = null
     this.plan = null
     this.lastDropAt = null
+    this.clock = 0
+    this.holdUntil = 0
   }
 
   async load() {
@@ -198,6 +201,8 @@ export class Loot {
     this.planKills = Math.max(1, roster.reduce((n, p) => n + p.count, 0))
     this.planSeen = 0
     this.planGiven = 0
+    this.clock = 0
+    this.holdUntil = 0
   }
 
   laterCarries(rank) {
@@ -219,8 +224,13 @@ export class Loot {
         break
       }
     }
-    for (let i = 0; this.planGiven < upto && rankOf(plan[this.planGiven]) <= cap; i++) {
-      this.queue.push({ item: plan[this.planGiven++], at, body, delay: i * STAGGER, spread: 1 })
+    const epic = cap >= EPIC_RANK
+    for (let i = 0; this.planGiven < upto && rankOf(plan[this.planGiven]) <= cap && (epic || this.clock >= this.holdUntil); i++) {
+      const item = plan[this.planGiven++]
+      this.queue.push({ item, at, body, delay: i * STAGGER, spread: 1 })
+      if (!item.hold) continue
+      this.holdUntil = this.clock + item.hold
+      if (!epic) break
     }
   }
 
@@ -364,6 +374,7 @@ export class Loot {
   }
 
   update(dt, hero, anchor) {
+    this.clock += dt
     for (let i = this.queue.length - 1; i >= 0; i--) {
       const q = this.queue[i]
       q.delay -= dt

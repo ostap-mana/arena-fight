@@ -56,6 +56,7 @@ const SET_BLAST_RADIUS = 4.5
 const SET_BLAST_KNOCK = 2.2
 const SET_BLAST_STUN = 0.5
 const SET_CRITS = 3
+const SET_SAY_GAP = 1.5
 const LEECH_RATE = 0.012
 const MORPH_SWAP = 0.45
 const MORPH_CAMERA = 1.5
@@ -1148,9 +1149,9 @@ export class Game {
   }
 
   warnWeak() {
-    if (this.t - this.weakWarnAt < WEAK_WARN_GAP || this.gearOpen || this.shieldUp) return
+    if (this.t - this.weakWarnAt < WEAK_WARN_GAP || this.gearOpen || this.shieldUp || this.bossDown()) return
     this.weakWarnAt = this.t
-    this.ui.showBanner('TOO WEAK', `enemies hit x${(1 + WEAK_HURT * this.weak).toFixed(1)} · ${this.gear.hasUpgrade() ? 'tap your hero' : 'pick up gear'}`, 2)
+    this.ui.showBanner('TOO WEAK', `enemies hit x${(1 + WEAK_HURT * this.weakness()).toFixed(1)} · ${this.gear.hasUpgrade() ? 'tap your hero' : 'pick up gear'}`, 2)
   }
 
   showPower() {
@@ -1220,8 +1221,13 @@ export class Game {
     }, wait + BANNER_GAP_MS)
   }
 
+  bossDown() {
+    return !!(this.boss && this.boss.dead)
+  }
+
   setActivated() {
-    if (this.state !== 'battle' || this.titanMode) return
+    if (this.state !== 'battle' || this.titanMode || !this.setLive || this.bossDown() || this.t - this.setSaidAt < SET_SAY_GAP) return
+    this.setSaidAt = this.t
     const b = this.gear.build
     const h = this.hero
     this.bannerAfter(`${SET_NAME[b.set].toUpperCase()} SET`, b.bonusText, 2.2)
@@ -1250,7 +1256,7 @@ export class Game {
   }
 
   setLost() {
-    if (this.state !== 'battle' || this.titanMode) return
+    if (this.state !== 'battle' || this.titanMode || this.setLive || this.bossDown()) return
     this.ui.showBanner('SET BROKEN', `${SET_NAME[this.gear.build.set]} bonus lost · tap your hero`, 2)
     audio.play('ui_button_locked')
   }
@@ -1881,6 +1887,7 @@ export class Game {
     this.redTaught = false
     this.setLive = this.setShown = this.titanCall = this.rescueGuard = false
     this.bossSeenAt = 0
+    this.setSaidAt = -SET_SAY_GAP
     this.setPending = null
     this.forceCrits = this.leechPool = this.healSum = 0
     this.weak = 0
