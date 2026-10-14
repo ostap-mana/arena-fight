@@ -18,7 +18,7 @@ import { GuideLine } from '../world/guide-line.js'
 import { SHADOW_MAP_SIZE, fitShadowToView } from '../world/shadow-fit.js'
 import { audio, STEPS } from './audio.js'
 import { Input } from './input.js'
-import { Gear, ATK_PER_DMG, planDrops } from './gear.js'
+import { Gear, ATK_PER_DMG, BUILD_PIECES, planDrops } from './gear.js'
 import { BUILDS, POWER_GOAL, SET_NAME } from '../data/builds.js'
 import { HIT_KINDS, ENEMY_HITS, SKILL_HITS } from '../data/hits.js'
 import { UI } from '../ui/ui.js'
@@ -1172,7 +1172,7 @@ export class Game {
   showPower() {
     if (!this.gear) return
     const canWin = this.gear.bestPower() >= POWER_GOAL && this.underpowered()
-    this.ui.setPower(this.gear.power(), POWER_GOAL, canWin)
+    this.ui.setPower(this.gear.power(), POWER_GOAL, canWin, this.gear.buildCount(this.gear.bestBuild()), this.gear.buildCount())
     const waiting = this.gearHinted && this.gear.hasUpgrade()
     const calling = this.bossWave() && this.boss && !this.boss.dead && !this.titanMode && !this.titanReady
     const gate = this.shieldUp && !this.shieldFragile
@@ -1189,7 +1189,8 @@ export class Game {
     const epoch = this.epoch
     setTimeout(() => {
       if (epoch !== this.epoch || !this.shieldUp || this.state !== 'battle') return
-      this.ui.showBanner('TOO WEAK', `equip gear · reach ${POWER_GOAL.toLocaleString('en-US')} power`, 2.6)
+      const owned = this.gear.buildCount(this.gear.bestBuild())
+      this.ui.showBanner('TOO WEAK', owned < BUILD_PIECES ? `complete your ${SET_NAME[this.gear.build.set]} set · ${owned}/${BUILD_PIECES}` : `equip gear · reach ${POWER_GOAL.toLocaleString('en-US')} power`, 2.6)
       audio.play('boss_laugh')
       setTimeout(() => {
         if (epoch !== this.epoch || !this.shieldUp || this.state !== 'battle' || this.hero.dead) return
@@ -1286,17 +1287,25 @@ export class Game {
     this.ui.setHp(h.hp, h.maxHp)
   }
 
+  relicTag(item) {
+    if (this.gear.isBuild(item)) return `SET ${Math.min(BUILD_PIECES, this.gear.buildCount(this.gear.bestBuild()))}/${BUILD_PIECES}`
+    return this.gear.isUpgrade(item) ? 'UPGRADE' : ''
+  }
+
   lootAnchor() {
     const id = this.heroVfx()
     return id ? this.vfx.socket(id, this.hero, 'FX_Center') : this.hero.root
   }
 
   collectLoot(item) {
-    this.ui.lootRelic(item)
     audio.play('loot_notification', { slot: 'loot_note', max: 1, gap: 0.35 })
-    if (!this.gear) return
+    if (!this.gear) {
+      this.ui.lootRelic(item)
+      return
+    }
     const ready = this.gear.bestPower() >= POWER_GOAL
     const added = this.gear.add(item)
+    this.ui.lootRelic(item, this.relicTag(added))
     if (this.gearOpen) this.ui.gearRing.refresh(added)
     this.showPower()
     const nowReady = this.gear.bestPower() >= POWER_GOAL && this.underpowered()
