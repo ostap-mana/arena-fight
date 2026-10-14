@@ -24,7 +24,6 @@ const SHIELD_HIT_SCALE = 0.16
 const SHIELD_BREAK_SCALE = 0.42
 
 const GATE_FX = 'FX_Barrier_Fire'
-const GATE_RADIUS = 10
 const GATE_STATES = new Set(['intro', 'battle', 'morph', 'end'])
 const GATES = ARENA_GATES[DEFAULT_LOCATION] || []
 
@@ -33,6 +32,8 @@ const _to = new THREE.Vector3()
 const _quat = new THREE.Quaternion()
 const _up = new THREE.Vector3(0, 1, 0)
 const _frustum = new THREE.Frustum()
+const _box = new THREE.Box3()
+const _particle = new THREE.Matrix4()
 const _viewProj = new THREE.Matrix4()
 
 export class MomentFx {
@@ -48,7 +49,7 @@ export class MomentFx {
       vfx.group.add(group)
       return group
     })
-    this.gateSpheres = GATES.map(gate => new THREE.Sphere(new THREE.Vector3(gate.x, gate.y, gate.z), GATE_RADIUS * gate.scale))
+    this.gateBoxes = GATES.map(() => new THREE.Box3())
     this.game = null
     this.epoch = -1
   }
@@ -237,7 +238,7 @@ export class MomentFx {
         continue
       }
       if (!this.gates[i]) this.spawnGate(i)
-      this.gateGroups[i].visible = _frustum.intersectsSphere(this.gateSpheres[i])
+      this.gateGroups[i].visible = this.gateInView(i)
     }
   }
 
@@ -255,14 +256,36 @@ export class MomentFx {
     this.gates[i] = inst
   }
 
+  gateInView(i) {
+    const box = this.gateBoxes[i]
+    const inst = this.gates[i]
+    if (inst) growGateBox(inst, box)
+    return box.isEmpty() || _frustum.intersectsBox(box)
+  }
+
   dropGate(i) {
     const inst = this.gates[i]
     this.gates[i] = null
+    this.gateBoxes[i].makeEmpty()
     if (inst) this.vfx.kill(inst)
   }
 
   forgetGate(inst) {
     const i = this.gates.indexOf(inst)
     if (i >= 0) this.gates[i] = null
+  }
+}
+
+function growGateBox(inst, box) {
+  for (const e of inst.emitters) {
+    const mesh = e.mesh
+    if (!mesh || !mesh.count) continue
+    const geometry = mesh.geometry
+    if (!geometry.boundingBox) geometry.computeBoundingBox()
+    for (let k = 0; k < mesh.count; k++) {
+      mesh.getMatrixAt(k, _particle)
+      _particle.premultiply(mesh.matrixWorld)
+      box.union(_box.copy(geometry.boundingBox).applyMatrix4(_particle))
+    }
   }
 }
