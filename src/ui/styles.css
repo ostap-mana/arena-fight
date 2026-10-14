@@ -1142,7 +1142,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #gearring .strip { position: absolute; left: 0; top: 0; pointer-events: auto; will-change: transform; }
 #gearring .tk {
   padding: calc(var(--s) * .12) calc(var(--s) * .16) calc(var(--s) * .16); border-radius: calc(var(--s) * .22);
-  background: linear-gradient(rgba(12, 16, 32, .86), rgba(8, 12, 26, .76)); border: 1px solid rgba(231, 196, 120, .45);
+  background: linear-gradient(rgb(23, 18, 32), rgb(28, 16, 27)); border: 1px solid rgba(231, 196, 120, .45);
   box-shadow: 0 calc(var(--s) * .1) calc(var(--s) * .4) rgba(0, 0, 0, .55);
 }
 #gearring .slabel { display: flex; align-items: baseline; gap: calc(var(--s) * .14); margin: 0 0 calc(var(--s) * .12) calc(var(--s) * .04); white-space: nowrap; overflow: hidden; }
