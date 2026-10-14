@@ -754,10 +754,6 @@ export class Game {
       audio.play('outcome_cta')
       openStore('outcome')
     }
-    this.ui.outcome.onRetry = () => {
-      audio.play('outcome_select')
-      this.retry()
-    }
   }
 
   async boot() {
@@ -3263,7 +3259,7 @@ export class Game {
     const defeat = kind === 'defeat'
     audio.layer('amb_battle', false, 500)
     audio.track('music_endcard', 500)
-    audio.stop(`${this.heroDef.model}_death`, 300)
+    if (this.heroDef) audio.stop(`${this.heroDef.model}_death`, 300)
     if (defeat) audio.play('outcome_defeat', { delay: 0.06 })
     audio.play(defeat ? 'outcome_defeat_vo' : 'outcome_victory_vo', { delay: defeat ? 0.46 : 0.45 })
     audio.play('outcome_card_plate', { delay: 0.06 })
