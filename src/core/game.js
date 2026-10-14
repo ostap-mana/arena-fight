@@ -2009,7 +2009,7 @@ export class Game {
     this.clearDots()
     this.wavePlan = WAVES.map(w => this.planWave(w))
     if (build) {
-      const roster = this.wavePlan.filter((packs, i) => !WAVES[i].boss).flat().map(p => ({ table: ENEMIES[p.type].loot, count: p.count }))
+      const roster = this.wavePlan.flatMap((packs, wave) => (WAVES[wave].boss ? [] : packs.map(p => ({ table: ENEMIES[p.type].loot, wave, count: p.count }))))
       this.loot.setPlan(planDrops(build), roster)
     }
     this.applyGear()

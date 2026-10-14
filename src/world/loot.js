@@ -109,7 +109,8 @@ function rankOf(item) {
   return RARITIES.indexOf(item.rarity)
 }
 
-function tierOf(table) {
+function tierOf(table, wave = 0) {
+  if (table && table.tiers) return RARITIES.indexOf(table.tiers[Math.min(wave, table.tiers.length - 1)])
   let best = 0
   for (const rarity in (table && table.rarity) || {}) best = Math.max(best, RARITIES.indexOf(rarity))
   return best
@@ -208,7 +209,7 @@ export class Loot {
     this.plan = items.slice()
     this.tierItems = RARITIES.map((_, rank) => items.filter(item => rankOf(item) === rank).length)
     this.tierCarriers = RARITIES.map(() => 0)
-    for (const { table, count } of roster) this.tierCarriers[tierOf(table)] += count
+    for (const { table, wave, count } of roster) this.tierCarriers[tierOf(table, wave)] += count
     this.tierSeen = RARITIES.map(() => 0)
     this.tierGiven = RARITIES.map(() => 0)
     this.planGiven = 0
@@ -216,10 +217,10 @@ export class Loot {
     this.holdUntil = 0
   }
 
-  takeTier(tier) {
+  takeTier(tier, force) {
     const plan = this.plan
     let j = this.planGiven
-    while (j < plan.length && rankOf(plan[j]) !== tier) j++
+    while (j < plan.length && (rankOf(plan[j]) !== tier || (plan[j].hold && j > this.planGiven && !force))) j++
     if (j >= plan.length) return null
     const item = plan[j]
     for (; j > this.planGiven; j--) plan[j] = plan[j - 1]
@@ -236,13 +237,12 @@ export class Loot {
     return Math.min(items, Math.ceil((seen * items) / span))
   }
 
-  dropPlanned(at, table, body) {
-    const tier = tierOf(table)
+  dropPlanned(at, tier, body) {
     const due = this.tierDue(tier)
     const last = this.tierSeen[tier] >= this.tierCarriers[tier]
     const free = last || tier >= EPIC_RANK
     for (let i = 0; this.tierGiven[tier] < due && (free || this.clock >= this.holdUntil); i++) {
-      const item = this.takeTier(tier)
+      const item = this.takeTier(tier, last)
       if (!item) break
       this.tierGiven[tier]++
       this.queue.push({ item, at, body, delay: i * STAGGER, spread: 1 })
@@ -270,7 +270,7 @@ export class Loot {
     this.lastDropAt = at
     const body = actor.radius || 0
     if (this.plan && !boss) {
-      this.dropPlanned(at, table, body)
+      this.dropPlanned(at, tierOf(table, actor.wave || 0), body)
       return
     }
     let count = table.relics || 0
@@ -278,7 +278,7 @@ export class Loot {
     for (let i = 0; i < count; i++) {
       const item = {
         slot: SLOTS[Math.floor(random() * SLOTS.length)],
-        rarity: pickWeighted(table.rarity),
+        rarity: table.rarity ? pickWeighted(table.rarity) : RARITIES[tierOf(table, actor.wave || 0)],
         set: table.set || SETS[Math.floor(random() * SETS.length)],
       }
       this.queue.push({ item, at, body, delay: i * STAGGER, spread: boss ? 1.7 : 1 })
