@@ -30,6 +30,8 @@ const FLY_MS = 360
 const OPEN_MS = 420
 const CLOSE_MS = 200
 const WEAR_MS = 380
+const WEAR_GAP = 90
+const AUTO_CLOSE_HOLD = 350
 const FRESH_MS = 820
 const FRESH_DELAY = 120
 const FRESH_POP = 0.28
@@ -704,8 +706,13 @@ export class GearRing {
       if (!item) return
       this.pop(type, true, item.rarity)
       this.wear(item)
-    }, i * 90))
+    }, i * WEAR_GAP))
     this.autoBtn.animate([{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: 240, easing: SPRING })
+    if (!changed.length) return
+    const token = this.seq
+    setTimeout(() => {
+      if (token === this.seq && this.isOpen && this.onClose) this.onClose()
+    }, (changed.length - 1) * WEAR_GAP + WEAR_MS + AUTO_CLOSE_HOLD)
   }
 
   change(action, kind) {
