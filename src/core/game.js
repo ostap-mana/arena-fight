@@ -297,7 +297,9 @@ const INTRO_OUT = 0.3
 const IDLE_BREAK_IN = 0.2
 const IDLE_BREAK_GAP = [7, 11]
 const SELECT_CAM_SMOOTH = 0.45
-const SPIN_SETTLE = 6
+const ORBIT_SETTLE = 6
+const ORBIT_SOLO = 0.35
+const HERO_LIGHT_BACK = 1.7
 const HERO_HEIGHT = 2.04
 const HERO_RADIUS = 0.74
 const MOB_SCALE = 1.15
@@ -636,6 +638,8 @@ export class Game {
     this.gateAt = new THREE.Vector3()
     this.camTarget = new THREE.Vector3()
     this.camYaw = 0
+    this.selectOrbit = 0
+    this.orbitHome = false
     this.selectFit = null
     this.battleView = false
     this.fitCamera()
@@ -1658,6 +1662,8 @@ export class Game {
     this.ui.veilHold()
     this.setLobbyPost(true)
     this.cardTapped = -1
+    this.selectOrbit = 0
+    this.orbitHome = false
     this.turntable.enabled = true
     this.ui.buildCards(i => this.tapCard(i), i => this.confirmPick(i))
     this.ui.show('select', true)
@@ -1803,24 +1809,31 @@ export class Game {
     a.breakAt = this.t + IDLE_BREAK_GAP[0] + random() * (IDLE_BREAK_GAP[1] - IDLE_BREAK_GAP[0])
   }
 
-  spinSelectActors(dt) {
+  orbitSelectCamera(dt) {
     const turn = this.turntable.take(dt)
+    if (turn) {
+      this.orbitHome = false
+      this.selectOrbit = THREE.MathUtils.euclideanModulo(this.selectOrbit - turn + Math.PI, Math.PI * 2) - Math.PI
+    } else if (this.orbitHome && this.selectOrbit) {
+      this.selectOrbit *= Math.exp(-ORBIT_SETTLE * dt)
+      if (Math.abs(this.selectOrbit) < 0.001) this.selectOrbit = 0
+    }
+    const solo = Math.abs(this.selectOrbit) > ORBIT_SOLO
     const actors = this.selectActors
     for (let i = 0; i < actors.length; i++) {
-      const a = actors[i]
-      if (a.baseFacing === undefined) continue
-      if (i === this.heroIndex) a.spin = (a.spin || 0) + turn
-      else if (a.spin) {
-        a.spin = THREE.MathUtils.euclideanModulo(a.spin + Math.PI, Math.PI * 2) - Math.PI
-        a.spin *= Math.exp(-SPIN_SETTLE * dt)
-        if (Math.abs(a.spin) < 0.001) a.spin = 0
-      }
-      a.targetFacing = a.facing = a.baseFacing + (a.spin || 0)
+      const shown = !solo || i === this.heroIndex
+      actors[i].root.visible = shown
+      if (this.showcase) this.showcase.showStand(i, shown)
     }
+    this.placeHeroLight()
+  }
+
+  orbitAmount() {
+    return this.state === 'select' ? Math.min(1, Math.abs(this.selectOrbit) / ORBIT_SOLO) : 0
   }
 
   updateSelectActors(dt) {
-    this.spinSelectActors(dt)
+    this.orbitSelectCamera(dt)
     const actors = this.selectActors
     for (let i = 0; i < actors.length; i++) {
       const a = actors[i]
@@ -1876,7 +1889,7 @@ export class Game {
       const a = this.selectActors[i]
       a.setPos((i - 1) * gap, SELECT_HERO_Z)
       a.baseFacing = (HEROES[i].turn || 0) - (i - 1) * 0.16 + (single ? HEROES[i].poseTurn || 0 : 0)
-      a.targetFacing = a.facing = a.baseFacing + (a.spin || 0)
+      a.targetFacing = a.facing = a.baseFacing
     }
     this.placeHeroLight()
   }
@@ -1959,12 +1972,15 @@ export class Game {
 
   placeHeroLight() {
     const picked = this.selectActors[this.heroIndex]
-    if (picked) this.heroLight.position.set(picked.pos.x, 2.6, picked.pos.z - 1.7)
+    if (!picked) return
+    const orbit = this.state === 'select' ? this.selectOrbit : 0
+    this.heroLight.position.set(picked.pos.x - Math.sin(orbit) * HERO_LIGHT_BACK, 2.6, picked.pos.z - Math.cos(orbit) * HERO_LIGHT_BACK)
   }
 
   focusHero(i) {
     const prev = this.selectActors[this.heroIndex]
     this.turntable.stop()
+    this.orbitHome = true
     this.heroIndex = i
     this.ui.selectCard(i)
     this.highlightSelected()
@@ -4342,7 +4358,7 @@ export class Game {
 
   cameraFocus() {
     if (this.hero) return this.hero.pos
-    if (this.state === 'select' && this.selectActors && this.selectActors[this.heroIndex] && (this.confirming || !this.selectShowsRow())) {
+    if (this.state === 'select' && this.selectActors && this.selectActors[this.heroIndex] && (this.confirming || this.selectOrbit || !this.selectShowsRow())) {
       return this.selectActors[this.heroIndex].pos
     }
     return _zero
@@ -4355,7 +4371,7 @@ export class Game {
     const selecting = this.state === 'select'
     const centred = selecting && !this.selectShowsRow()
     if (centred) this.blendSelectPose(dt, this.camSnap)
-    const follow = centred ? 1 : THREE.MathUtils.lerp(0.72 + 0.28 * p, 1, this.gearK)
+    const follow = centred ? 1 : THREE.MathUtils.lerp(0.72 + 0.28 * p, 1, Math.max(this.gearK, this.orbitAmount()))
     const target = this.cameraFocus()
     _v.set(target.x * follow, 0, target.z * follow)
     const bossLook = playing && this.boss && this.hero ? this.bossView * (1 - this.gearK) * this.camSafe : 0
@@ -4391,7 +4407,7 @@ export class Game {
     const pitch = THREE.MathUtils.lerp(Math.atan2(this.camOffset.y, flat), Math.max(Math.atan2(this.camOffset.y, flat), portraitPitch), zoom)
     _off.set(this.camOffset.x / flat, 0, this.camOffset.z / flat).multiplyScalar(Math.cos(pitch) * dist)
     _off.y = Math.sin(pitch) * dist
-    _off.applyAxisAngle(_up, this.camYaw)
+    _off.applyAxisAngle(_up, selecting ? this.camYaw + this.selectOrbit : this.camYaw)
     _v.copy(this.camTarget).add(_off)
     if (this.camSnap || selecting) this.camera.position.copy(_v)
     else this.camera.position.lerp(_v, Math.min(1, dt * (5.5 + chase)))

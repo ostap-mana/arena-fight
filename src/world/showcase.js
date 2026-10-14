@@ -229,6 +229,11 @@ export class Showcase {
     if (s && !s.fx && this.standBooksReady()) this.startStandFx(s)
   }
 
+  showStand(i, on) {
+    const s = this.stands[i]
+    if (s) s.stand.visible = on
+  }
+
   standBooksReady() {
     for (let i = 0; i < STAND_BOOKS.length; i++) if (this.books.has(STAND_BOOKS[i])) return true
     return false
