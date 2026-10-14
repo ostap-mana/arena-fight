@@ -1188,6 +1188,7 @@ class Emitter {
           norm = 1
         }
         const local = def.loop ? this.t - this.loopIndex * def.dur : Math.min(this.t, def.dur)
+        if (this.count >= this.cap) this.reap(sdt)
         if (def.rate) {
           this.acc += def.rate.get(norm, this.sysRnd) * sdt
           const k = Math.floor(this.acc)
@@ -1236,6 +1237,10 @@ class Emitter {
       if (this.count >= this.cap) return
       this.spawn(norm, null)
     }
+  }
+
+  reap(dt) {
+    for (let i = this.count - 1; i >= 0; i--) if (this.age[i] + dt >= this.life[i]) this.kill(i)
   }
 
   emitAt(trig) {

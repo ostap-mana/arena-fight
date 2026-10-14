@@ -24,25 +24,31 @@ const SHIELD_HIT_SCALE = 0.16
 const SHIELD_BREAK_SCALE = 0.42
 
 const GATE_FX = 'FX_Barrier_Fire'
-const GATE_NEAR = 16.5
-const GATE_FAR = 21
-const GATE_OPEN = 3.5
+const GATE_RADIUS = 10
+const GATE_STATES = new Set(['intro', 'battle', 'morph', 'end'])
 const GATES = ARENA_GATES[DEFAULT_LOCATION] || []
 
 const _pos = new THREE.Vector3()
 const _to = new THREE.Vector3()
 const _quat = new THREE.Quaternion()
 const _up = new THREE.Vector3(0, 1, 0)
+const _frustum = new THREE.Frustum()
+const _viewProj = new THREE.Matrix4()
 
 export class MomentFx {
   constructor(vfx, camera) {
     this.vfx = vfx
     this.camera = camera
     this.followOpts = { follow: null, pos: _pos, quat: _quat, scale: 1, lifetime: 1, camera }
-    this.gateOpts = { pos: _pos, yaw: 0, scale: 1, camera }
+    this.gateOpts = { pos: _pos, yaw: 0, scale: 1, camera, onDone: inst => this.forgetGate(inst) }
     this.dots = {}
     this.gates = GATES.map(() => null)
-    this.openUntil = GATES.map(() => -Infinity)
+    this.gateGroups = GATES.map(() => {
+      const group = new THREE.Group()
+      vfx.group.add(group)
+      return group
+    })
+    this.gateSpheres = GATES.map(gate => new THREE.Sphere(new THREE.Vector3(gate.x, gate.y, gate.z), GATE_RADIUS * gate.scale))
     this.game = null
     this.epoch = -1
   }
@@ -71,21 +77,14 @@ export class MomentFx {
     this.hp = 0
     this.healAt = -Infinity
     for (const kind of DOT_KINDS) this.dots[kind] = null
-    for (let i = 0; i < this.gates.length; i++) {
-      this.gates[i] = null
-      this.openUntil[i] = -Infinity
-    }
-  }
-
-  opened(index, t) {
-    if (index >= 0 && index < this.openUntil.length) this.openUntil[index] = Math.max(this.openUntil[index], t + GATE_OPEN)
+    for (let i = 0; i < this.gates.length; i++) this.dropGate(i)
   }
 
   update(g, dt) {
     if (!this.ready) return
     if (g !== this.game || g.epoch !== this.epoch) this.reset(g)
     const live = g.state === 'battle' || g.state === 'morph'
-    this.updateGates(g, live)
+    this.updateGates(g)
     const h = g.hero
     if (!live || !h || h.dead) {
       this.stopDots()
@@ -225,24 +224,45 @@ export class MomentFx {
     o.follow = null
   }
 
-  updateGates(g, live) {
-    const h = g.hero
+  updateGates(g) {
+    const show = GATE_STATES.has(g.state)
+    if (show) {
+      this.camera.updateMatrixWorld()
+      _viewProj.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse)
+      _frustum.setFromProjectionMatrix(_viewProj)
+    }
     for (let i = 0; i < GATES.length; i++) {
-      const gate = GATES[i]
-      const open = live && g.t < this.openUntil[i]
-      const d = open ? 0 : h && live ? Math.hypot(gate.x - h.pos.x, gate.z - h.pos.z) : Infinity
-      const inst = this.gates[i]
-      if (!inst && d < GATE_NEAR) {
-        _pos.set(gate.x, gate.y, gate.z)
-        const o = this.gateOpts
-        o.scale = gate.scale
-        o.yaw = gate.yaw
-        this.gates[i] = this.vfx.spawn(MOMENT_FX, GATE_FX, o)
-      } else if (inst && d > GATE_FAR) {
-        inst.stop()
-        this.gates[i] = null
+      if (!show) {
+        this.dropGate(i)
+        continue
       }
+      if (!this.gates[i]) this.spawnGate(i)
+      this.gateGroups[i].visible = _frustum.intersectsSphere(this.gateSpheres[i])
     }
   }
 
+  spawnGate(i) {
+    const gate = GATES[i]
+    const o = this.gateOpts
+    _pos.set(gate.x, gate.y, gate.z)
+    o.scale = gate.scale
+    o.yaw = gate.yaw
+    const inst = this.vfx.spawn(MOMENT_FX, GATE_FX, o)
+    if (!inst) return
+    const group = this.gateGroups[i]
+    for (const mesh of inst.drawables()) group.add(mesh)
+    inst.world = group
+    this.gates[i] = inst
+  }
+
+  dropGate(i) {
+    const inst = this.gates[i]
+    this.gates[i] = null
+    if (inst) this.vfx.kill(inst)
+  }
+
+  forgetGate(inst) {
+    const i = this.gates.indexOf(inst)
+    if (i >= 0) this.gates[i] = null
+  }
 }

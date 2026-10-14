@@ -2195,7 +2195,6 @@ export class Game {
     a.facing = a.targetFacing
     a.entering = true
     a.entryT = 0
-    if (index === this.gateIndex || (a.def && a.def.boss)) this.moments.opened(index, this.t)
   }
 
   enterArena(e, h, dt) {
@@ -2213,7 +2212,6 @@ export class Game {
     this.gateIndex = index
     this.gateAt.set(gate.x, 0, gate.z)
     this.gateLookT = GATE_LOOK_TIME
-    this.moments.opened(index, this.t)
   }
 
   placeBoss(a) {
