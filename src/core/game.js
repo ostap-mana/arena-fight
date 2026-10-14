@@ -290,6 +290,7 @@ const BOSS_SWINGS = [
 ]
 const DODGE_REACH = 3
 const BOSS_HIT_CAP = 0.4
+const BOSS_AOE_REACH = 7.5
 const BOSS_STRIKE_REACH = 32
 const BOSS_STRIKE_SHAKE = 0.3
 const BOSS_STRIKE_FLASH = 0xff6a1a
@@ -3473,10 +3474,10 @@ export class Game {
       return true
     }
     const vfxId = this.enemyVfx(e.def)
-    const fxRes = vfxId ? this.heroFx.attack(vfxId, combo, e, this.hero, {
+    const fxRes = vfxId ? this.heroFx.attack(vfxId, combo, e, swing ? null : this.hero, {
       impact: e.rig.impactAt,
       exact: true,
-      reach: range + ENEMY_HIT_SLACK,
+      reach: swing ? BOSS_AOE_REACH : range + ENEMY_HIT_SLACK,
       onHit: t => {
         if (!e.dead && t === this.hero && this.state === 'battle') land()
       },
