@@ -262,7 +262,6 @@ export class UI {
         <div class="dim"></div>
         <div class="scrim"></div>
         <div class="bloom"></div>
-        <img class="crown" alt="" draggable="false">
         <button class="brand"><img class="logo" alt="INVOKERS" draggable="false"></button>
         <button class="control"><img class="plate" alt="PLAY NOW" draggable="false"></button>
         <div class="flash"></div>

@@ -1,16 +1,10 @@
 import gsap from 'gsap'
 import logoUrl from '../assets/GENERAL/lose-win/logo-invokers.webp'
 import playNowUrl from '../assets/GENERAL/BUTTONS/play-now.webp'
-import crownUrl from '../assets/GENERAL/lose-win/victory-crown.webp'
 import { whenReleased } from './lazy.js'
 
 const LOGO_ART = { w: 558, h: 131 }
 const PLAY_ART = { w: 685, h: 164 }
-const CROWN_ART = { w: 720, h: 441 }
-const CROWN_W = { portrait: 0.46, landscape: 0.5 }
-const CROWN_AIR = 0.06
-const CROWN_DROP = { at: 0.34, duration: 0.62, lift: 0.55, scale: 1.18 }
-const CROWN_BOB = { rate: 1.4, px: 2.2 }
 
 const SCRIM = {
   portrait: [
@@ -92,9 +86,6 @@ export class Outcome {
     this.bloom = root.querySelector('.bloom')
     this.brand = root.querySelector('.brand')
     this.logo = root.querySelector('.logo')
-    this.crown = root.querySelector('.crown')
-    this.crownH = 0
-    this.ui = 1
     this.control = root.querySelector('.control')
     this.plate = root.querySelector('.plate')
     this.flash = root.querySelector('.flash')
@@ -106,9 +97,8 @@ export class Outcome {
     this.onCta = null
     this.warm = []
     whenReleased(() => {
-      this.warm = [logoUrl, playNowUrl, crownUrl].map(warmImage)
+      this.warm = [logoUrl, playNowUrl].map(warmImage)
       this.logo.src = logoUrl
-      this.crown.src = crownUrl
       this.plate.src = playNowUrl
     })
     this.tick = this.tick.bind(this)
@@ -136,15 +126,10 @@ export class Outcome {
     const room = ((w / 2 - PLATE_EDGE_AIR * ui) * 2) / (1 + PLAY_BEAT.kick)
     const play = fitArt(PLAY_ART, Math.min(w * PLAY_W[key], room), h * PLAY_H[key])
     const logo = fitArt(LOGO_ART, play.w * LOGO_W, 0)
-    const crown = fitArt(CROWN_ART, logo.w * CROWN_W[key], 0)
-    const crownRise = crown.h + logo.h * CROWN_AIR
     const gap = play.h * STACK_GAP
-    const stack = crownRise + logo.h + gap + play.h
-    const top = Math.max(STACK_EDGE * ui, h * STACK_Y[key] - stack / 2) + crownRise
+    const stack = logo.h + gap + play.h
+    const top = Math.max(STACK_EDGE * ui, h * STACK_Y[key] - stack / 2)
 
-    place(this.crown, cx - crown.w / 2, top - crownRise, crown.w, crown.h)
-    this.crownH = crown.h
-    this.ui = ui
     place(this.brand, cx - logo.w / 2, top, logo.w, logo.h)
 
     const bw = Math.max(80, logo.w * BLOOM_W)
@@ -161,13 +146,12 @@ export class Outcome {
     this.root.classList.toggle('defeat', this.defeat)
     if (!this.logo.getAttribute('src')) this.logo.src = logoUrl
     if (!this.plate.getAttribute('src')) this.plate.src = playNowUrl
-    if (!this.crown.getAttribute('src')) this.crown.src = crownUrl
     this.bloom.style.setProperty('--tint', side.bloom)
     this.flash.style.background = side.flash
     this.root.classList.add('on')
     this.layout()
 
-    const parts = [this.flash, this.brand, this.bloom, this.control, this.crown]
+    const parts = [this.flash, this.brand, this.bloom, this.control]
     gsap.killTweensOf(parts)
     this.t = 0
     this.armed = false
@@ -177,14 +161,11 @@ export class Outcome {
     gsap.set(this.flash, { opacity: 1 })
     gsap.set(this.brand, { opacity: 0, y: -this.brand.offsetHeight * LOGO_DROP.lift, scale: LOGO_DROP.scale })
     gsap.set([this.bloom, this.control], { opacity: 0 })
-    gsap.set(this.crown, { opacity: 0, y: -this.crownH * CROWN_DROP.lift, scale: CROWN_DROP.scale })
 
     gsap.delayedCall(ARM_AFTER, () => { this.armed = true })
     gsap.to(this.flash, { opacity: 0, duration: FLASH_FADE, delay: FLASH_HOLD, ease: 'power2.out' })
     gsap.to(this.brand, { opacity: 1, duration: 0.2, delay: LOGO_DROP.at, ease: 'power1.out' })
     gsap.to(this.brand, { y: 0, scale: 1, duration: LOGO_DROP.duration, delay: LOGO_DROP.at, ease: 'back.out(2.2)' })
-    gsap.to(this.crown, { opacity: 1, duration: 0.2, delay: CROWN_DROP.at, ease: 'power1.out' })
-    gsap.to(this.crown, { y: 0, scale: 1, duration: CROWN_DROP.duration, delay: CROWN_DROP.at, ease: 'back.out(2.2)' })
     gsap.timeline()
       .to(this.bloom, { opacity: side.lamp * BLOOM_FLARE, duration: 0.18, ease: 'expo.out' })
       .to(this.bloom, { opacity: side.lamp, duration: 0.42, ease: 'power2.out' })
@@ -199,7 +180,7 @@ export class Outcome {
 
   hide() {
     gsap.ticker.remove(this.tick)
-    gsap.killTweensOf([this.flash, this.brand, this.bloom, this.control, this.crown])
+    gsap.killTweensOf([this.flash, this.brand, this.bloom, this.control])
     this.armed = false
     this.introducing = false
     this.root.classList.remove('on', 'defeat')
@@ -210,8 +191,6 @@ export class Outcome {
     this.t += dt
     if (this.introducing) return
     this.bloom.style.opacity = this.side.idle + Math.sin(this.t * 1.8) * 0.08
-    const sway = Math.max(0, this.t - CROWN_DROP.at - CROWN_DROP.duration)
-    gsap.set(this.crown, { y: Math.sin(sway * Math.PI * CROWN_BOB.rate) * CROWN_BOB.px * this.ui })
     const phase = (this.t * PLAY_BEAT.rate) % 1
     const beat = phase < PLAY_BEAT.attack
       ? phase / PLAY_BEAT.attack
