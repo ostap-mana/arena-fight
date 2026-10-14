@@ -20,6 +20,7 @@ import { GuideLine } from '../world/guide-line.js'
 import { SHADOW_MAP_SIZE, fitShadowToView } from '../world/shadow-fit.js'
 import { audio, STEPS } from './audio.js'
 import { Input } from './input.js'
+import { Turntable } from './turntable.js'
 import { Gear, ATK_PER_DMG, BUILD_PIECES, planDrops } from './gear.js'
 import { BUILDS, POWER_GOAL, SET_NAME } from '../data/builds.js'
 import { HIT_KINDS, ENEMY_HITS, SKILL_HITS } from '../data/hits.js'
@@ -275,6 +276,7 @@ const INTRO_OUT = 0.3
 const IDLE_BREAK_IN = 0.2
 const IDLE_BREAK_GAP = [7, 11]
 const SELECT_CAM_SMOOTH = 0.45
+const SPIN_SETTLE = 6
 const HERO_HEIGHT = 2.04
 const HERO_RADIUS = 0.74
 const MOB_SCALE = 1.15
@@ -474,6 +476,7 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas
     this.ui = new UI('ui')
+    this.turntable = new Turntable(this.ui.select)
     this.floats = new FloatText(this.ui.root)
     this.state = 'boot'
     this.t = 0
@@ -1595,6 +1598,7 @@ export class Game {
     this.ui.veilHold()
     this.setLobbyPost(true)
     this.cardTapped = -1
+    this.turntable.enabled = true
     this.ui.buildCards(i => this.tapCard(i), i => this.confirmPick(i))
     this.ui.show('select', true)
     await this.selectWarm
@@ -1739,7 +1743,24 @@ export class Game {
     a.breakAt = this.t + IDLE_BREAK_GAP[0] + random() * (IDLE_BREAK_GAP[1] - IDLE_BREAK_GAP[0])
   }
 
+  spinSelectActors(dt) {
+    const turn = this.turntable.take(dt)
+    const actors = this.selectActors
+    for (let i = 0; i < actors.length; i++) {
+      const a = actors[i]
+      if (a.baseFacing === undefined) continue
+      if (i === this.heroIndex) a.spin = (a.spin || 0) + turn
+      else if (a.spin) {
+        a.spin = THREE.MathUtils.euclideanModulo(a.spin + Math.PI, Math.PI * 2) - Math.PI
+        a.spin *= Math.exp(-SPIN_SETTLE * dt)
+        if (Math.abs(a.spin) < 0.001) a.spin = 0
+      }
+      a.targetFacing = a.facing = a.baseFacing + (a.spin || 0)
+    }
+  }
+
   updateSelectActors(dt) {
+    this.spinSelectActors(dt)
     const actors = this.selectActors
     for (let i = 0; i < actors.length; i++) {
       const a = actors[i]
@@ -1775,6 +1796,8 @@ export class Game {
   confirmSelect() {
     this.fetchBattleSounds()
     this.confirming = true
+    this.turntable.enabled = false
+    this.turntable.stop()
     this.loadBattle(HEROES[this.heroIndex])
     this.confirmT = 0
     this.ui.leaveSelect()
@@ -1792,7 +1815,8 @@ export class Game {
     for (let i = 0; i < this.selectActors.length; i++) {
       const a = this.selectActors[i]
       a.setPos((i - 1) * gap, SELECT_HERO_Z)
-      a.targetFacing = a.facing = (HEROES[i].turn || 0) - (i - 1) * 0.16 + (single ? HEROES[i].poseTurn || 0 : 0)
+      a.baseFacing = (HEROES[i].turn || 0) - (i - 1) * 0.16 + (single ? HEROES[i].poseTurn || 0 : 0)
+      a.targetFacing = a.facing = a.baseFacing + (a.spin || 0)
     }
     this.placeHeroLight()
   }
@@ -1880,6 +1904,7 @@ export class Game {
 
   focusHero(i) {
     const prev = this.selectActors[this.heroIndex]
+    this.turntable.stop()
     this.heroIndex = i
     this.ui.selectCard(i)
     this.highlightSelected()
