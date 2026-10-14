@@ -279,17 +279,17 @@ const _casters = []
 const SELECT_VIEW_DIR = new THREE.Vector3(0, 3.1, 8.0).normalize()
 const SELECT_HERO_Z = -0.4
 const SELECT_HERO_TOP = 2.6
-const SELECT_ROW_HALF = 4.3
 const SELECT_HERO_HALF = 2.15
 const SELECT_POSE_TOP = 2.3
 const SELECT_POSE_GAP = 0.012
 const SELECT_POSE_EDGE = 0.955
 const SELECT_POSE_NEAREST = 2.6
 const SELECT_POSE_EDGE_FALLBACK = [[SELECT_HERO_HALF, 1, 0], [-SELECT_HERO_HALF, 1, 0]]
-const SELECT_SPACING = { row: 2.9, single: 4.2 }
+const SELECT_SPACING = 4.2
+const SELECT_SPACING_MARGIN = 0.6
+const SELECT_GLIDE_DONE = 0.05
 const SELECT_EDGE = 0.96
 const SELECT_CARD_LIFT = 14
-const SELECT_ROW_ASPECT = 0.64
 const INTRO_IN = 0.2
 const INTRO_EXIT = 0.85
 const INTRO_BLEND = 0.8
@@ -1525,12 +1525,11 @@ export class Game {
 
   syncSelectSkins() {
     if (this.state !== 'select' || !this.selectActors) return
-    const row = this.selectShowsRow()
     for (let i = 0; i < this.selectActors.length; i++) {
       const a = this.selectActors[i]
       const h = HEROES[i]
       const lit = !!(a.skinFx && a.skinFx.length)
-      const want = !!h.vfx && h.lobbySkin !== false && a.root.visible && (row || i === this.heroIndex)
+      const want = !!h.vfx && h.lobbySkin !== false && a.root.visible && i === this.heroIndex
       if (want && !lit) this.heroFx.attachSkin(h.vfx, a, { lobby: true })
       else if (!want && lit) this.heroFx.detachSkin(a, true)
     }
@@ -1596,10 +1595,6 @@ export class Game {
     s.bias = SELECT_SHADOW.bias
     s.normalBias = SELECT_SHADOW.normalBias
     s.radius = SELECT_SHADOW.radius[this.quality]
-    if (this.selectShowsRow()) {
-      this.fitShadowBox(SELECT_SHADOW_MIN, SELECT_SHADOW_MAX, SELECT_SHADOW.depthPad)
-      return
-    }
     _singleShadowMin.copy(SELECT_SHADOW_MIN).setX(this.camTarget.x - SELECT_SINGLE_SHADOW_REACH)
     _singleShadowMax.copy(SELECT_SHADOW_MAX).setX(this.camTarget.x + SELECT_SINGLE_SHADOW_REACH)
     this.fitShadowBox(_singleShadowMin, _singleShadowMax, SELECT_SHADOW.depthPad)
@@ -1669,6 +1664,7 @@ export class Game {
     this.setLobbyPost(true)
     this.cardTapped = -1
     this.selectOrbit = 0
+    this.selectFrom = -1
     this.orbitHome = false
     this.turntable.enabled = true
     this.ui.buildCards(i => this.tapCard(i), i => this.confirmPick(i))
@@ -1824,11 +1820,12 @@ export class Game {
       this.selectOrbit *= Math.exp(-ORBIT_SETTLE * dt)
       if (Math.abs(this.selectOrbit) < 0.001) this.selectOrbit = 0
     }
-    const solo = Math.abs(this.selectOrbit) > ORBIT_SOLO
     const actors = this.selectActors
+    const gliding = Math.abs(this.camTarget.x - actors[this.heroIndex].pos.x) > SELECT_GLIDE_DONE
+    const leaving = gliding && !this.selectOrbit && !this.confirming ? this.selectFrom : -1
     let flipped = false
     for (let i = 0; i < actors.length; i++) {
-      const shown = !solo || i === this.heroIndex
+      const shown = i === this.heroIndex || i === leaving
       if (actors[i].root.visible !== shown) flipped = true
       actors[i].root.visible = shown
       if (this.showcase) this.showcase.showStand(i, shown)
@@ -1887,17 +1884,16 @@ export class Game {
   }
 
   selectSpacing() {
-    return this.selectShowsRow() ? SELECT_SPACING.row : SELECT_SPACING.single
+    return this.selectGap || SELECT_SPACING
   }
 
   layoutSelect() {
     if (!this.selectActors) return
     const gap = this.selectSpacing()
-    const single = !this.selectShowsRow()
     for (let i = 0; i < this.selectActors.length; i++) {
       const a = this.selectActors[i]
       a.setPos((i - 1) * gap, SELECT_HERO_Z)
-      a.baseFacing = (HEROES[i].turn || 0) - (i - 1) * 0.16 + (single ? HEROES[i].poseTurn || 0 : 0)
+      a.baseFacing = (HEROES[i].turn || 0) - (i - 1) * 0.16 + (HEROES[i].poseTurn || 0)
       a.targetFacing = a.facing = a.baseFacing
     }
     this.placeHeroLight()
@@ -1908,12 +1904,13 @@ export class Game {
     const h = view.h
     const head = this.ui.select.querySelector('.head')
     const titleBottom = head.getBoundingClientRect().bottom
-    const feetPx = this.ui.cards.getBoundingClientRect().top - SELECT_CARD_LIFT - h * 0.035
+    const cardsBox = this.ui.cards.getBoundingClientRect()
+    const column = getComputedStyle(this.ui.cards).flexDirection === 'column'
+    const feetPx = (column ? h - safeInsets().b : cardsBox.top) - SELECT_CARD_LIFT - h * 0.035
+    const sideNdc = column ? Math.min(SELECT_POSE_EDGE, (2 * (cardsBox.left - 2 * SELECT_CARD_LIFT)) / view.w - 1) : SELECT_POSE_EDGE
     const headPx = Math.max(titleBottom + h * 0.1, feetPx - h * 0.42)
     const toNdc = px => 1 - (2 * px) / h
     const p = this.portraitAmount()
-    const wholeRow = this.selectShowsRow()
-    const heroZ = wholeRow ? SELECT_HERO_Z : SELECT_HERO_Z * (0.28 - 0.28 * p)
     _fitCam.fov = this.camera.fov
     _fitCam.aspect = this.camera.aspect
     _fitCam.updateProjectionMatrix()
@@ -1921,21 +1918,17 @@ export class Game {
       _fitCam.position.copy(SELECT_VIEW_DIR).multiplyScalar(dist)
       _fitCam.lookAt(0, look, 0)
       _fitCam.updateMatrixWorld()
-      return _v.set(x, y, heroZ + z).project(_fitCam)
+      return _v.set(x, y, z).project(_fitCam)
     }
     const lookFor = dist => bisect(-4, 4, look => project(0, 0, dist, look).y > toNdc(feetPx))
     const tooClose = dist => {
       const look = lookFor(dist)
       if (project(0, SELECT_HERO_TOP, dist, look).y > toNdc(headPx)) return true
-      return project(wholeRow ? SELECT_ROW_HALF : SELECT_HERO_HALF, 1, dist, look).x > SELECT_EDGE
+      return project(SELECT_HERO_HALF, 1, dist, look).x > SELECT_EDGE
     }
     const dist = bisect(4.5, 14, tooClose)
     this.camOffset.copy(SELECT_VIEW_DIR).multiplyScalar(dist)
     this.camLook.set(0, lookFor(dist), 0)
-    if (wholeRow) {
-      this.selectFit = null
-      return
-    }
     const bandTop = titleBottom + h * SELECT_POSE_GAP
     const reach = standRadius(p)
     const tallest = Math.max(...HEROES.map(hero => hero.poseTop || SELECT_POSE_TOP))
@@ -1946,11 +1939,15 @@ export class Game {
       if (project(0, 0, d, look, reach).y < toNdc(feetPx)) return true
       return points.some(([x, y, z]) => {
         const q = project(x, y, d, look, z)
-        return Math.abs(q.x) > SELECT_POSE_EDGE || q.y > SELECT_POSE_EDGE || q.y < toNdc(feetPx)
+        return Math.abs(q.x) > sideNdc || q.y > SELECT_POSE_EDGE || q.y < toNdc(feetPx)
       })
     }
     const close = bisect(SELECT_POSE_NEAREST, 14, stageTooClose)
     this.selectFit = { dist: close, look: lookTop(close) }
+    const halfWidth = Math.tan(THREE.MathUtils.degToRad(_fitCam.fov) / 2) * _fitCam.aspect * close
+    this.selectGap = Math.max(SELECT_SPACING, halfWidth + SELECT_HERO_HALF + SELECT_SPACING_MARGIN)
+    this.layoutSelect()
+    if (!ease) this.camSnap = true
     this.blendSelectPose(0, !ease)
   }
 
@@ -1984,6 +1981,7 @@ export class Game {
 
   focusHero(i) {
     const prev = this.selectActors[this.heroIndex]
+    if (i !== this.heroIndex) this.selectFrom = this.heroIndex
     this.turntable.stop()
     this.orbitHome = true
     this.heroIndex = i
@@ -4323,10 +4321,6 @@ export class Game {
     return THREE.MathUtils.lerp(near, far, framing)
   }
 
-  selectShowsRow() {
-    return this.camera.aspect >= SELECT_ROW_ASPECT
-  }
-
   fitCamera() {
     const fov = this.battleView ? this.battleFov() : this.selectFov()
     if (Math.abs(this.camera.fov - fov) > 0.01) this.camera.fov = fov
@@ -4364,7 +4358,7 @@ export class Game {
 
   cameraFocus() {
     if (this.hero) return this.hero.pos
-    if (this.state === 'select' && this.selectActors && this.selectActors[this.heroIndex] && (this.confirming || this.selectOrbit || !this.selectShowsRow())) {
+    if (this.state === 'select' && this.selectActors && this.selectActors[this.heroIndex]) {
       return this.selectActors[this.heroIndex].pos
     }
     return _zero
@@ -4375,7 +4369,7 @@ export class Game {
     const playing = this.state === 'battle' || this.state === 'intro' || this.state === 'end' || this.titanMode
     const zoom = playing ? p : 0
     const selecting = this.state === 'select'
-    const centred = selecting && !this.selectShowsRow()
+    const centred = selecting
     if (centred) this.blendSelectPose(dt, this.camSnap)
     const follow = centred ? 1 : THREE.MathUtils.lerp(0.72 + 0.28 * p, 1, Math.max(this.gearK, this.orbitAmount()))
     const target = this.cameraFocus()
