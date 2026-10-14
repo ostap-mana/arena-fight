@@ -117,6 +117,8 @@ const TITAN_BOSS_DMG = 0.85
 const TITAN_RESCUE = 0.3
 const TITAN_RESCUE_DELAY = 0.25
 const TITAN_HEAL = 0.3
+const BOSS_TITAN_HOLD = 7
+const TITAN_BORN_MIN = 0.5
 const BOSS_SPAWN_DIST = 13
 const BOSS_CAST_GAP = 1.4
 const BOSS_RECOVER = 0.35
@@ -1873,7 +1875,8 @@ export class Game {
     this.givenSeen = 0
     this.shieldPending = false
     this.redTaught = false
-    this.setLive = this.setShown = false
+    this.setLive = this.setShown = this.titanCall = this.rescueGuard = false
+    this.bossSeenAt = 0
     this.setPending = null
     this.forceCrits = this.leechPool = this.healSum = 0
     this.weak = 0
@@ -2044,6 +2047,7 @@ export class Game {
     audio.play('mob_spawn', { at: a.pos, slot: 'spawn', max: 2, gap: 0.1 })
     if (def.boss) {
       this.boss = a
+      this.bossSeenAt = this.t
       this.shake(0.5, 0.5)
       this.showPower()
     }
@@ -2125,6 +2129,7 @@ export class Game {
     const busy = e.def.boss ? !this.bossStill(e) : e.rig.state === 'attack' && !e.rig.oneShotDone
     if (e.castGap > 0 || this.gearOpen || !h || h.dead || busy || this.unmorphing) return false
     if (this.titanMode && this.titanT < TITAN_END_CALM) return false
+    if (e.def.boss && (this.titanReady || this.state === 'morph')) return false
     const d = Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z)
     const s = readySkill(e, d)
     if (!s) return false
@@ -2892,7 +2897,8 @@ export class Game {
       this.titanReady = true
       this.titanWait = TITAN_AUTO_DELAY
       audio.play('vo_titan_charge')
-      this.ui.showBanner('TITAN READY', '', 1.4)
+      if (this.titanMayCome()) this.ui.showBanner('TITAN READY', '', 1.4)
+      else this.titanCall = true
       if (this.heroCueOn) this.cueHero(false)
       this.showPower()
     }
@@ -2917,11 +2923,23 @@ export class Game {
     this.addTitan(dealt / e.maxHp / TITAN_BOSS_WOUND * (1 - TITAN_WAVE_CAP))
   }
 
+  bossWinding() {
+    const c = this.boss && !this.boss.dead && this.boss.cast
+    return !!c && !c.dash && c.t < c.impact
+  }
+
+  titanMayCome() {
+    if (this.rescueGuard || !this.bossWave() || !this.boss || this.boss.dead) return true
+    return this.t - this.bossSeenAt >= BOSS_TITAN_HOLD && !this.bossWinding()
+  }
+
   rescueTitan() {
     const h = this.hero
     if (this.titanRescued || this.titanMode || this.state !== 'battle' || (this.shieldUp && !this.shieldFragile) || !h || h.dead) return
     if (h.hp <= 0 || h.hp >= h.maxHp * TITAN_RESCUE || !this.bossWave() || !this.boss || this.boss.dead) return
     this.titanRescued = true
+    this.rescueGuard = true
+    this.clearDots()
     this.titan = 1
     this.titanReady = true
     this.titanWait = TITAN_RESCUE_DELAY
@@ -2979,6 +2997,7 @@ export class Game {
   transform() {
     if (!this.titanReady || this.titanMode || this.state !== 'battle') return
     this.titanReady = false
+    this.rescueGuard = false
     this.finishMoveHint()
     if (this.gearOpen) this.closeGear()
     this.state = 'morph'
@@ -3033,7 +3052,7 @@ export class Game {
     const titan = new Actor(model, { targetHeight: model.height * h.scale * (def.size || 1), radius: def.radius })
     titan.setPos(h.pos.x, h.pos.z)
     titan.targetFacing = titan.facing = h.facing
-    titan.hp = h.hp * 2.2
+    titan.hp = Math.max(h.hp, h.maxHp * TITAN_BORN_MIN) * 2.2
     titan.maxHp = h.maxHp * 2.2
     titan.rig.minFade = HERO_MIN_FADE
     titan.rig.retimeCombo(def.combo)
@@ -3682,6 +3701,7 @@ export class Game {
   }
 
   woundHero(dmg, hit, tick) {
+    if (this.rescueGuard && !this.titanMode) return
     const kind = HIT_KINDS[hit ? hit.kind : 'slash']
     const weak = this.titanMode ? 0 : this.painNow()
     const pain = Math.max(this.shieldUp && !this.shieldFragile ? SHIELD_HIT_MULT : 1, 1 + WEAK_HURT * weak)
@@ -4068,7 +4088,11 @@ export class Game {
         if (this.titanT <= 0 && (!this.heroWindup() || this.titanT < -TITAN_OVERTIME)) this.endTitan()
       } else if (!this.titanReady) {
         this.chargeTitan(dt)
-      } else if (!this.gearOpen) {
+      } else if (!this.gearOpen && this.titanMayCome()) {
+        if (this.titanCall) {
+          this.titanCall = false
+          this.ui.showBanner('TITAN READY', '', 1.4)
+        }
         this.titanWait -= dt
         if (this.titanWait <= 0) this.transform()
       }
