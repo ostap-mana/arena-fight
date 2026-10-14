@@ -289,6 +289,8 @@ const BOSS_SWINGS = [
   { arc: Math.PI, radius: 5.5, ahead: 4.5, dmg: 1.8 },
   { arc: 1.3, radius: 9, ahead: 0, dmg: 1 },
 ]
+const ELITE_SWING = { arc: 1, radius: 0, ahead: 0, dmg: 1 }
+const ELITE_SWING_SPEED = 0.7
 const DODGE_REACH = 3
 const BOSS_HIT_CAP = 0.4
 const BOSS_AOE_REACH = 7.5
@@ -3479,11 +3481,14 @@ export class Game {
   enemyAttack(e, range) {
     e.cd = e.rate
     if (this.state !== 'battle' || !this.hero || this.hero.dead) return
-    e.rig.play('attack', { force: true, fade: 0.08 })
+    const elite = !e.def.boss && e.size >= ELITE_SIZE
+    e.rig.play('attack', { force: true, fade: 0.08, speed: elite ? ELITE_SWING_SPEED : 1 })
     audio.play(this.attackSound(e.def, e.rig), { at: e.pos, slot: 'enemy_attack', max: 3 })
+    if (elite && audio.has(`${soundCode(e.def)}_skill_1`)) audio.play(`${soundCode(e.def)}_skill_1`, { at: e.pos, slot: 'enemy_skill', max: 2 })
     const combo = this.comboIndexOf(e.rig)
     const weight = e.def.boss ? BOSS_STRIKE[clamp(combo, 1, BOSS_STRIKE.length) - 1] : 0
-    const swing = e.def.boss ? this.aimSwing(e, combo) : null
+    const pattern = e.def.boss ? BOSS_SWINGS[clamp(combo, 1, BOSS_SWINGS.length) - 1] : elite ? ELITE_SWING : null
+    const swing = pattern ? this.aimSwing(e, pattern, range + ENEMY_HIT_SLACK) : null
     const land = () => {
       if (!this.hero || this.hero.dead) return false
       this.hurtHero(e.def.dmg * e.might * (swing ? swing.dmg : 1), ENEMY_HITS[e.type], e.pos)
@@ -3491,10 +3496,10 @@ export class Game {
       return true
     }
     const vfxId = this.enemyVfx(e.def)
-    const fxRes = vfxId ? this.heroFx.attack(vfxId, combo, e, swing ? null : this.hero, {
+    const fxRes = vfxId ? this.heroFx.attack(vfxId, combo, e, e.def.boss ? null : this.hero, {
       impact: e.rig.impactAt,
       exact: true,
-      reach: swing ? BOSS_AOE_REACH : range + ENEMY_HIT_SLACK,
+      reach: e.def.boss ? BOSS_AOE_REACH : range + ENEMY_HIT_SLACK,
       onHit: t => {
         if (!e.dead && t === this.hero && this.state === 'battle') land()
       },
@@ -3511,16 +3516,15 @@ export class Game {
     })
   }
 
-  aimSwing(e, combo) {
-    const p = BOSS_SWINGS[clamp(combo, 1, BOSS_SWINGS.length) - 1]
+  aimSwing(e, p, reach) {
     const s = e.swing || (e.swing = { center: new THREE.Vector3(), yaw: 0, radius: 0, arc: Math.PI, width: 0, length: 0, dmg: 1, warn: null })
     const yaw = e.facing
     s.center.set(e.pos.x + Math.sin(yaw) * p.ahead, 0, e.pos.z + Math.cos(yaw) * p.ahead)
     s.yaw = yaw
-    s.radius = p.radius
+    s.radius = p.radius || reach
     s.arc = p.arc
     s.dmg = p.dmg
-    s.warn = this.fx.warn({ x: s.center.x, z: s.center.z, yaw, radius: p.radius, arc: p.arc, windup: e.rig.impactAt })
+    s.warn = this.fx.warn({ x: s.center.x, z: s.center.z, yaw, radius: s.radius, arc: p.arc, windup: e.rig.impactAt })
     return s
   }
 
