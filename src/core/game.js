@@ -51,6 +51,7 @@ const GEAR_HINT_TIME = 4
 const GEAR_OPEN_DELAY = 2.3
 const SHIELD_CLOSE_DELAY = 0.9
 const GEAR_SETTLE_WAIT = 420
+const BANNER_GAP_MS = 80
 const MORPH_SWAP = 0.45
 const MORPH_CAMERA = 1.5
 const SPAWN_RING = [7.5, 11]
@@ -1051,7 +1052,7 @@ export class Game {
         if (epoch === this.epoch && !this.gearOpen) this.celebrateShield()
       }, GEAR_SETTLE_WAIT)
     }
-    if (this.shieldUp && this.state === 'battle') this.cueHero(true)
+    if (this.shieldUp && !this.shieldFragile && this.state === 'battle') this.cueHero(true)
     else if (skipped && this.state === 'battle') this.cueHero(true, GEAR_HINT_TIME)
   }
 
@@ -1077,7 +1078,7 @@ export class Game {
     h.maxHp = max
     if (!this.titanMode) this.ui.setHp(h.hp, h.maxHp)
     this.showPower()
-    if (this.shieldUp && !this.underpowered()) this.breakShield()
+    if (this.shieldUp && !this.shieldFragile && !this.underpowered()) this.breakShield()
   }
 
   underpowered() {
@@ -1127,15 +1128,17 @@ export class Game {
     this.ui.setPower(this.gear.power(), POWER_GOAL, canWin)
     const waiting = this.gearHinted && this.gear.hasUpgrade()
     const calling = this.bossWave() && this.boss && !this.boss.dead && !this.titanMode && !this.titanReady
-    this.ui.setTip(this.shieldUp ? 'Boss immune · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : calling ? 'Hit the boss · call your titan' : '')
+    const gate = this.shieldUp && !this.shieldFragile
+    this.ui.setTip(gate ? 'Boss immune · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : this.shieldUp ? 'Strike · break his shield' : calling ? 'Hit the boss · call your titan' : '')
   }
 
   raiseShield() {
-    if (!this.underpowered()) return
     this.shieldUp = true
+    this.shieldFragile = !this.underpowered()
     this.immuneT = 0
     this.ui.setShield(true)
     this.showPower()
+    if (this.shieldFragile) return
     const epoch = this.epoch
     setTimeout(() => {
       if (epoch !== this.epoch || !this.shieldUp || this.state !== 'battle') return
@@ -1151,6 +1154,7 @@ export class Game {
 
   breakShield() {
     this.shieldUp = false
+    this.shieldFragile = false
     this.ui.setShield(false)
     this.showPower()
     this.cueHero(false)
@@ -1163,14 +1167,22 @@ export class Game {
     }, SHIELD_CLOSE_DELAY * 1000)
   }
 
-  celebrateShield() {
+  celebrateShield(late = false) {
     this.shieldPending = false
     if (this.state !== 'battle') return
+    if (!late) {
+      audio.play('ui_braam')
+      this.shake(0.6, 0.45)
+      if (this.boss && !this.boss.dead) this.lights.flash(this.boss.pos, 0xffd070, 3.2, 6, 0.6, this.boss.height * 0.5)
+    }
+    const wait = this.ui.bannerUntil - performance.now()
+    if (!late && wait > 0) {
+      const epoch = this.epoch
+      setTimeout(() => { if (epoch === this.epoch) this.celebrateShield(true) }, wait + BANNER_GAP_MS)
+      return
+    }
     this.ui.showBanner('SHIELD BROKEN', `${this.gear.power().toLocaleString('en-US')} power · strike now`, 2.2)
     this.ui.flashGoal()
-    audio.play('ui_braam')
-    this.shake(0.6, 0.45)
-    if (this.boss && !this.boss.dead) this.lights.flash(this.boss.pos, 0xffd070, 3.2, 6, 0.6, this.boss.height * 0.5)
   }
 
   lootAnchor() {
@@ -2703,13 +2715,18 @@ export class Game {
   }
 
   damage(e, amount, color, hit, heavy = false) {
+    let shatter = false
     if (this.shieldUp && e.def && e.def.boss && !e.dead) {
-      this.blockHit(e)
-      return false
+      if (!this.shieldFragile) {
+        this.blockHit(e)
+        return false
+      }
+      this.breakShield()
+      shatter = true
     }
     const mods = this.gearMods
     const smash = this.titanMode && !(e.def && e.def.boss)
-    const crit = !!mods && random() < mods.crit
+    const crit = (!!mods && random() < mods.crit) || shatter
     if (mods) amount *= mods.atk * (crit || smash ? mods.critMult : 1)
     amount *= this.titanMode ? (smash ? TITAN_DMG * TITAN_SMASH : TITAN_BOSS_DMG) : 1 - WEAK_DEAL * this.painNow()
     amount *= (e.armor || 1) * (1 + (rollRandom() * 2 - 1) * HIT_ROLL)
@@ -2815,7 +2832,7 @@ export class Game {
 
   rescueTitan() {
     const h = this.hero
-    if (this.titanRescued || this.titanMode || this.state !== 'battle' || this.shieldUp || !h || h.dead) return
+    if (this.titanRescued || this.titanMode || this.state !== 'battle' || (this.shieldUp && !this.shieldFragile) || !h || h.dead) return
     if (h.hp <= 0 || h.hp >= h.maxHp * TITAN_RESCUE || !this.bossWave() || !this.boss || this.boss.dead) return
     this.titanRescued = true
     this.titan = 1
@@ -3134,7 +3151,7 @@ export class Game {
     this.unmorphing = this.summoning = false
     this.kills = this.lootWait = 0
     this.timeScale = 1
-    this.shieldUp = false
+    this.shieldUp = this.shieldFragile = false
     this.ui.setShield(false)
     this.immuneT = 0
     for (const k in this.cooldowns) this.cooldowns[k] = 0
@@ -3578,7 +3595,7 @@ export class Game {
   woundHero(dmg, hit, tick) {
     const kind = HIT_KINDS[hit ? hit.kind : 'slash']
     const weak = this.titanMode ? 0 : this.painNow()
-    const pain = Math.max(this.shieldUp ? SHIELD_HIT_MULT : 1, 1 + WEAK_HURT * weak)
+    const pain = Math.max(this.shieldUp && !this.shieldFragile ? SHIELD_HIT_MULT : 1, 1 + WEAK_HURT * weak)
     const mult = (this.titanMode ? 0.25 : 1) * (this.gearMods ? this.gearMods.taken : 1) * pain
     const lost = hit && hit.boss && !tick && !this.titanMode ? Math.min(dmg * mult, this.hero.maxHp * BOSS_HIT_CAP) : dmg * mult
     this.hero.hp = Math.max(0, this.hero.hp - lost)
@@ -4018,7 +4035,7 @@ export class Game {
   guideTarget() {
     const h = this.hero
     if (this.state !== 'battle' || !h || h.dead || !this.input.enabled) return -1
-    if (this.gearOpen || this.gearK > 0.01 || this.shieldUp || this.heroCueOn) return -1
+    if (this.gearOpen || this.gearK > 0.01 || (this.shieldUp && !this.shieldFragile) || this.heroCueOn) return -1
     const loot = this.restingLoot(h)
     if (loot) {
       _guideAt.set(loot.mesh.position.x, 0, loot.mesh.position.z)
