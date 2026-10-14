@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { GEAR_SLOTS } from '../core/gear.js'
 
 export const MOMENT_FX = 'moments'
 
@@ -11,23 +10,6 @@ const SPAWN_BIG = 'FX_Spawn_Enemy_2_2_Ground_Big'
 const SPAWN_ELITE_SIZE = 1.5
 const SPAWN_LIFE = 2.6
 const SPAWN_MUTE = new Set(['PS_Smoke_2_1_A'])
-
-const STAT_FX = {
-  atk: 'B_FX_Effect_Increase_ATK',
-  atkPct: 'B_FX_Effect_Increase_ATK',
-  hp: 'B_FX_Effect_Increase_HP',
-  hpPct: 'B_FX_Effect_Increase_HP',
-  def: 'B_FX_Effect_Increase_DEF',
-  defPct: 'B_FX_Effect_Increase_DEF',
-  crit: 'B_FX_Effect_Increase_C_RATE',
-  critDmg: 'B_FX_Effect_Increase_C_DMG',
-}
-const BUFF_GAP = 0.35
-const BUFF_MAX = 3
-const BUFF_LIFE = 1.6
-
-const WEAK_FX = ['B_FX_Effect_Decrease_DEF', 'B_FX_Effect_Decrease_ATK']
-const WEAK_GAP = 0.45
 
 const HEAL_FX = 'B_FX_Effect_Heal_Hit'
 const HEAL_MIN = 0.012
@@ -72,8 +54,6 @@ export class MomentFx {
     this.spawnOpts = { pos: _pos, quat: _quat, scale: 1, lifetime: SPAWN_LIFE, camera, mute: SPAWN_MUTE }
     this.followOpts = { follow: null, pos: _pos, quat: _quat, scale: 1, lifetime: 1, camera }
     this.gateOpts = { pos: _pos, yaw: 0, scale: 1, camera }
-    this.worn = {}
-    this.queue = []
     this.dots = {}
     this.gates = GATES.map(() => null)
     this.game = null
@@ -97,11 +77,6 @@ export class MomentFx {
   reset(game) {
     this.game = game
     this.epoch = game.epoch
-    this.gear = null
-    this.gearVersion = -1
-    this.queue.length = 0
-    this.queueT = 0
-    this.weakAt = game.weakWarnAt || 0
     this.immuneAt = game.immuneT || 0
     this.shieldUp = false
     this.rescued = !!game.titanRescued
@@ -130,12 +105,8 @@ export class MomentFx {
     const h = g.hero
     if (!live || !h || h.dead) {
       this.stopDots()
-      this.queue.length = 0
       return
     }
-    this.watchGear(g)
-    this.playQueue(g, dt)
-    this.watchWeak(g, h)
     this.watchHeal(g, h)
     this.watchDots(g, h)
     this.watchRescue(g, h)
@@ -184,47 +155,6 @@ export class MomentFx {
   heroLib(g) {
     const def = g.activeDef ? g.activeDef() : null
     return def ? def.vfx : null
-  }
-
-  watchGear(g) {
-    const gear = g.gear
-    if (!gear) return
-    if (gear !== this.gear) {
-      this.gear = gear
-      this.gearVersion = gear.version
-      for (const slot of GEAR_SLOTS) this.worn[slot] = gear.equipped[slot] || null
-      return
-    }
-    if (gear.version === this.gearVersion) return
-    this.gearVersion = gear.version
-    let queued = 0
-    for (let i = 0; i < GEAR_SLOTS.length; i++) {
-      const slot = GEAR_SLOTS[i]
-      const it = gear.equipped[slot] || null
-      if (it === this.worn[slot]) continue
-      this.worn[slot] = it
-      const name = it && STAT_FX[it.stat]
-      if (!name || queued >= BUFF_MAX || this.queue.includes(name)) continue
-      this.queue.push(name)
-      queued++
-    }
-  }
-
-  playQueue(g, dt) {
-    if (this.queueT > 0) this.queueT -= dt
-    if (!this.queue.length || this.queueT > 0) return
-    const name = this.queue.shift()
-    this.on(g.hero, name, this.heroLib(g), this.heroScale(g), BUFF_LIFE)
-    this.queueT = BUFF_GAP
-  }
-
-  watchWeak(g, h) {
-    const at = g.weakWarnAt || 0
-    if (at === this.weakAt) return
-    this.weakAt = at
-    if (!at) return
-    for (let i = 0; i < WEAK_FX.length; i++) if (!this.queue.includes(WEAK_FX[i])) this.queue.push(WEAK_FX[i])
-    this.queueT = Math.min(this.queueT, WEAK_GAP)
   }
 
   watchHeal(g, h) {
