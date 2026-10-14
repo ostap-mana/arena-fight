@@ -19,7 +19,7 @@ import { SHADOW_MAP_SIZE, fitShadowToView } from '../world/shadow-fit.js'
 import { audio, STEPS } from './audio.js'
 import { Input } from './input.js'
 import { Gear, ATK_PER_DMG, planDrops } from './gear.js'
-import { BUILDS, POWER_GOAL } from '../data/builds.js'
+import { BUILDS, POWER_GOAL, SET_NAME } from '../data/builds.js'
 import { HIT_KINDS, ENEMY_HITS, SKILL_HITS } from '../data/hits.js'
 import { UI } from '../ui/ui.js'
 import { FloatText } from '../ui/float-text.js'
@@ -52,6 +52,11 @@ const GEAR_OPEN_DELAY = 2.3
 const SHIELD_CLOSE_DELAY = 0.9
 const GEAR_SETTLE_WAIT = 420
 const BANNER_GAP_MS = 80
+const SET_BLAST_RADIUS = 4.5
+const SET_BLAST_KNOCK = 2.2
+const SET_BLAST_STUN = 0.5
+const SET_CRITS = 3
+const LEECH_RATE = 0.012
 const MORPH_SWAP = 0.45
 const MORPH_CAMERA = 1.5
 const SPAWN_RING = [7.5, 11]
@@ -1055,6 +1060,16 @@ export class Game {
         if (epoch === this.epoch && !this.gearOpen) this.celebrateShield()
       }, GEAR_SETTLE_WAIT)
     }
+    if (this.setPending) {
+      const on = this.setPending === 'on'
+      this.setPending = null
+      const epoch = this.epoch
+      if (on === this.setLive) setTimeout(() => {
+        if (epoch !== this.epoch || this.gearOpen) return
+        if (on) this.setActivated()
+        else this.setLost()
+      }, GEAR_SETTLE_WAIT)
+    }
     if (this.shieldUp && !this.shieldFragile && this.state === 'battle') this.cueHero(true)
     else if (skipped && this.state === 'battle') this.cueHero(true, GEAR_HINT_TIME)
   }
@@ -1082,6 +1097,13 @@ export class Game {
     if (!this.titanMode) this.ui.setHp(h.hp, h.maxHp)
     this.showPower()
     if (this.shieldUp && !this.shieldFragile && !this.underpowered()) this.breakShield()
+    const live = this.gear.stats().full
+    if (live === this.setLive) return
+    this.setLive = live
+    if (this.state !== 'battle' || this.titanMode) return
+    if (this.gearOpen) this.setPending = live ? 'on' : 'off'
+    else if (live) this.setActivated()
+    else this.setLost()
   }
 
   underpowered() {
@@ -1170,22 +1192,71 @@ export class Game {
     }, SHIELD_CLOSE_DELAY * 1000)
   }
 
-  celebrateShield(late = false) {
+  celebrateShield() {
     this.shieldPending = false
     if (this.state !== 'battle') return
-    if (!late) {
-      audio.play('ui_braam')
-      this.shake(0.6, 0.45)
-      if (this.boss && !this.boss.dead) this.lights.flash(this.boss.pos, 0xffd070, 3.2, 6, 0.6, this.boss.height * 0.5)
-    }
-    const wait = this.ui.bannerUntil - performance.now()
-    if (!late && wait > 0) {
-      const epoch = this.epoch
-      setTimeout(() => { if (epoch === this.epoch) this.celebrateShield(true) }, wait + BANNER_GAP_MS)
+    audio.play('ui_braam')
+    this.shake(0.6, 0.45)
+    if (this.boss && !this.boss.dead) this.lights.flash(this.boss.pos, 0xffd070, 3.2, 6, 0.6, this.boss.height * 0.5)
+    this.ui.flashGoal()
+    this.bannerAfter('SHIELD BROKEN', `${this.gear.power().toLocaleString('en-US')} power · strike now`, 2.2)
+  }
+
+  bannerAfter(title, sub, dur) {
+    const wait = (this.ui.bannerUntil || 0) - performance.now()
+    if (wait <= 0) {
+      this.ui.showBanner(title, sub, dur)
       return
     }
-    this.ui.showBanner('SHIELD BROKEN', `${this.gear.power().toLocaleString('en-US')} power · strike now`, 2.2)
+    const epoch = this.epoch
+    setTimeout(() => {
+      if (epoch === this.epoch && this.state === 'battle') this.ui.showBanner(title, sub, dur)
+    }, wait + BANNER_GAP_MS)
+  }
+
+  setActivated() {
+    if (this.state !== 'battle' || this.titanMode) return
+    const b = this.gear.build
+    const h = this.hero
+    this.bannerAfter(`${SET_NAME[b.set].toUpperCase()} SET`, b.bonusText, 2.2)
     this.ui.flashGoal()
+    audio.play('loot_drop_artifact')
+    this.shake(0.45, 0.4)
+    this.lights.flash(h.pos, WEAR_FLASH, 4, 7, 0.6, h.height * 0.6)
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i]
+      if (e.dead || e.def.boss) continue
+      const dx = e.pos.x - h.pos.x
+      const dz = e.pos.z - h.pos.z
+      const d = Math.hypot(dx, dz)
+      if (d < 0.01 || d > SET_BLAST_RADIUS + e.radius) continue
+      this.stun(e, SET_BLAST_STUN)
+      this.knock(e, dx / d, dz / d, SET_BLAST_KNOCK)
+    }
+    if (this.setShown) return
+    this.setShown = true
+    if (b.set === 'attack') this.resetSkillCooldowns()
+    else if (b.set === 'criticaldamage') this.forceCrits = SET_CRITS
+    if (b.leech) {
+      this.leechPool = LEECH_RATE * h.maxHp
+      this.floatText(h.pos.x, h.height * STATUS_LIFT + h.pos.y, h.pos.z, 'LIFESTEAL', 'dmg status')
+    }
+  }
+
+  setLost() {
+    if (this.state !== 'battle' || this.titanMode) return
+    this.ui.showBanner('SET BROKEN', `${SET_NAME[this.gear.build.set]} bonus lost · tap your hero`, 2)
+    audio.play('ui_button_locked')
+  }
+
+  leechHit() {
+    const h = this.hero
+    const heal = Math.min(this.leechPool, this.gear.build.leech * h.maxHp, h.maxHp - h.hp)
+    if (heal <= 0) return
+    h.hp += heal
+    this.leechPool -= heal
+    this.healSum += heal
+    this.ui.setHp(h.hp, h.maxHp)
   }
 
   lootAnchor() {
@@ -1802,6 +1873,9 @@ export class Game {
     this.givenSeen = 0
     this.shieldPending = false
     this.redTaught = false
+    this.setLive = this.setShown = false
+    this.setPending = null
+    this.forceCrits = this.leechPool = this.healSum = 0
     this.weak = 0
     this.weakAt = this.t
     this.weakWarnAt = -WEAK_WARN_GAP
@@ -2734,13 +2808,18 @@ export class Game {
     }
     const mods = this.gearMods
     const smash = this.titanMode && !(e.def && e.def.boss)
-    const crit = (!!mods && random() < mods.crit) || shatter
+    let crit = (!!mods && random() < mods.crit) || shatter
+    if (!crit && this.forceCrits > 0 && !this.titanMode) {
+      crit = true
+      this.forceCrits--
+    }
     if (mods) amount *= mods.atk * (crit || smash ? mods.critMult : 1)
     amount *= this.titanMode ? (smash ? TITAN_DMG * TITAN_SMASH : TITAN_BOSS_DMG) : 1 - WEAK_DEAL * this.painNow()
     amount *= (e.armor || 1) * (1 + (rollRandom() * 2 - 1) * HIT_ROLL)
     const dealt = e.hit(amount)
     if (!dealt) return false
     this.woundTitan(e, dealt)
+    if (this.setLive && !this.titanMode && this.gear.build.leech) this.leechHit()
     const code = e.def && soundCode(e.def)
     const boss = !!(e.def && e.def.boss)
     this.lights.flash(e.pos, color || 0xffd070, crit ? 2.6 : 1.8, crit ? 4.2 : 3.4, crit ? 0.3 : 0.22, e.height * 0.5)
@@ -3982,6 +4061,7 @@ export class Game {
         }
       }
 
+      if (this.setLive && !this.titanMode && this.gear.build.leech) this.leechPool = Math.min(LEECH_RATE * this.hero.maxHp, this.leechPool + dt * LEECH_RATE * this.hero.maxHp)
       if (this.titanMode) {
         this.titanT -= dt
         this.ui.setTitanTimer(Math.max(0, this.titanT) / this.titanDef.duration, true)
