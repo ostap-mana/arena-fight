@@ -1,15 +1,10 @@
 import * as THREE from 'three'
+import { ARENA_GATES, DEFAULT_LOCATION } from '../data/locations.js'
 
 export const MOMENT_FX = 'moments'
 
 const REF_HEIGHT = 1.9
 const SOCKET_RISE = { FX_Bot: 0, FX_Center: 0.55, FX_Head: 0.9, FX_Top: 1.08, FX_Shield: 0.42 }
-
-const SPAWN_SMALL = 'FX_Spawn_Enemy_2_1_Ground_Small'
-const SPAWN_BIG = 'FX_Spawn_Enemy_2_2_Ground_Big'
-const SPAWN_ELITE_SIZE = 1.5
-const SPAWN_LIFE = 2.6
-const SPAWN_MUTE = new Set(['PS_Smoke_2_1_A'])
 
 const HEAL_FX = 'B_FX_Effect_Heal_Hit'
 const HEAL_MIN = 0.012
@@ -31,16 +26,8 @@ const SHIELD_BREAK_SCALE = 0.42
 const GATE_FX = 'FX_Barrier_Fire'
 const GATE_NEAR = 16.5
 const GATE_FAR = 21
-const GATES = [
-  [-19.35, -0.03, -0.23, 1, -1.5708],
-  [19.59, -0.03, -0.23, 1, 1.5708],
-  [14.55, -0.03, -14.62, 0.76, -0.7854],
-  [-14.22, -0.03, 14.08, 0.81, -0.7854],
-  [0.27, -0.03, -19.53, 1, 3.1416],
-  [0.27, -0.21, 18.56, 1, 3.1416],
-  [-14.8, -0.03, -14.57, 0.77, 0.7854],
-  [14.88, -0.03, 14.81, 0.78, 0.7854],
-]
+const GATE_OPEN = 3.5
+const GATES = ARENA_GATES[DEFAULT_LOCATION] || []
 
 const _pos = new THREE.Vector3()
 const _to = new THREE.Vector3()
@@ -51,11 +38,11 @@ export class MomentFx {
   constructor(vfx, camera) {
     this.vfx = vfx
     this.camera = camera
-    this.spawnOpts = { pos: _pos, quat: _quat, scale: 1, lifetime: SPAWN_LIFE, camera, mute: SPAWN_MUTE }
     this.followOpts = { follow: null, pos: _pos, quat: _quat, scale: 1, lifetime: 1, camera }
     this.gateOpts = { pos: _pos, yaw: 0, scale: 1, camera }
     this.dots = {}
     this.gates = GATES.map(() => null)
+    this.openUntil = GATES.map(() => -Infinity)
     this.game = null
     this.epoch = -1
   }
@@ -84,17 +71,14 @@ export class MomentFx {
     this.hp = 0
     this.healAt = -Infinity
     for (const kind of DOT_KINDS) this.dots[kind] = null
-    for (let i = 0; i < this.gates.length; i++) this.gates[i] = null
+    for (let i = 0; i < this.gates.length; i++) {
+      this.gates[i] = null
+      this.openUntil[i] = -Infinity
+    }
   }
 
-  spawned(actor) {
-    if (!this.ready || !actor || (actor.def && actor.def.boss)) return
-    const big = (actor.size || 1) >= SPAWN_ELITE_SIZE
-    const o = this.spawnOpts
-    _pos.set(actor.pos.x, 0.02, actor.pos.z)
-    _quat.setFromAxisAngle(_up, actor.facing || 0)
-    o.scale = actor.height / REF_HEIGHT
-    this.vfx.spawn(MOMENT_FX, big ? SPAWN_BIG : SPAWN_SMALL, o)
+  opened(index, t) {
+    if (index >= 0 && index < this.openUntil.length) this.openUntil[index] = Math.max(this.openUntil[index], t + GATE_OPEN)
   }
 
   update(g, dt) {
@@ -245,13 +229,14 @@ export class MomentFx {
     const h = g.hero
     for (let i = 0; i < GATES.length; i++) {
       const gate = GATES[i]
-      const d = h && live ? Math.hypot(gate[0] - h.pos.x, gate[2] - h.pos.z) : Infinity
+      const open = live && g.t < this.openUntil[i]
+      const d = open ? 0 : h && live ? Math.hypot(gate.x - h.pos.x, gate.z - h.pos.z) : Infinity
       const inst = this.gates[i]
       if (!inst && d < GATE_NEAR) {
-        _pos.set(gate[0], gate[1], gate[2])
+        _pos.set(gate.x, gate.y, gate.z)
         const o = this.gateOpts
-        o.scale = gate[3]
-        o.yaw = gate[4]
+        o.scale = gate.scale
+        o.yaw = gate.yaw
         this.gates[i] = this.vfx.spawn(MOMENT_FX, GATE_FX, o)
       } else if (inst && d > GATE_FAR) {
         inst.stop()
