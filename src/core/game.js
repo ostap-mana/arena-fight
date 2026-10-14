@@ -247,7 +247,7 @@ const MOB_DMG_POW = 1.2
 const MOB_SPEED_POW = -0.35
 const MOB_RATE_POW = 0.5
 const HIT_ROLL = 0.07
-const WAVE_HP = [0.8, 1.7]
+const WAVE_HP = [0.72, 1.55]
 const WAVE_DMG = [0.7, 1.6]
 const BOSS_MIGHT = 2.5
 const ELITE_SIZE = 1.5
@@ -292,7 +292,8 @@ const BOSS_SWINGS = [
 const ELITE_SWING = { arc: 1, radius: 0, ahead: 0, dmg: 1 }
 const ELITE_SWING_SPEED = 0.7
 const DODGE_REACH = 3
-const BOSS_HIT_CAP = 0.4
+const BOSS_HIT_CAP = 0.3
+const HERO_PUSH_MAX = 7
 const BOSS_AOE_REACH = 7.5
 const BOSS_STRIKE_REACH = 32
 const BOSS_STRIKE_SHAKE = 0.3
@@ -1800,6 +1801,7 @@ export class Game {
     this.givenAt = new Float64Array(build ? build.plan.length : 0)
     this.givenSeen = 0
     this.shieldPending = false
+    this.redTaught = false
     this.weak = 0
     this.weakAt = this.t
     this.weakWarnAt = -WEAK_WARN_GAP
@@ -2254,6 +2256,10 @@ export class Game {
     }
     c.warn = this.fx.warn({ x: to.x, z: to.z, radius: s.radius, windup: land })
     e.cast = c
+    if (!this.redTaught && this.state === 'battle' && !this.gearOpen) {
+      this.redTaught = true
+      this.ui.showBanner('WATCH THE RED', 'step out before it lands', 1.6)
+    }
     audio.play(`${soundCode(e.def)}_skill_${s.fx}`, { at: e.pos, slot: 'enemy_skill', max: 2 })
   }
 
@@ -3552,7 +3558,7 @@ export class Game {
     this.hitStop(BOSS_LAND_STOP * weight)
     audio.play('explosion_vfx_3', { slot: 'boss_land', max: 1, gap: 0.2 })
     if (weight <= 1 || d < 0.01 || this.heroLocked()) return
-    const push = BOSS_FINISH_PUSH * (weight - 1) * (this.titanMode ? HERO_KNOCK_TITAN : 1)
+    const push = Math.min(HERO_PUSH_MAX, BOSS_FINISH_PUSH * (weight - 1) * this.heroPoise())
     h.knockX = (h.knockX || 0) + (dx / d) * push
     h.knockZ = (h.knockZ || 0) + (dz / d) * push
   }
@@ -3638,9 +3644,13 @@ export class Game {
     const dx = h.pos.x - from.x
     const dz = h.pos.z - from.z
     const d = Math.hypot(dx, dz) || 1
-    const push = hit.push * (this.titanMode ? HERO_KNOCK_TITAN : 1)
+    const push = Math.min(HERO_PUSH_MAX, hit.push * this.heroPoise())
     h.knockX = (h.knockX || 0) + (dx / d) * push
     h.knockZ = (h.knockZ || 0) + (dz / d) * push
+  }
+
+  heroPoise() {
+    return this.titanMode ? HERO_KNOCK_TITAN : this.heroDef.poise ?? 1
   }
 
   addDot(hit, total) {

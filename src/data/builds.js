@@ -7,8 +7,8 @@ export const BUILDS = {
     set: 'criticaldamage',
     start: 3500,
     scale: 1,
-    bonus: { critDmg: 60, crit: 12 },
-    bonusText: '+60% CRIT DMG · +12% CRIT RATE',
+    bonus: { critDmg: 80, crit: 15 },
+    bonusText: '+80% CRIT DMG · +15% CRIT RATE',
     plan: [
       { slot: 'weapon', rarity: 'common', set: 'attack' },
       { slot: 'helmet', rarity: 'common', set: 'criticaldamage' },
@@ -28,8 +28,8 @@ export const BUILDS = {
     set: 'attack',
     start: 3200,
     scale: 1,
-    bonus: { atkPct: 30, crit: 8 },
-    bonusText: '+30% ATK · +8% CRIT RATE',
+    bonus: { atkPct: 40, crit: 10 },
+    bonusText: '+40% ATK · +10% CRIT RATE',
     plan: [
       { slot: 'weapon', rarity: 'common', set: 'criticaldamage' },
       { slot: 'helmet', rarity: 'common', set: 'attack' },
@@ -49,8 +49,9 @@ export const BUILDS = {
     set: 'lifesteal',
     start: 3000,
     scale: 1,
-    bonus: { hpPct: 20, defPct: 30 },
-    bonusText: '+20% HP · +30% DEF',
+    bonus: { hpPct: 30, defPct: 40, atkPct: 20 },
+    bonusText: '+30% HP · +40% DEF · +20% ATK',
+    leech: 0.006,
     plan: [
       { slot: 'weapon', rarity: 'common', set: 'attack' },
       { slot: 'helmet', rarity: 'common', set: 'lifesteal' },
