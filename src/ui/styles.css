@@ -382,7 +382,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   clip-path: polygon(0 50%, 3.18% 0, 96.82% 0, 100% 50%, 96.82% 100%, 3.18% 100%);
 }
 .fhp .part > i { position: absolute; inset: 0; display: block; }
-.fhp .glow { background: #fff; clip-path: inset(0 calc((1 - var(--k)) * 100%) 0 0); transition: clip-path .1s cubic-bezier(.25, .46, .45, .94) .15s; }
+.fhp .glow { background: #fff; clip-path: inset(0 calc((1 - var(--k)) * 100%) 0 0); transition: clip-path .45s cubic-bezier(.25, .1, .25, 1) .22s; }
 .fhp.snap .glow { transition: none; }
 .fhp .fill { background: #86f121; clip-path: inset(0 calc((1 - var(--k)) * 100%) 0 0); }
 .fhp .fill::after { content: ''; position: absolute; inset: 0; background: #fff; opacity: 0; }
@@ -940,6 +940,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 
 .dmg.immune { font-family: var(--display); font-weight: 500; font-size: 22px; letter-spacing: .12em; color: #fff; text-shadow: 0 0 8px rgba(140, 110, 255, .95), 0 2px 5px rgba(0, 0, 0, .9); }
 .dmg.status { font-family: var(--display); font-weight: 500; font-size: calc(19px * var(--hud-scale, 1)); letter-spacing: .12em; color: #fff; text-shadow: 0 0 4px #000, 0 0 2px #000, 0 2px 6px rgba(0, 0, 0, .95); }
+.dmg.taken, .dmg.heal { font-family: var(--display); font-weight: 500; font-size: calc(18px * var(--hud-scale, 1)); letter-spacing: .04em; color: #fff; text-shadow: 0 0 3px #000, 0 0 2px #000, 0 2px 5px rgba(0, 0, 0, .9); }
 #waveinfo.shielded .wavebar .back, #waveinfo.shielded .wavebar .fill { filter: hue-rotate(220deg) saturate(1.4); }
 
 #hud.gearmode #stick, #hud.gearmode #animacard, #hud.gearmode #gesturehint, #hud.gearmode #titantimer, #hud.gearmode #topbar, #hud.gearmode #herocue {

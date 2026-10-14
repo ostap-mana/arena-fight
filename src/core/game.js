@@ -62,6 +62,11 @@ const SET_BLAST_KNOCK = 2.2
 const SET_BLAST_STUN = 0.5
 const SET_CRITS = 3
 const SET_SAY_GAP = 1.5
+const HERO_NUMBER_GAP = 0.35
+const HERO_NUMBER_MIN = 0.005
+const HERO_NUMBER_LIFT = 1.15
+const HERO_NUMBER_SCALE = 100
+const HERO_NUMBER_STYLE = { color: '', fontSize: '' }
 const LEECH_RATE = 0.012
 const MORPH_SWAP = 0.45
 const MORPH_CAMERA = 1.5
@@ -1109,8 +1114,10 @@ export class Game {
     const h = this.titanMode ? this.heroBase : this.hero
     if (!h) return
     const max = this.heroDef.hp * this.gearMods.hp
+    const before = h.hp
     h.hp = clamp(h.hp + max - (h.maxHp || max), 1, max)
     h.maxHp = max
+    if (h.hp > before && this.state === 'battle' && !this.titanMode) this.healSum += h.hp - before
     if (!this.titanMode) this.ui.setHp(h.hp, h.maxHp)
     this.showPower()
     if (this.shieldUp && !this.shieldFragile && !this.underpowered()) this.breakShield()
@@ -1897,7 +1904,7 @@ export class Game {
     this.bossSeenAt = 0
     this.setSaidAt = -SET_SAY_GAP
     this.setPending = null
-    this.forceCrits = this.leechPool = this.healSum = 0
+    this.forceCrits = this.leechPool = this.healSum = this.takenSum = this.numberT = 0
     this.weak = 0
     this.weakAt = this.t
     this.weakWarnAt = -WEAK_WARN_GAP
@@ -2919,6 +2926,33 @@ export class Game {
     audio.play('ui_button_locked', { slot: 'immune', gap: 0.4 })
   }
 
+  flushHeroNumbers(dt) {
+    this.numberT += dt
+    if (this.numberT < HERO_NUMBER_GAP || !this.hero) return
+    this.numberT = 0
+    const min = this.hero.maxHp * HERO_NUMBER_MIN
+    if (this.takenSum >= min) {
+      this.heroNumber('-', this.takenSum, 'dmg taken')
+      this.takenSum = 0
+    }
+    if (this.healSum >= min) {
+      this.heroNumber('+', this.healSum, 'dmg heal')
+      this.healSum = 0
+    }
+  }
+
+  heroNumber(sign, value, cls) {
+    const h = this.hero
+    _v.set(h.pos.x, h.pos.y + h.height * HERO_NUMBER_LIFT, h.pos.z).project(this.camera)
+    const at = `translate(${((_v.x * 0.5 + 0.5) * view.w).toFixed(1)}px, ${((-_v.y * 0.5 + 0.5) * view.h).toFixed(1)}px)`
+    const rise = sign === '+'
+    this.floats.show(cls, `${sign}${Math.round(value * HERO_NUMBER_SCALE).toLocaleString('en-US')}`, [
+      { transform: `${at} translate(-50%, -50%) scale(1.1)`, opacity: 0 },
+      { transform: `${at} translate(-50%, ${rise ? '-90%' : '-40%'}) scale(1)`, opacity: 1, offset: 0.2 },
+      { transform: `${at} translate(-50%, ${rise ? '-170%' : '10%'}) scale(.9)`, opacity: 0 },
+    ], { duration: 760, easing: 'cubic-bezier(.15,.8,.3,1)' }, HERO_NUMBER_STYLE)
+  }
+
   floatText(x, y, z, text, cls = 'dmg immune') {
     _v.set(x, y, z).project(this.camera)
     const at = `translate(${((_v.x * 0.5 + 0.5) * view.w).toFixed(1)}px, ${((-_v.y * 0.5 + 0.5) * view.h).toFixed(1)}px)`
@@ -3163,7 +3197,9 @@ export class Game {
     this.heroFx.detachSkin(t)
     h.setPos(t.pos.x, t.pos.z)
     h.facing = h.targetFacing = t.facing
+    const before = h.hp
     h.hp = Math.min(h.maxHp, h.hp + h.maxHp * TITAN_HEAL)
+    this.healSum += h.hp - before
     h.rig.play('unmorph', { force: true })
     this.scene.remove(t.root)
     this.retireActor(t)
@@ -3782,6 +3818,7 @@ export class Game {
     const mult = (this.titanMode ? 0.25 : 1) * (this.gearMods ? this.gearMods.taken : 1) * pain
     const lost = hit && hit.boss && !tick && !this.titanMode ? Math.min(dmg * mult, this.hero.maxHp * BOSS_HIT_CAP) : dmg * mult
     this.hero.hp = Math.max(0, this.hero.hp - lost)
+    this.takenSum += lost
     this.rescueTitan()
     this.hero.flashColor = kind.rim
     this.hero.flash = tick ? DOT_FLASH : 0.16
@@ -4158,6 +4195,7 @@ export class Game {
       }
 
       if (this.setLive && !this.titanMode && this.gear.build.leech) this.leechPool = Math.min(LEECH_RATE * this.hero.maxHp, this.leechPool + dt * LEECH_RATE * this.hero.maxHp)
+      this.flushHeroNumbers(dt)
       if (this.titanMode) {
         this.titanT -= dt
         this.ui.setTitanTimer(Math.max(0, this.titanT) / this.titanDef.duration, true)
