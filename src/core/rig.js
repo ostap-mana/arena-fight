@@ -9,6 +9,7 @@ const LOOPS = {
   run: ['Run', 'Walk'],
   walk: ['Walk', 'Run'],
   fly: ['Run', 'Idle'],
+  charge: ['Skill_2_Cast'],
 }
 
 const MOVES = {
@@ -17,6 +18,8 @@ const MOVES = {
   cast3: { options: [['Skill_3_PreCast', 'Skill_3_EndCast'], ['Skill_3'], ['Skill_2_PreCast', 'Skill_2_EndCast'], ['Skill_1_EndCast']], hold: 0.45 },
   castUlt: { options: [['SkillUlt_PreCast', 'SkillUlt_EndCast'], ['Skill_3_PreCast', 'Skill_3_EndCast'], ['Skill_1_EndCast']], hold: 0.6 },
   leap: { options: [['Skill_1_PreCast', 'Skill_1_Cast', 'Skill_1_EndCast'], ['Skill_1_PreCast', 'Skill_1_EndCast']] },
+  chargeWind: { options: [['Skill_2_PreCast']] },
+  chargeEnd: { options: [['Skill_2_EndCast']] },
   dash: { options: [['Dash'], ['Run']] },
   hit: { options: [['Flinch'], ['Shock'], ['Freeze']] },
   death: { options: [['Death']], variants: /^Death(_\d+)?$/ },
@@ -31,7 +34,7 @@ const COMBO = /^ComboAttack_(\d+)$/
 export const CHAIN_FADE = 0
 const COMBO_RESET = 2.4
 const ATTACK_RECOVERY = 0.32
-const BLEND = { idle: 0.15, run: 0.1, walk: 0.1, cast: 0, dash: 0, morph: 0, unmorph: 0, death: 0.25 }
+const BLEND = { idle: 0.15, run: 0.1, walk: 0.1, cast: 0, dash: 0, morph: 0, unmorph: 0, death: 0.25, charge: 0, chargeWind: 0, chargeEnd: 0 }
 const FIRST_COMBO_BLEND = 0
 const COMBO_BLEND = 0.1
 const DEFAULT_BLEND = 0.14
@@ -41,6 +44,7 @@ const UP = new THREE.Vector3(0, 1, 0)
 const _parentQuat = new THREE.Quaternion()
 const _twistQuat = new THREE.Quaternion()
 const parts = new WeakMap()
+let lodPhases = 0
 
 function upperBones(model) {
   const spine = model.bones && model.bones.find(b => /spine/i.test(b.name))
@@ -69,6 +73,8 @@ export class Rig {
     this.comboIndex = 0
     this.comboNext = new Map()
     this.lastAttackAt = -Infinity
+    this.lastAttackLength = 0
+    this.comboHold = false
     this.rootOffset = new THREE.Vector3()
     this.rootTilt = 0
     this.clock = 0
@@ -89,6 +95,16 @@ export class Rig {
     this.legsAction = null
     this.twist = 0
     this.twistTarget = 0
+    this.minFade = 0
+    this.chainFade = CHAIN_FADE
+    this.starts = [0]
+    this.ticks = 0
+    this.lod = 1
+    this.lag = 0
+    this.lagDt = 0
+    this.lodPhase = lodPhases++
+    this.startTick = -1
+    this.startResumed = false
     this.play('idle', { force: true })
     this.fresh = true
   }
@@ -106,8 +122,18 @@ export class Rig {
     return this.looping || this.stateT >= this.total - CHAIN_FADE
   }
 
+  get comboOpen() {
+    return this.state === 'attack' && this.comboIndex % this.combo.length !== 0
+  }
+
   has(name) {
     return this.clips.has(name)
+  }
+
+  weightOf(name) {
+    const clip = this.clips.get(name)
+    const action = clip && this.mixer.existingAction(this.mainClip(clip))
+    return action && action.isRunning() ? action.getEffectiveWeight() : 0
   }
 
   play(state, opts = {}) {
@@ -120,8 +146,9 @@ export class Rig {
     this.release = plan.release
     this.impactAt = plan.impact
     this.total = plan.total || 0
+    this.starts = plan.starts || [0]
     this.queue = plan.segments.slice(1)
-    this.start(plan.segments[0], this.fresh ? 0 : opts.fade ?? plan.blend ?? BLEND[state] ?? DEFAULT_BLEND)
+    this.start(plan.segments[0], this.fresh ? 0 : Math.max(this.minFade, opts.fade ?? plan.blend ?? BLEND[state] ?? DEFAULT_BLEND))
   }
 
   retime(times) {
@@ -147,13 +174,14 @@ export class Rig {
   }
 
   planAttack(opts) {
-    if (this.clock - this.lastAttackAt > COMBO_RESET) this.comboIndex = 0
+    if (this.clock - this.lastAttackAt - (this.comboHold ? this.lastAttackLength : 0) > COMBO_RESET) this.comboIndex = 0
     this.lastAttackAt = this.clock
     const name = this.combo[this.comboIndex++ % this.combo.length]
     const clip = this.clips.get(name)
     const speed = opts.speed || 1
     const impact = this.impacts.get(name) / speed
     const length = clip.duration / speed
+    this.lastAttackLength = length
     return {
       loop: false,
       segments: [{ clip, speed }],
@@ -176,12 +204,14 @@ export class Rig {
     const speed = opts.speed || 1
     const segments = names.map(name => ({ clip: this.clips.get(name), speed }))
     const lengths = segments.map(s => s.clip.duration / s.speed)
-    const total = lengths.reduce((a, b) => a + b, 0)
+    const starts = lengths.map((_, i) => lengths.slice(0, i).reduce((a, b) => a + b, 0) - i * this.chainFade)
+    const total = starts[starts.length - 1] + lengths[lengths.length - 1]
     const windup = segments.length > 1 ? lengths[0] : 0
     const impact = windup ? windup : this.impacts.get(names[0]) / speed
     return {
       loop: false,
       segments,
+      starts,
       release: move.hold ? Math.min(total, impact + move.hold) : total,
       impact,
       total,
@@ -236,24 +266,38 @@ export class Rig {
     this.segment = segment
     const action = this.mixer.clipAction(this.mainClip(segment.clip))
     const previous = this.action
+    if (previous && previous !== action && this.startTick === this.ticks && !this.startResumed) previous.stop()
     this.action = action
     this.segmentT = 0
     this.segmentLength = segment.clip.duration / segment.speed
     if (previous === action && this.looping) {
-      action.setEffectiveTimeScale(segment.speed)
+      action.stopFading().setEffectiveTimeScale(segment.speed).setEffectiveWeight(1)
       return
     }
     if (fade <= 0) {
       this.mixer.stopAllAction()
       if (this.legsAction) this.legsAction.setEffectiveWeight(1).play()
     }
-    action.reset()
+    const resume = fade > 0 && this.looping && action.isScheduled() && action.getEffectiveWeight() > 0
+    const from = resume ? action.getEffectiveWeight() : 0
+    if (fade > 0) this.fadeOthers(action, fade)
+    this.startTick = this.ticks
+    this.startResumed = resume
+    if (!resume) action.reset()
     action.setLoop(this.looping ? THREE.LoopRepeat : THREE.LoopOnce, Infinity)
     action.clampWhenFinished = !this.looping
     action.setEffectiveTimeScale(segment.speed)
     action.setEffectiveWeight(1)
     action.play()
-    if (previous && previous !== action && fade > 0) action.crossFadeFrom(previous, fade, false)
+    if (fade > 0) action._scheduleFading(fade, from, 1)
+  }
+
+  fadeOthers(keep, fade) {
+    const actions = this.mixer._actions
+    for (let i = 0; i < this.mixer._nActiveActions; i++) {
+      const a = actions[i]
+      if (a !== keep && a !== this.legsAction) a._scheduleFading(fade, a.getEffectiveWeight(), 0)
+    }
   }
 
   update(dt) {
@@ -261,16 +305,24 @@ export class Rig {
     this.clock += dt
     this.stateT += dt
     let left = dt
-    while (this.queue.length && this.segmentT + left >= this.segmentLength - CHAIN_FADE) {
-      const step = Math.max(0, this.segmentLength - CHAIN_FADE - this.segmentT)
-      this.mixer.update(step)
+    while (this.queue.length && this.segmentT + left >= this.segmentLength - this.chainFade) {
+      const step = Math.max(0, this.segmentLength - this.chainFade - this.segmentT)
+      this.mixer.update(this.lag + step)
+      this.lag = 0
       left -= step
-      this.start(this.queue.shift(), CHAIN_FADE)
+      this.start(this.queue.shift(), this.chainFade)
     }
     this.segmentT += left
     if (!this.oneShotDone && this.stateT >= this.release) this.oneShotDone = true
-    this.mixer.update(left)
-    this.applyTwist(dt)
+    this.lag += left
+    this.lagDt += dt
+    if (this.lod <= 1 || (this.ticks + this.lodPhase) % this.lod === 0) {
+      this.mixer.update(this.lag)
+      this.applyTwist(this.lagDt)
+      this.lag = 0
+      this.lagDt = 0
+    }
+    this.ticks++
   }
 
   applyTwist(dt) {

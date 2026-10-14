@@ -11,6 +11,7 @@ import { encodeImages, imageKind, cached, hash, python, ROOT, CACHE, kb, mb } fr
 import { bytesToText, lzma } from './pack.mjs'
 import { GLB, IMAGE, HUD, AUDIO, ALPHA_QUALITY, profileFor } from './profiles.mjs'
 import { HEROES, TITANS, ENEMIES, WAVES } from '../../src/data/heroes.js'
+import { isGlowCircleSystem, KEEP_GLOW_PREFAB } from '../../src/world/glow-filter.js'
 
 const LIMIT = 5000000
 const SMALL_IMAGE = Number(process.env.SMALL_IMAGE || 16384)
@@ -36,8 +37,16 @@ const tally = (group, before, after) => {
 const log = text => process.stdout.write(`${text}\n`)
 const keyOf = value => JSON.stringify(value, (k, v) => (v instanceof RegExp ? v.toString() : v))
 
+function syncFxTextures(list, source) {
+  for (const file of [...list]) if (/^assets\/fx\/[^/]+\.webp$/.test(file)) list.delete(file)
+  for (const entry of fs.readdirSync(path.join(PUBLIC, 'assets/fx'))) {
+    if (entry.endsWith('.webp') && source.includes(`'${entry.slice(0, -5)}'`)) list.add(`assets/fx/${entry}`)
+  }
+}
+
 function manifest() {
   const list = new Set(JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'manifest.json'), 'utf8')))
+  syncFxTextures(list, sourceText())
   const before = new Set()
   const after = new Set()
   const libs = []
@@ -112,14 +121,16 @@ function pruneVfx(lib, code, source) {
   }
   if (script && script.models) script.models = Object.fromEntries(Object.entries(script.models).filter(([name]) => used.has(name)))
   const mutes = enemyMutes(lib, code)
+  const quiet = quietNodes(lib, code)
   const prefabs = Object.fromEntries(Object.entries(lib.prefabs).filter(([name]) => used.has(name)).map(([name, nodes]) => {
     const muted = mutes.get(name)
-    return [name, muted ? dropNodes(nodes, { test: n => muted.has(n) }) : nodes]
+    const kept = muted ? dropNodes(nodes, { test: n => muted.has(n) }) : nodes
+    return [name, silenceNodes(kept, name, lib.materials || {}, quiet.get(name))]
   }))
   const refs = strings(prefabs, strings(script))
   const materials = Object.fromEntries(Object.entries(lib.materials || {}).filter(([name]) => refs.has(name)))
   const meshes = Object.fromEntries(Object.entries(lib.meshes || {}).filter(([name]) => refs.has(name)))
-  const texRefs = strings(materials, refs)
+  const texRefs = strings(liveMaterials(prefabs, materials, script), refs)
   for (const name of Object.keys(lib.textures || {})) if (source.includes(`'${name}'`)) texRefs.add(name)
   const textures = Object.fromEntries(Object.entries(lib.textures || {}).filter(([name]) => texRefs.has(name)))
   return { ...lib, skills, script, prefabs, materials, meshes, textures }
@@ -139,6 +150,62 @@ function enemyMutes(lib, code) {
   return out
 }
 
+function quietNodes(lib, code) {
+  const out = new Map()
+  const defs = [...HEROES, ...Object.values(ENEMIES)].filter(d => d.vfx === code)
+  if (defs.length !== 1) return out
+  const def = defs[0]
+  const intro = new Set((def.intro || []).map(([, name]) => name))
+  const add = (prefab, names) => {
+    if (intro.has(prefab)) return
+    out.set(prefab, new Set([...(out.get(prefab) || []), ...names]))
+  }
+  for (const [prefab, names] of Object.entries(def.castMute || {})) add(prefab, names)
+  if (def.skinMute) {
+    const skins = Object.keys(lib.prefabs).filter(n => /^FX_/.test(n) && /Skin/.test(n) && !/LOB|Lobby|Trail|Intro/.test(n))
+    for (const a of (lib.script && lib.script.ambient) || []) if (a.fx) skins.push(a.fx)
+    for (const prefab of skins) add(prefab, def.skinMute)
+  }
+  return out
+}
+
+const GLOW_NODES = new WeakSet()
+
+function liveMaterials(prefabs, materials, script) {
+  const live = strings(Object.values(prefabs).flat().map(n => (GLOW_NODES.has(n) ? { ...n, ps: null } : n)), strings(script))
+  return Object.entries(materials).filter(([name]) => live.has(name)).map(([, m]) => m)
+}
+
+function silenceNodes(nodes, prefab, materials, muted) {
+  const keepGlow = KEEP_GLOW_PREFAB.test(prefab)
+  const off = []
+  const children = nodes.map(() => 0)
+  nodes.forEach((n, i) => {
+    off[i] = !!n.off || (n.p >= 0 && off[n.p])
+    if (n.p >= 0) children[n.p]++
+  })
+  return nodes.map((n, i) => {
+    const subs = n.ps && n.ps.subs ? { subs: n.ps.subs } : {}
+    if (off[i]) {
+      if (!n.ps && !n.ara) return n
+      const { ara, ...rest } = n
+      return n.ps ? { ...rest, ps: subs } : rest
+    }
+    if (muted && muted.has(n.n) && !children[i]) {
+      const { ara, ...rest } = n
+      return n.ps ? { ...rest, off: 1, ps: subs } : { ...rest, off: 1 }
+    }
+    if (n.ps && !n.ara && !keepGlow && isGlowCircleSystem(materials, n.ps)) {
+      const { mat, mode, meshes = [] } = n.ps.r
+      const disk = meshes.filter(m => /Disk/.test(m)).slice(0, 1)
+      const quietNode = { ...n, ps: { ...subs, r: { mat, mode, meshes: disk } } }
+      GLOW_NODES.add(quietNode)
+      return quietNode
+    }
+    return n
+  })
+}
+
 function dropNodes(nodes, muted) {
   const index = new Map()
   const kept = []
@@ -151,11 +218,11 @@ function dropNodes(nodes, muted) {
 }
 
 function pruneLoot(lib, source) {
-  const prefabs = Object.fromEntries(Object.entries(lib.prefabs).map(([name, nodes]) => [name, dropNodes(nodes, LOOT_MUTED)]))
+  const prefabs = Object.fromEntries(Object.entries(lib.prefabs).map(([name, nodes]) => [name, silenceNodes(dropNodes(nodes, LOOT_MUTED), name, lib.materials || {}, null)]))
   const refs = strings(prefabs)
   const materials = Object.fromEntries(Object.entries(lib.materials || {}).filter(([name]) => refs.has(name)))
   const meshes = Object.fromEntries(Object.entries(lib.meshes || {}).filter(([name]) => refs.has(name)))
-  const texRefs = strings(materials, refs)
+  const texRefs = strings(liveMaterials(prefabs, materials), refs)
   for (const name of Object.keys(lib.textures || {})) if (source.includes(`'${name}'`)) texRefs.add(name)
   const textures = Object.fromEntries(Object.entries(lib.textures || {}).filter(([name]) => texRefs.has(name)))
   return { ...lib, prefabs, materials, meshes, textures }

@@ -13,6 +13,8 @@ def encode(samples, rate, out, codec):
     args = ["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(rate), "-ac", "1", "-i", "-", "-c:a", "libmp3lame"]
     if codec.get("vbr") is not None:
         args += ["-q:a", str(codec["vbr"])]
+    elif codec.get("abr") is not None:
+        args += ["-abr", "1", "-b:a", f"{codec['abr']}k"]
     else:
         args += ["-b:a", f"{codec['kbps']}k"]
     args += ["-ar", str(rate), "-ac", "1", out]

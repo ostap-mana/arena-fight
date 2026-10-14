@@ -1,12 +1,13 @@
 import * as THREE from 'three'
 import { safeFragment } from './safe-shader.js'
 import gsap from 'gsap'
-import { T, paletteFor } from './fx.js'
+import { T, tiled, paletteFor } from './fx.js'
 import { Flipbooks } from './flipbook.js'
 import { LobbyAmbient } from './lobby-ambient.js'
 import { stream } from '../core/rng.js'
 
 const random = stream('lobby')
+import { createStand } from './stand-circle.js'
 
 const HAZE_TINT = { fire: 0x6a3a2a, water: 0x2e4a5c, earth: 0x4a4432, wind: 0x55606a, light: 0x6a5c44, dark: 0x3a2e4a }
 const IDLE_DIM = 0.55
@@ -201,12 +202,16 @@ export class Showcase {
     }))
     circle.scale.set(CIRCLE_SIZE, 1, CIRCLE_SIZE)
     circle.renderOrder = 3
-    circle.onBeforeRender = (renderer, scene, camera) => { this.camera = camera }
+    circle.visible = false
+    contact.onBeforeRender = (renderer, scene, camera) => { this.camera = camera }
 
     const stand = new THREE.Group()
     stand.add(contact, circle)
     this.group.add(stand)
-    return { actor, color, palette: paletteFor(color.getHex()), stand, contact, circle, rims: rimsOf(actor), focus: 0, weight: 0, flashT: Infinity, pickedAt: 0, fx: null }
+    const variant = createStand({ THREE, stand, contact, circle, color, hero, actor, size: CIRCLE_SIZE, T, tiled, safeFragment, additive, floorGeo, FLOOR_VS })
+    if (variant) circle.visible = false
+    const vstate = { t: 0, dt: 0, w: 0, idle: 1, flashT: Infinity, flash: 0, portrait: 0, scale: 1, index: 0, picked: false }
+    return { actor, color, palette: paletteFor(color.getHex()), stand, contact, circle, variant, vstate, rims: rimsOf(actor), focus: 0, weight: 0, flashT: Infinity, pickedAt: 0, fx: null }
   }
 
   syncStandFx(selected) {
@@ -287,6 +292,20 @@ export class Showcase {
       cu.uOn.value = w
       cu.uIdle.value = idleGain
       cu.uFlash.value = Math.exp(-s.flashT * FLASH_DECAY)
+      if (s.variant) {
+        const v = s.vstate
+        v.t = t + i * 3.1
+        v.dt = dt
+        v.w = w
+        v.idle = idleGain
+        v.flashT = s.flashT
+        v.flash = cu.uFlash.value
+        v.portrait = portrait
+        v.scale = standScale
+        v.index = i
+        v.picked = i === shown
+        s.variant.update(v)
+      }
       for (const r of s.rims) {
         r.uStandRim.value = IDLE_RIM + (PICKED_RIM - IDLE_RIM) * w
         r.uStandDim.value = IDLE_DIM + (PICKED_GAIN - IDLE_DIM) * w
@@ -306,6 +325,7 @@ export class Showcase {
       }
       s.actor.root.traverse(o => { if (o.isMesh) o.receiveShadow = false })
       for (const o of [s.contact, s.circle]) o.material.dispose()
+      if (s.variant && s.variant.dispose) s.variant.dispose()
     }
     this.ambient.dispose()
     this.books.dispose()

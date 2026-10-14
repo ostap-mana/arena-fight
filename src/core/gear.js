@@ -1,4 +1,5 @@
 import { stream } from './rng.js'
+import { POWER_GOAL } from '../data/builds.js'
 
 const random = stream('sim')
 
@@ -6,24 +7,34 @@ export const GEAR_SLOTS = ['helmet', 'chestplate', 'belt', 'weapon', 'pauldrons'
 export const BUILD_PIECES = 4
 
 const MAIN_STAT = {
-  weapon: { stat: 'atk', base: 70 },
-  helmet: { stat: 'hp', base: 1100 },
-  shield: { stat: 'def', base: 80 },
-  pauldrons: { stat: 'atkPct', base: 5 },
-  gauntlets: { stat: 'crit', base: 3 },
-  chestplate: { stat: 'hpPct', base: 6 },
-  belt: { stat: 'defPct', base: 6 },
-  boots: { stat: 'critDmg', base: 8 },
+  weapon: { stat: 'atk', base: 50 },
+  helmet: { stat: 'hp', base: 1500 },
+  shield: { stat: 'def', base: 45 },
+  pauldrons: { stat: 'atkPct', base: 3 },
+  gauntlets: { stat: 'crit', base: 5 },
+  chestplate: { stat: 'hpPct', base: 7 },
+  belt: { stat: 'defPct', base: 8 },
+  boots: { stat: 'critDmg', base: 15 },
 }
 
-const RARITY_MULT = { common: 1, uncommon: 1.5, rare: 2.2, epic: 3.1, legendary: 4.4 }
+const RARITY_MULT = { common: 1, uncommon: 1.6, rare: 2.6, epic: 4.2, legendary: 6.8 }
 const RARITY_RANK = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 }
+const RARITY_MIGHT = { common: 7, uncommon: 9, rare: 11, epic: 14, legendary: 18 }
+const WEAPON_MIGHT = 2.2
 const BUILD_RESONANCE = 1.3
+const SET_POWER = 1.35
+const GATE_MARGIN = 0.01
 const BASE_DEF = 450
 const BASE_CRIT = 15
 const BASE_CRIT_DMG = 50
+export const ATK_PER_DMG = 30
 const POWER = { hp: 0.24, atk: 2.1, def: 1.7, crit: 38, critDmg: 11 }
 const FLAT = ['hp', 'atk', 'def']
+const gates = new WeakMap()
+
+export function planDrops(build) {
+  return build ? build.plan.map(p => ({ ...p, roll: (p.roll || 1) * (build.scale || 1) })) : []
+}
 
 export class Gear {
   constructor(hero, build) {
@@ -35,6 +46,8 @@ export class Gear {
     this.nextId = 1
     this.version = 0
     this.best = null
+    this.shown = { version: -1, power: 0 }
+    this.startShown = null
   }
 
   add(drop) {
@@ -50,6 +63,7 @@ export class Gear {
       rank,
       stat: main.stat,
       value: FLAT.includes(main.stat) ? Math.round(value) : Math.round(value * 10) / 10,
+      might: (RARITY_MIGHT[drop.rarity] || RARITY_MIGHT.common) * (drop.slot === 'weapon' ? WEAPON_MIGHT : 1),
     }
     this.items.push(item)
     this.unseen++
@@ -72,50 +86,84 @@ export class Gear {
 
   base() {
     const h = this.hero
-    return { hp: h.hp * 100, atk: h.atkDmg * 30, def: BASE_DEF, crit: BASE_CRIT, critDmg: BASE_CRIT_DMG }
+    return { hp: h.hp * 100, atk: h.atkDmg * ATK_PER_DMG, def: BASE_DEF, crit: BASE_CRIT, critDmg: BASE_CRIT_DMG, full: false }
   }
 
   stats(equipped = this.equipped) {
     const b = this.base()
     const add = { hp: 0, atk: 0, def: 0, hpPct: 0, atkPct: 0, defPct: 0, crit: 0, critDmg: 0 }
+    let might = 1
     for (const slot of GEAR_SLOTS) {
       const it = equipped[slot]
-      if (it) add[it.stat] += it.value * (this.isBuild(it) ? BUILD_RESONANCE : 1)
+      if (!it) continue
+      add[it.stat] += it.value * (this.isBuild(it) ? BUILD_RESONANCE : 1)
+      might *= 1 + (it.might || 0) / 100
     }
-    if (this.build && this.buildCount(equipped) >= BUILD_PIECES) {
+    const full = !!this.build && this.buildCount(equipped) >= BUILD_PIECES
+    if (full) {
       for (const [k, v] of Object.entries(this.build.bonus)) add[k] += v
     }
     return {
       hp: Math.round((b.hp + add.hp) * (1 + add.hpPct / 100)),
-      atk: Math.round((b.atk + add.atk) * (1 + add.atkPct / 100)),
+      atk: Math.round((b.atk + add.atk) * (1 + add.atkPct / 100) * might),
       def: Math.round((b.def + add.def) * (1 + add.defPct / 100)),
       crit: Math.min(100, Math.round((b.crit + add.crit) * 10) / 10),
       critDmg: Math.round((b.critDmg + add.critDmg) * 10) / 10,
+      full,
     }
   }
 
-  power(stats = this.stats()) {
-    return Math.round(stats.hp * POWER.hp + stats.atk * POWER.atk + stats.def * POWER.def + stats.crit * POWER.crit + stats.critDmg * POWER.critDmg)
+  gate() {
+    const build = this.build
+    if (!build) return POWER_GOAL
+    let g = gates.get(build)
+    if (g === undefined) {
+      g = gateOf(this.hero, build)
+      gates.set(build, g)
+    }
+    return g
+  }
+
+  power(stats) {
+    if (stats) return this.display(rawPower(stats))
+    if (this.shown.version !== this.version) {
+      this.shown.version = this.version
+      this.shown.power = this.display(rawPower(this.stats()))
+    }
+    return this.shown.power
+  }
+
+  startPower() {
+    if (this.startShown === null) this.startShown = this.display(rawPower(this.base()))
+    return this.startShown
+  }
+
+  display(raw) {
+    const start = this.build && this.build.start
+    if (!start) return Math.round(raw)
+    const from = rawPower(this.base())
+    const gate = this.gate()
+    return Math.round(POWER_GOAL + (raw - gate) * (POWER_GOAL - start) / Math.max(1, gate - from))
   }
 
   candidates(slot) {
     const pool = this.items.filter(it => it.slot === slot)
     if (this.equipped[slot]) pool.push(this.equipped[slot])
-    const top = cat => pool.filter(it => this.isBuild(it) === cat).sort((a, b) => b.value - a.value)[0]
+    const top = cat => pool.filter(it => this.isBuild(it) === cat).sort((a, b) => b.value - a.value || b.might - a.might)[0]
     return [top(true), top(false)].filter(Boolean)
   }
 
   bestBuild() {
     if (this.best && this.best.version === this.version) return this.best.equipped
     const options = GEAR_SLOTS.map(s => this.candidates(s))
-    let bestPower = -1
+    let bestRaw = -1
     let bestSet = {}
     const pick = {}
     const walk = i => {
       if (i === GEAR_SLOTS.length) {
-        const p = this.power(this.stats(pick))
-        if (p > bestPower) {
-          bestPower = p
+        const r = rawPower(this.stats(pick))
+        if (r > bestRaw) {
+          bestRaw = r
           bestSet = { ...pick }
         }
         return
@@ -133,7 +181,7 @@ export class Gear {
       delete pick[slot]
     }
     walk(0)
-    this.best = { version: this.version, equipped: bestSet, power: bestPower }
+    this.best = { version: this.version, equipped: bestSet, power: this.power(this.stats(bestSet)) }
     return bestSet
   }
 
@@ -193,6 +241,23 @@ export class Gear {
       critMult: 1 + s.critDmg / 100,
     }
   }
+}
+
+function rawPower(stats) {
+  const sum = stats.hp * POWER.hp + stats.atk * POWER.atk + stats.def * POWER.def + stats.crit * POWER.crit + stats.critDmg * POWER.critDmg
+  return stats.full ? sum * SET_POWER : sum
+}
+
+function gateOf(hero, build) {
+  const probe = new Gear(hero, null)
+  probe.build = build
+  probe.gate = () => POWER_GOAL
+  for (const drop of planDrops(build)) {
+    probe.add(drop)
+    const best = probe.bestBuild()
+    if (probe.buildCount(best) >= BUILD_PIECES) return rawPower(probe.stats(best)) * (1 - GATE_MARGIN)
+  }
+  return rawPower(probe.stats(probe.bestBuild()))
 }
 
 export function formatStat(stat, value) {

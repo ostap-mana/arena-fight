@@ -63,6 +63,17 @@ def shape_alpha(img, job):
     return Image.fromarray(arr, "RGBA")
 
 
+def posterize(img, job):
+    levels = job.get("levels")
+    if not levels:
+        return img
+    step = 256 / levels
+    arr = np.asarray(img, dtype=np.float32)
+    snapped = np.minimum(255, np.round(np.round(arr / step) * step))
+    snapped[arr < step / 2] = 0
+    return Image.fromarray(snapped.astype(np.uint8), img.mode)
+
+
 def webp_at(img, job, alpha, alpha_quality):
     buf = io.BytesIO()
     exact = alpha and job.get("exact", True)
@@ -109,7 +120,7 @@ def encode(job):
         img = Image.new("RGB", (4, 4), FLAT_NORMAL)
     alpha = has_alpha(img) and not job.get("opaque")
     img = img.convert("RGBA" if alpha else "RGB")
-    img = shape_alpha(fit(img, job.get("max", 0), job.get("scale", 1.0)), job)
+    img = posterize(shape_alpha(fit(img, job.get("max", 0), job.get("scale", 1.0)), job), job)
     fmt = job.get("format", "webp")
     data = None
     if fmt in ("avif", "auto") and not job.get("lossless"):

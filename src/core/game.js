@@ -3,14 +3,14 @@ import { EffectComposer, RenderPass, EffectPass, BloomEffect, VignetteEffect, Ch
 import gsap from 'gsap'
 
 import { HEROES, TITANS, ENEMIES, WAVES } from '../data/heroes.js'
-import { loadModelData, loadWingedModel, prefetchModel, buildModel, castBodyShadow, texturesReady, landingTime, strideSpeed } from './model.js'
+import { loadModelData, prefetchModel, buildModel, castBodyShadow, cullOffscreen, useOwnLook, useSharedLook, texturesReady, landingTime, strideSpeed } from './model.js'
 import { Actor } from '../entities/actor.js'
 import { buildArena, aimArenaCut, ARENA_RADIUS } from '../world/arena.js'
 import { FX } from '../world/fx.js'
 import { Showcase } from '../world/showcase.js'
 import { LobbyGradeEffect, FocusSharpenEffect, SanitizeEffect } from '../world/lobby-post.js'
 import { Vfx } from '../world/vfx.js'
-import { HeroFx, prefabRole } from '../world/hero-fx.js'
+import { HeroFx, prefabRole, yawOf } from '../world/hero-fx.js'
 import { loadCharacterLighting, tickCharacters, setLobbyView, CHARACTER_LIGHT, LOBBY_LIGHT, SHADOW_MODE } from '../world/character-shader.js'
 import { DynamicLights } from '../world/lights.js'
 import { Loot } from '../world/loot.js'
@@ -18,24 +18,27 @@ import { GuideLine } from '../world/guide-line.js'
 import { SHADOW_MAP_SIZE, fitShadowToView } from '../world/shadow-fit.js'
 import { audio, STEPS } from './audio.js'
 import { Input } from './input.js'
-import { Gear } from './gear.js'
+import { Gear, ATK_PER_DMG, planDrops } from './gear.js'
 import { BUILDS, POWER_GOAL } from '../data/builds.js'
+import { HIT_KINDS, ENEMY_HITS, SKILL_HITS } from '../data/hits.js'
 import { UI } from '../ui/ui.js'
 import { FloatText } from '../ui/float-text.js'
 import { GEAR_TOP, ringHeroFit } from '../ui/gear-ring.js'
 import { stream, seed } from './rng.js'
 import { wireBus, sayOnce, sayProgress, openStore, stepDoor, tellState, bootMark } from '../net/bus.js'
+import { trackRenderer, trackPartial, trackRunStart, trackRunEnd, trackRetry } from '../net/track.js'
 import { prefetchProgress } from './fetch.js'
-import { compileFor } from './compile.js'
+import { compileFor, primePrograms } from './compile.js'
 import { ResolutionGovernor } from './governor.js'
 import { view, safeInsets } from './viewport.js'
-import { COARSE, FORCED_QUALITY, PERF_HUD } from './tier.js'
-import { PerfHud } from '../ui/perf-hud.js'
+import { COARSE } from './tier.js'
 import { prewarmObject, texturesOf, uploadTexturesNow } from './prewarm.js'
 
 const random = stream('sim')
+const rollRandom = stream('hit-roll')
 
 const SKILL_SLOT = { s1: 0, s2: 1 }
+const skillAnim = s => s.anim || SKILL_SLOT[s.key] + 1
 const FIRST_WAVE_BANNER = 3.2
 const GESTURE_HINT_DELAY = FIRST_WAVE_BANNER
 const MOVE_HINT_TIME = 9
@@ -84,29 +87,74 @@ const BATTLE_DIST = 23
 const BATTLE_HFOV = THREE.MathUtils.degToRad(70)
 const BATTLE_MAX_VFOV = 62
 const BATTLE_LOOK_Y = 0.6
+const BATTLE_ZOOM = 0.55
+const BOSS_FIT_TOP = 0.54
+const BOSS_BACK = 1.2
+const BOSS_FIT_RATE = 1.6
+const BOSS_FOCUS = 0.45
+const BOSS_FOCUS_MAX = 5
+const BOSS_LOOK = 0.3
+const BOSS_PULL_MAX = 2.6
 const TITAN_ZOOM_OUT = 1.2
-const TITAN_CHARGE_TIME = 15
+const TITAN_CHARGE_TIME = 19
 const TITAN_AUTO_DELAY = 1.2
-const BOSS_SPAWN_DIST = 9
+const TITAN_OVERTIME = 1.5
+const TITAN_DMG = 1.4
+const TITAN_SMASH = 3
+const BOSS_SPAWN_DIST = 13
 const BOSS_CAST_GAP = 1.4
 const BOSS_RECOVER = 0.35
 const BOSS_CAST_OVERRUN = 1.5
 const BOSS_MIN_CAST_SPEED = 0.45
 const BOSS_CHARGE_OVERSHOOT = 3
 const BOSS_DASH_TIME = 0.32
-const BOSS_HIT_SOUND = { lostSword: 'explosion_vfx_3', demonVein: 'explosion_vfx_8', fallenBlades: 'explosion_vfx_2', stolenWings: 'dash' }
-const BOSS_ENTRANCE_PAUSE = 1
+const BOSS_HIT_SOUND = { hellfire: 'explosion_vfx_2', infernalCharge: 'dash' }
+const BOSS_ENTRANCE_PAUSE = 0.8
+const HERO_MIN_FADE = 0.08
+const BOSS_MIN_FADE = 0.1
+const BOSS_CHAIN_FADE = 0.1
+const BOSS_RUN_FADE = 0.1
+const BOSS_REST_FADE = 0.15
+const BOSS_TURN = 2.4
+const BOSS_RUN_TURN = 3.5
+const BOSS_TURN_ACCEL = 9
+const BOSS_SETTLE = 0.35
+const BOSS_AIM = 0.3
+const BOSS_WHEEL = 1.6
+const BOSS_WHEEL_NEAR = 3
+const BOSS_STILL = 0.05
+const BOSS_SKILL_LEAD = 0.6
+const BOSS_CHARGE_MIN = 22
+const BOSS_CORPSE_HOLD = 1.6
+const BOSS_SINK_TIME = 1.4
+const DAMAGE_PHONE_SCALE = 0.95
+const BOSS_SINK_DEPTH = 0.55
+const ENEMY_MIN_FADE = 0.1
+const ENEMY_CHAIN_FADE = 0.08
+const ENEMY_TURN = 9
+const ANIM_LOD_CROWD = 8
+const ANIM_LOD_NEAR = 7
+const ENEMY_AIM = 0.6
+const ENEMY_HIT_FADE = 0.12
+const ENEMY_REST_FADE = 0.25
+const TURN_IN_PLACE = 1.6
+const CHASE_SLACK = 0.5
+const CHASE_FAR = 3
+const ENEMY_REST_MIN = 0.5
+const ENEMY_HIT_SLACK = 0.7
+const SHOVE_SNAP = 0.3
+const SHOVE_RATE = 10
 const THAW_FRAMES = 3
 const LEAP_LIFT = 0.92
-const LEAP_AIR_CLIP = 'Skill_1_Cast'
 const LEAP_LAND_CLIP = 'Skill_1_EndCast'
 const LEAP_EDGE = 1.5
 const INTRO_VOICE_LATE = 0.3
-const LOOT_SHOWCASE = 1.4
-const LOOT_VICTORY_WAIT = 4.5
+const LOOT_SHOWCASE = 1.1
+const LOOT_VICTORY_WAIT = 3.6
 const RUN_RATE = [0.6, 1.8]
-const KNOCK = { hero: 0.5, titan: 1.2 }
+const KNOCK = { hero: 0.5, titan: 1.2, shot: 1, bolt: 1.3 }
 const KNOCK_RATE = 14
+const MOB_POISE = 0.9
 const HIT_SHAKE = { hero: 0.16, titan: 0.35 }
 const LOOT_WARM_AT = new THREE.Vector3(0, -0.4, 0)
 const LOOT_WARM_SCALE = 0.001
@@ -120,9 +168,12 @@ const GEAR_INTRO_DELAY = 0.45
 const GEAR_INTRO_PRAISE = 0.36
 const GEAR_INTRO_CLOSE = 2.1
 const WEAR_FLASH = 0xffe0a0
+const WEAR_MUTE = new Set(['PS_G_Glow_1_2_Fade', 'PS_Star_1_1_ReUse', 'PS_Star_1_1_ReUse '])
 const GEAR_CLEAR = 3.2
 const GEAR_CLEAR_FRONT = 9
 const GEAR_CLEAR_RATE = 8
+const GEAR_ZONE_PUSH = 16
+const GEAR_ZONE_PAD = 10
 const GEAR_CHASE = 7
 const GEAR_LOOK = 0.55
 const GEAR_IN = 0.8
@@ -158,6 +209,11 @@ const SELECT_HERO_Z = -0.4
 const SELECT_HERO_TOP = 2.6
 const SELECT_ROW_HALF = 4.3
 const SELECT_HERO_HALF = 2.15
+const SELECT_POSE_TOP = 2.3
+const SELECT_POSE_GAP = 0.012
+const SELECT_POSE_EDGE = 0.955
+const SELECT_POSE_NEAREST = 2.6
+const SELECT_POSE_EDGE_FALLBACK = [[SELECT_HERO_HALF, 1, 0], [-SELECT_HERO_HALF, 1, 0]]
 const SELECT_SPACING = { row: 2.9, single: 4.2 }
 const SELECT_EDGE = 0.96
 const SELECT_CARD_LIFT = 14
@@ -169,6 +225,41 @@ const INTRO_OUT = 0.3
 const IDLE_BREAK_IN = 0.2
 const IDLE_BREAK_GAP = [7, 11]
 const SELECT_CAM_SMOOTH = 0.45
+const HERO_HEIGHT = 2.04
+const HERO_RADIUS = 0.74
+const MOB_SCALE = 1.15
+const SHADOWLESS = ['vfx', 'fx', 'loot', 'showcase', 'guide']
+const MOB_SIZES = Object.values(ENEMIES).filter(d => !d.boss).map(d => d.size || 1)
+const MOB_HP_POW = 1.5
+const MOB_ARMOR_POW = 0.3
+const MOB_DMG_POW = 1.2
+const MOB_SPEED_POW = -0.35
+const MOB_RATE_POW = 0.5
+const HIT_ROLL = 0.2
+const WAVE_HP = [0.8, 1.7]
+const WAVE_DMG = [0.7, 1.6]
+const BOSS_MIGHT = 2.5
+const ELITE_SIZE = 1.5
+const ULT_CHARGE = 0.000625
+const HIT_STOP = { basic: 38, ranged: 22, skill: 70, ult: 110, titan: 60, morph: 90 }
+const CRIT_STOP = 75
+const KILL_STOP = 55
+const HEAVY_STOP = 60
+const STOP_GAP = 110
+const STOP_SCALE = 0.06
+const KILL_KNOCK = { basic: 1.4, heavy: 2.2 }
+const CRIT_KNOCK = 1.7
+const CRIT_SHAKE = 0.3
+const NUMBER_GROW = 0.35
+const NUMBER_SIZE = [0.85, 1.7]
+const CRIT_NUMBER = 1.3
+const meanPow = p => MOB_SIZES.reduce((sum, k) => sum + k ** p, 0) / MOB_SIZES.length
+const MOB_HP_NORM = meanPow(MOB_HP_POW + MOB_ARMOR_POW)
+const MOB_DMG_NORM = meanPow(MOB_DMG_POW - MOB_RATE_POW)
+const mobCost = k => k ** (MOB_HP_POW + MOB_ARMOR_POW) / MOB_HP_NORM
+const mobHit = k => k ** MOB_DMG_POW / MOB_DMG_NORM
+const PACK_SPAN = 2
+const PACK_SPREAD = 0.6
 const CONFIRM_TIME = 0.55
 const CONFIRM_PUSH = 0.8
 const SETTLE_FRAME_MS = 26
@@ -176,6 +267,26 @@ const SETTLE_CALM_FRAMES = 6
 const SETTLE_MAX_MS = 1400
 const LOBBY_SOUND_FADE = 350
 const SHIELD_HIT_MULT = 2.2
+const DOT_FLASH = 0.1
+const STATUS_GAP = 1.4
+const STATUS_LIFT = 1.65
+const HERO_KNOCK_TITAN = 0.4
+const BOSS_HIT_CHROMA = 1.8
+const BOSS_STRIKE = [1, 1.15, 1.45]
+const BOSS_STRIKE_REACH = 32
+const BOSS_STRIKE_SHAKE = 0.5
+const BOSS_STRIKE_FLASH = 0xff6a1a
+const BOSS_LAND_SHAKE = 0.75
+const BOSS_LAND_STOP = 95
+const BOSS_FINISH_PUSH = 4
+const BOSS_SKILL_STOP = 130
+const BOSS_STEP_SHAKE = 0.1
+const BOSS_STEP_REACH = 28
+const WEAK_HURT = 2
+const WEAK_DEAL = 0.55
+const WEAK_WARN = 0.08
+const WEAK_WARN_GAP = 8
+const WEAK_EASE = 0.35
 const IMMUNE_TEXT_GAP = 0.45
 const GATE_WARN_DELAY = 2.1
 const DEFEAT_REASON_DELAY = 2.4
@@ -188,14 +299,26 @@ const MOBILE_MIN_RATIO = 1
 const BLOOM_LEVELS = { low: 6, high: 8 }
 const BUSY_STATES = new Set(['attack', 'attack2', 'cast', 'morph', 'unmorph', 'roar'])
 const LAYERED_STATES = new Set(['attack', 'attack2', 'cast'])
+const WINDUP_STATES = LAYERED_STATES
 const TWIST_MAX = 1.45
 const _axis = [0, 0]
 const _still = [0, 0]
 const NO_OPTS = {}
 const TITAN_SWING = { slot: 'titan_swing', max: 2, steal: true }
 const _camVel = new THREE.Vector3()
+const _selectPose = new THREE.Vector3()
+const _selectPoseGoal = new THREE.Vector3()
+const _selectPoseVel = new THREE.Vector3()
 const _dampA = new THREE.Vector3()
 const _dampB = new THREE.Vector3()
+
+function hitWorth(mods) {
+  return mods.atk * (1 + mods.crit * (mods.critMult - 1))
+}
+
+function gainPct(now, was) {
+  return Math.round((now / was - 1) * 100)
+}
 
 function smoothDamp(current, target, velocity, smoothTime, dt) {
   const omega = 2 / smoothTime
@@ -212,6 +335,16 @@ function readySkill(e, d) {
   for (let i = 0; i < skills.length; i++) {
     const k = skills[i]
     if (e.skillCd[k.key] <= 0 && d <= k.reach && d >= (k.min || 0)) return k
+  }
+  return null
+}
+
+function skillSoon(e, d, lead) {
+  if (e.castGap > lead) return null
+  const skills = e.def.skills
+  for (let i = 0; i < skills.length; i++) {
+    const k = skills[i]
+    if (e.skillCd[k.key] <= lead && d <= k.reach && d >= (k.min || 0)) return k
   }
   return null
 }
@@ -238,18 +371,18 @@ function haptic(ms = HAPTIC_MS) {
   try { navigator.vibrate(ms) } catch {}
 }
 
-function enemyPeak(def) {
+function enemyPeak(def, plan) {
   let peak = 1
-  for (const w of WAVES) {
+  for (const packs of plan) {
     let n = 0
-    for (const [type, count] of w.spawns) if (ENEMIES[type] === def) n += count
+    for (const p of packs) if (ENEMIES[p.type] === def) n += p.count
     peak = Math.max(peak, n)
   }
   return peak
 }
 
 function enemyModel(def) {
-  return def.wings ? loadWingedModel(def.model, def.wings) : loadModelData(def.model)
+  return loadModelData(def.model)
 }
 
 function settled(promise) {
@@ -290,14 +423,17 @@ export class Game {
     this.kills = 0
     this.lootWait = 0
     this.gearK = 0
+    this.gearT = 0
+    this.gearTo = 0
+    this.dots = []
+    this.dotPool = []
+    this.statusAt = {}
     this.gearDist = 1
     this.gearSlow = GEAR_SLOWMO
     this.gearIntro = null
     this.dmgNodes = []
     this.shakeT = 0
     this.shakeAmp = 0
-    this.rescued = false
-    this.variant = new URLSearchParams(location.search).get('v') || 'default'
     this.heroIndex = 0
     this.cooldowns = { s1: 0, s2: 0, attack: 0 }
     this.selectActors = []
@@ -339,6 +475,7 @@ export class Game {
       hold: () => this.bench(true),
       audio: on => audio.silence('volume', !on),
     })
+    trackPartial(() => this.runStats())
     tellState(() => {
       const h = this.hero
       return {
@@ -377,6 +514,7 @@ export class Game {
     r.toneMapping = THREE.ACESFilmicToneMapping
     r.toneMappingExposure = 1.05
     this.renderer = r
+    trackRenderer(r)
 
     this.scene = new THREE.Scene()
     this.scene.fog = new THREE.FogExp2(0x070c1a, 0.018)
@@ -386,8 +524,11 @@ export class Game {
     this.camera.lookAt(0, 1.2, 0)
     this.camOffset = new THREE.Vector3(0, 7.8, 7.4)
     this.camLook = new THREE.Vector3(0, 1.3, 0)
+    this.bossPull = 1
+    this.bossView = 0
     this.camTarget = new THREE.Vector3()
     this.camYaw = 0
+    this.selectFit = null
     this.battleView = false
     this.fitCamera()
 
@@ -397,9 +538,8 @@ export class Game {
     const soft = /swiftshader|llvmpipe|software|basic render/i.test(gpu)
     this.softGPU = soft
     this.gpuName = gpu
-    this.quality = FORCED_QUALITY || (soft || COARSE ? 'low' : 'high')
+    this.quality = soft || COARSE ? 'low' : 'high'
     this.setupResolution(COARSE)
-    this.perfHud = PERF_HUD ? new PerfHud(this) : null
     r.shadowMap.enabled = true
     r.shadowMap.type = THREE.PCFShadowMap
     SHADOW_MODE.projected = false
@@ -515,13 +655,13 @@ export class Game {
     if (this.lobbyDof) this.lobbyDof.target.copy(_v)
   }
 
-  resize() {
+  resize(ease = false) {
     this.camera.aspect = view.w / view.h
     this.fitCamera()
     this.renderer.setSize(view.w, view.h)
     this.composer.setSize(view.w, view.h)
     if (this.ui.cardEls) this.ui.selectCard(this.heroIndex)
-    if (this.state === 'select') this.fitSelectCamera()
+    if (this.state === 'select') this.fitSelectCamera(ease)
   }
 
   bindUI() {
@@ -541,6 +681,15 @@ export class Game {
       haptic()
       this.toggleGear()
     })
+    this.ui.onSkill = key => {
+      if (this.state !== 'battle' || this.gearOpen || !this.hero || this.hero.dead) return
+      if (this.heroWindup() && this.castReady(key)) {
+        this.queuedCast = key
+        haptic()
+        return
+      }
+      if (this.castNow(key)) haptic()
+    }
     this.ui.gearRing.onClose = () => this.closeGear()
     this.ui.gearRing.onChange = kind => {
       audio.play(kind === 'filter' ? 'ui_click_tab' : kind === 'unequip' ? 'ui_click_back' : 'ui_click_add')
@@ -560,14 +709,6 @@ export class Game {
       audio.play('outcome_select')
       this.retry()
     }
-    this.ui.fail.querySelector('#rescue').addEventListener('click', () => {
-      audio.play('ui_click_main')
-      this.ui.show('fail', false)
-      this.rescueActive = false
-      this.titan = 1
-      this.titanReady = true
-      this.transform()
-    })
   }
 
   async boot() {
@@ -600,11 +741,16 @@ export class Game {
     this.loot = new Loot(this.scene, this.vfx, this.camera)
     this.loot.onCollect = item => this.collectLoot(item)
     this.guide = new GuideLine(this.scene)
+    this.skipShadowWalk()
     for (const h of HEROES) {
       if (h.skinMute) this.heroFx.muteSkin(h.vfx, h.skinMute)
       if (h.lobbyMute) this.heroFx.muteLobby(h.vfx, h.lobbyMute)
       if (h.castMute) this.heroFx.muteCast(h.vfx, h.castMute)
       if (h.lobbyFocus) this.heroFx.focusLobby(h.vfx, h.lobbyFocus)
+    }
+    for (const e of Object.values(ENEMIES)) {
+      if (e.skinMute) this.heroFx.muteSkin(e.vfx, e.skinMute)
+      if (e.castMute) this.heroFx.muteCast(e.vfx, e.castMute)
     }
     await new Promise(r => requestAnimationFrame(r))
     this.warmPost()
@@ -778,18 +924,20 @@ export class Game {
     this.gearIntro = intro
     this.gearSlow = intro ? GEAR_INTRO_SLOWMO : GEAR_SLOWMO
     this.gearPower = this.gear.power()
+    this.gearFrom = this.gear.modifiers()
     this.input.release()
+    this.queuedCast = null
     this.cancelLeaps()
     this.cueHero(false)
     audio.play('ui_expand_in')
     this.gearSpan = null
-    if (!this.heroLocked()) this.hero.rig.play('idle', { force: true, fade: 0.2 })
+    if (!this.heroLocked() && !this.heroWindup()) this.hero.rig.play('idle', { force: true, fade: 0.2 })
     this.gearWant = this.gearHeroSpan()
     const span = this.placeGear()
     if (this.gearK < 0.01) this.gearDist = clamp(span / this.gearWant, GEAR_NEAREST, 1)
     this.ui.openGear(this.gear, intro)
     if (!intro && this.underpowered() && this.gear.bestPower() >= POWER_GOAL) this.ui.gearRing.cueAuto(true)
-    gsap.to(this, { gearK: 1, duration: GEAR_IN, ease: 'power2.inOut', overwrite: true })
+    this.gearTo = 1
   }
 
   gearHeroSpan() {
@@ -799,7 +947,7 @@ export class Game {
 
   canIntroGear() {
     const boss = !!(WAVES[this.waveIndex] && WAVES[this.waveIndex].boss)
-    return this.state === 'battle' && !boss && !this.gearOpen && !this.titanMode && !this.rescueActive && !!this.hero && !this.hero.dead && !this.heroLocked()
+    return this.state === 'battle' && !boss && !this.gearOpen && !this.titanMode && !!this.hero && !this.hero.dead && !this.heroLocked()
   }
 
   introGear(item) {
@@ -818,9 +966,12 @@ export class Game {
   finishGearIntro() {
     this.gearIntro = null
     const gain = (this.gear.power() - this.gearPower).toLocaleString('en-US')
+    const dmg = gainPct(hitWorth(this.gear.modifiers()), hitWorth(this.gearFrom))
     const epoch = this.epoch
     setTimeout(() => {
-      if (epoch === this.epoch && this.gearOpen) this.ui.gearRing.coach(`+${gain} POWER`, 'tap your hero anytime to equip')
+      if (epoch !== this.epoch || !this.gearOpen) return
+      if (dmg > 0) this.ui.gearRing.coach(`+${dmg}% DAMAGE`, `+${gain} power · tap your hero anytime to equip`)
+      else this.ui.gearRing.coach(`+${gain} POWER`, 'tap your hero anytime to equip')
     }, GEAR_INTRO_PRAISE * 1000)
     setTimeout(() => {
       if (epoch === this.epoch && this.gearOpen && !this.gearIntro) this.closeGear()
@@ -831,8 +982,8 @@ export class Game {
     const h = this.hero
     if (!h || h.dead || this.state !== 'battle') return
     const cfg = this.loot.config
-    if (cfg && cfg.hit) this.vfx.spawn('loot', cfg.hit, { follow: this.lootAnchor(), lifetime: 1.2 })
-    this.lights.flash(h.pos, WEAR_FLASH, 2.6, 4.5, 0.45, h.height * 0.6)
+    if (cfg && cfg.hit) this.vfx.spawn('loot', cfg.hit, { follow: this.lootAnchor(), lifetime: 1.2, mute: WEAR_MUTE })
+    this.lights.flash(h.pos, WEAR_FLASH, 1.3, 4.5, 0.45, h.height * 0.6)
     audio.play('loot_take', { slot: 'loot_take', max: 2, gap: 0.06 })
     haptic()
   }
@@ -854,7 +1005,7 @@ export class Game {
     s.top += (top - s.top) * k
     s.bottom += (bottom - s.bottom) * k
     this.gearSpan = s
-    this.ui.gearRing.place(s.x, s.top, s.bottom)
+    this.ui.gearRing.place(s.x, s.top, s.bottom, this.gearWant)
     return s.bottom - s.top
   }
 
@@ -871,12 +1022,24 @@ export class Game {
     this.gearIntro = null
     audio.play('ui_expand_out')
     this.ui.closeGear()
-    gsap.to(this, { gearK: 0, duration: GEAR_OUT, ease: 'power2.inOut', overwrite: true })
+    this.gearTo = 0
     this.applyGear()
     const power = this.gear.power()
-    if (power > this.gearPower && this.state === 'battle') this.ui.showPowerGain(this.gearPower, power)
+    if (power > this.gearPower && this.state === 'battle') this.ui.showPowerGain(this.gearPower, power, this.gearGains())
     if (this.shieldUp && this.state === 'battle') this.cueHero(true)
     else if (skipped && this.state === 'battle') this.cueHero(true, GEAR_HINT_TIME)
+  }
+
+  gearGains() {
+    const was = this.gearFrom
+    const now = this.gear.modifiers()
+    if (!was) return ''
+    const parts = [
+      [gainPct(hitWorth(now), hitWorth(was)), 'DMG'],
+      [gainPct(now.hp, was.hp), 'HP'],
+      [gainPct(was.taken, now.taken), 'DEF'],
+    ].filter(p => p[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 2)
+    return parts.map(([v, label]) => `+${v}% ${label}`).join(' · ')
   }
 
   applyGear() {
@@ -894,6 +1057,39 @@ export class Game {
 
   underpowered() {
     return !!this.gear && this.gear.power() < POWER_GOAL
+  }
+
+  expectedPower(given) {
+    const ideal = new Gear(this.heroDef, this.gear.build)
+    const plan = this.loot.plan || []
+    for (let i = 0; i < given; i++) ideal.add(plan[i])
+    return ideal.bestPower()
+  }
+
+  weakness() {
+    if (!this.gear || !this.loot.plan) return 0
+    const plan = this.loot.plan
+    const given = Math.min(this.loot.planGiven || 0, plan.length)
+    if (!this.expected || this.expected.given !== given) {
+      const top = this.expected ? this.expected.top : this.expectedPower(plan.length)
+      this.expected = { given, power: this.expectedPower(given), top }
+    }
+    const base = this.gear.startPower()
+    return clamp((this.expected.power - this.gear.power()) / Math.max(1, this.expected.top - base), 0, 1)
+  }
+
+  painNow() {
+    const target = this.weakness()
+    const dt = this.t - this.weakAt
+    this.weakAt = this.t
+    this.weak = target < this.weak ? target : this.weak + (target - this.weak) * Math.min(1, dt * WEAK_EASE)
+    return this.weak
+  }
+
+  warnWeak() {
+    if (this.t - this.weakWarnAt < WEAK_WARN_GAP || this.gearOpen || this.shieldUp) return
+    this.weakWarnAt = this.t
+    this.ui.showBanner('TOO WEAK', this.gear.hasUpgrade() ? 'tap your hero to equip' : 'pick up gear', 2)
   }
 
   showPower() {
@@ -991,9 +1187,10 @@ export class Game {
         s.material.transparent = model.fade[i][0]
         s.material.opacity = model.fade[i][1]
       })
+      useSharedLook(model)
       return model
     }
-    const fresh = buildModel(data, { castShadow: true })
+    const fresh = buildModel(data, { castShadow: true, shareLook: true })
     fresh.data = data
     fresh.fade = fresh.skins.map(s => [s.material.transparent, s.material.opacity])
     return fresh
@@ -1017,19 +1214,40 @@ export class Game {
 
   async stageBattle(hero) {
     const datas = []
+    const fading = new Set()
     for (const def of this.enemyDefs()) {
       const data = await settled(enemyModel(def))
-      for (let i = 0; i < enemyPeak(def); i++) datas.push(data)
+      for (let i = 0; i < enemyPeak(def, this.wavePlan); i++) datas.push(data)
+      if (data && !def.boss) fading.add(data)
     }
     const titan = TITANS[hero.titan]
     if (titan) datas.push(await settled(loadModelData(titan.model)))
     const staged = []
-    for (const data of datas) {
-      if (!data) continue
+    const stage = data => {
       const model = this.takeModel(data)
       model.root.position.set(0, -40, 0)
       this.scene.add(model.root)
       staged.push(model)
+      return model
+    }
+    for (const data of datas) {
+      if (!data) continue
+      stage(data)
+      await new Promise(r => setTimeout(r))
+    }
+    for (const data of fading) {
+      const ghost = stage(data)
+      useOwnLook(ghost)
+      for (const s of ghost.skins) {
+        s.material.transparent = true
+        s.material.opacity = 0.99
+      }
+      await new Promise(r => setTimeout(r))
+    }
+    const heroData = await settled(loadModelData(hero.model))
+    for (const data of new Set([...datas, heroData])) {
+      if (!data) continue
+      strideSpeed({ clips: data.clips, root: data.scene }, 'Run')
       await new Promise(r => setTimeout(r))
     }
     return () => staged.forEach(m => this.spareModel(m))
@@ -1179,7 +1397,8 @@ export class Game {
     this.state = 'select'
     this.ui.veilHold()
     this.setLobbyPost(true)
-    this.ui.buildCards(i => this.previewHero(i), i => this.confirmPick(i))
+    this.cardTapped = -1
+    this.ui.buildCards(i => this.tapCard(i), i => this.confirmPick(i))
     this.ui.show('select', true)
     await this.selectWarm
     await this.prepareSelect()
@@ -1257,6 +1476,7 @@ export class Game {
     await this.compileHidden()
     uploadTexturesNow(this.renderer, [...texturesOf(this.scene), ...this.vfx.textures([...ids, ...shared])])
     this.composer.render()
+    primePrograms(this.renderer)
     await new Promise(r => requestAnimationFrame(r))
     this.guide.warm(false)
     for (const inst of warm) this.vfx.kill(inst)
@@ -1346,6 +1566,7 @@ export class Game {
         rig.play('idlebreak', { force: true, fade: IDLE_BREAK_IN })
         audio.play(`${HEROES[i].model}_break_1`)
       }
+      cullOffscreen(a.model, i !== this.heroIndex && rig.state === 'pose')
       a.update(dt)
     }
   }
@@ -1366,14 +1587,20 @@ export class Game {
   layoutSelect() {
     if (!this.selectActors) return
     const gap = this.selectSpacing()
-    for (let i = 0; i < this.selectActors.length; i++) this.selectActors[i].setPos((i - 1) * gap, SELECT_HERO_Z)
+    const single = !this.selectShowsRow()
+    for (let i = 0; i < this.selectActors.length; i++) {
+      const a = this.selectActors[i]
+      a.setPos((i - 1) * gap, SELECT_HERO_Z)
+      a.targetFacing = a.facing = (HEROES[i].turn || 0) - (i - 1) * 0.16 + (single ? HEROES[i].poseTurn || 0 : 0)
+    }
     this.placeHeroLight()
   }
 
-  fitSelectCamera() {
+  fitSelectCamera(ease = false) {
     this.layoutSelect()
     const h = view.h
-    const titleBottom = this.ui.select.querySelector('.head').getBoundingClientRect().bottom
+    const head = this.ui.select.querySelector('.head')
+    const titleBottom = head.getBoundingClientRect().bottom
     const feetPx = this.ui.cards.getBoundingClientRect().top - SELECT_CARD_LIFT - h * 0.035
     const headPx = Math.max(titleBottom + h * 0.1, feetPx - h * 0.42)
     const toNdc = px => 1 - (2 * px) / h
@@ -1383,11 +1610,11 @@ export class Game {
     _fitCam.fov = this.camera.fov
     _fitCam.aspect = this.camera.aspect
     _fitCam.updateProjectionMatrix()
-    const project = (x, y, dist, look) => {
+    const project = (x, y, dist, look, z = 0) => {
       _fitCam.position.copy(SELECT_VIEW_DIR).multiplyScalar(dist)
       _fitCam.lookAt(0, look, 0)
       _fitCam.updateMatrixWorld()
-      return _v.set(x, y, heroZ).project(_fitCam)
+      return _v.set(x, y, heroZ + z).project(_fitCam)
     }
     const lookFor = dist => bisect(-4, 4, look => project(0, 0, dist, look).y > toNdc(feetPx))
     const tooClose = dist => {
@@ -1398,6 +1625,44 @@ export class Game {
     const dist = bisect(4.5, 14, tooClose)
     this.camOffset.copy(SELECT_VIEW_DIR).multiplyScalar(dist)
     this.camLook.set(0, lookFor(dist), 0)
+    if (wholeRow) {
+      this.selectFit = null
+      return
+    }
+    const bandTop = titleBottom + h * SELECT_POSE_GAP
+    const poseFit = hero => {
+      const top = hero.poseTop || SELECT_POSE_TOP
+      const edge = hero.poseEdge || SELECT_POSE_EDGE_FALLBACK
+      const lookTop = d => bisect(-4, 4, look => project(0, top, d, look).y > toNdc(bandTop))
+      const pastEdge = (d, look) => edge.some(([x, y, z]) => {
+        const q = project(x, y, d, look, z)
+        return Math.abs(q.x) > SELECT_POSE_EDGE || q.y > SELECT_POSE_EDGE || q.y < toNdc(feetPx)
+      })
+      const poseTooClose = d => {
+        const look = lookTop(d)
+        return project(0, 0, d, look).y < toNdc(feetPx) || pastEdge(d, look)
+      }
+      const close = Math.min(dist, bisect(SELECT_POSE_NEAREST, 14, poseTooClose))
+      const headed = lookTop(close)
+      const look = project(0, 0, close, headed).y < toNdc(feetPx) ? lookFor(close) : headed
+      return { dist: close, look }
+    }
+    this.selectFit = poseFit(HEROES[this.heroIndex])
+    this.blendSelectPose(0, !ease)
+  }
+
+  blendSelectPose(dt, snap) {
+    const f = this.selectFit
+    if (!f) return
+    _selectPoseGoal.set(f.dist, f.look, 0)
+    if (snap || !_selectPose.x) {
+      _selectPose.copy(_selectPoseGoal)
+      _selectPoseVel.set(0, 0, 0)
+    } else if (dt > 0) {
+      smoothDamp(_selectPose, _selectPoseGoal, _selectPoseVel, SELECT_CAM_SMOOTH, dt)
+    }
+    this.camOffset.copy(SELECT_VIEW_DIR).multiplyScalar(_selectPose.x)
+    this.camLook.set(0, _selectPose.y, 0)
   }
 
   highlightSelected() {
@@ -1412,22 +1677,21 @@ export class Game {
     if (picked) this.heroLight.position.set(picked.pos.x, 2.6, picked.pos.z - 1.7)
   }
 
-  previewHero(i) {
-    if (this.state !== 'select' || this.confirming || !this.selectActors[i]) return
-    audio.play('ui_click_main')
-    if (i !== this.heroIndex) {
-      this.focusHero(i)
-      this.playIntro(i)
-      this.want(this.battleJobs(HEROES[i]), true)
-    }
-  }
-
   focusHero(i) {
     const prev = this.selectActors[this.heroIndex]
     this.heroIndex = i
     this.ui.selectCard(i)
     this.highlightSelected()
     if (prev) this.settleHero(prev)
+    if (this.state === 'select') this.fitSelectCamera(true)
+  }
+
+  tapCard(i) {
+    if (this.state !== 'select' || this.confirming || !this.selectActors[i]) return
+    if (this.cardTapped === i) return this.confirmPick(i)
+    this.cardTapped = i
+    audio.play('ui_click_main')
+    if (i !== this.heroIndex) this.focusHero(i)
   }
 
   confirmPick(i = this.heroIndex) {
@@ -1468,7 +1732,8 @@ export class Game {
     this.selectActors = []
     const battleLoad = this.loadBattle(hero)
     const [battleModel] = await Promise.all([loadModelData(hero.model), hero.vfx ? this.vfx.preload([hero.vfx]).then(() => this.heroFx.preloadModels(hero.vfx)) : null])
-    this.hero = new Actor(this.takeModel(battleModel), { targetHeight: 1.9 })
+    this.hero = new Actor(this.takeModel(battleModel), { targetHeight: HERO_HEIGHT, radius: HERO_RADIUS })
+    this.hero.rig.minFade = HERO_MIN_FADE
     this.hero.rig.retimeCombo(hero.combo)
     this.scene.add(this.hero.root)
     if (hero.vfx) this.heroFx.attachSkin(hero.vfx, this.hero)
@@ -1479,9 +1744,15 @@ export class Game {
     this.heroDef = hero
     const build = BUILDS[hero.id]
     this.gear = new Gear(hero, build)
+    this.expected = null
+    this.weak = 0
+    this.weakAt = this.t
+    this.weakWarnAt = -WEAK_WARN_GAP
+    this.clearDots()
+    this.wavePlan = WAVES.map(w => this.planWave(w))
     if (build) {
-      const kills = WAVES.filter(w => !w.boss).reduce((n, w) => n + w.spawns.reduce((m, [, c]) => m + c, 0), 0)
-      this.loot.setPlan(build.plan.map(p => ({ ...p, roll: build.scale })), kills)
+      const roster = this.wavePlan.filter((packs, i) => !WAVES[i].boss).flat().map(p => ({ table: ENEMIES[p.type].loot, count: p.count }))
+      this.loot.setPlan(planDrops(build), roster)
     }
     this.applyGear()
     this.titanDef = TITANS[hero.titan]
@@ -1513,6 +1784,7 @@ export class Game {
 
     this.waveIndex = -1
     this.state = 'battle'
+    trackRunStart()
     this.ui.setWaves(WAVES.map(w => !!w.boss))
     this.nextWave()
   }
@@ -1539,11 +1811,13 @@ export class Game {
     this.clearT = 0
     this.pending = []
     let delay = 0.35
-    for (const [type, n] of w.spawns) {
-      for (let i = 0; i < n; i++) {
-        this.pending.push({ type, t: delay })
-        delay += 0.14 + random() * 0.2
+    for (const p of this.wavePlan[this.waveIndex]) {
+      const ang = random() * Math.PI * 2
+      for (let i = 0; i < p.count; i++) {
+        this.pending.push({ type: p.type, t: delay, hp: p.hp, dmg: p.dmg, ang })
+        delay += 0.06 + random() * 0.08
       }
+      delay += 0.2 + random() * 0.2
     }
     this.waveTimer = 0
     this.waveTotal = this.pending.length
@@ -1581,7 +1855,7 @@ export class Game {
     sayProgress((Math.max(0, this.waveIndex) + share) / WAVES.length)
   }
 
-  async spawnEnemy(type) {
+  async spawnEnemy(type, spot = NO_OPTS) {
     const def = ENEMIES[type]
     const epoch = this.epoch
     this.spawning++
@@ -1590,44 +1864,83 @@ export class Game {
     this.spawning--
     if (!loaded || this.state === 'end') return
     const [data] = loaded
+    const base = def.scale * (def.boss ? 1 : MOB_SCALE)
+    const k = def.boss ? 1 : def.size || 1
+    const size = base * k
+    const hpK = def.boss ? 1 : (k ** MOB_HP_POW / MOB_HP_NORM) * (spot.hp || 1)
+    const wave = clamp(this.waveIndex, 0, WAVE_HP.length - 1)
     const a = new Actor(this.takeModel(data), {
-      targetHeight: 1.78 * def.scale,
-      hp: def.hp * (1 + this.waveIndex * 0.12),
-      radius: 0.72 * def.scale,
+      targetHeight: 1.78 * size,
+      hp: def.hp * hpK * (def.boss ? 1 : WAVE_HP[wave]),
+      radius: 0.72 * size,
     })
+    a.range = def.range + 0.72 * (size - base)
+    a.size = k
+    a.might = def.boss ? BOSS_MIGHT : (k ** MOB_DMG_POW / MOB_DMG_NORM) * (spot.dmg || 1) * WAVE_DMG[wave]
+    a.armor = k ** -MOB_ARMOR_POW
+    a.moveSpeed = def.speed * k ** MOB_SPEED_POW
+    a.rate = def.rate * k ** MOB_RATE_POW
     a.def = def
     a.type = type
     a.wave = this.waveIndex
-    if (!def.boss) castBodyShadow(a.model)
-    a.cd = random() * def.rate
+    a.turnRate = def.turn || (def.boss ? BOSS_TURN : ENEMY_TURN)
+    a.rig.minFade = def.boss ? BOSS_MIN_FADE : ENEMY_MIN_FADE
+    a.rig.chainFade = def.boss ? BOSS_CHAIN_FADE : ENEMY_CHAIN_FADE
+    if (def.impacts) a.rig.retime(def.impacts)
+    if (!def.boss) {
+      castBodyShadow(a.model)
+      cullOffscreen(a.model)
+    }
+    a.cd = random() * a.rate
     if (def.skills) {
-      a.cd = def.rate
+      a.cd = a.rate
       a.skillCd = Object.fromEntries(def.skills.map(s => [s.key, s.first ?? s.cd]))
       a.castGap = 0
     }
-    if (def.boss) this.placeBoss(a)
-    else this.placeNearHero(a)
+    if (def.boss) {
+      this.placeBoss(a)
+      a.rig.comboHold = true
+      a.turnAccel = BOSS_TURN_ACCEL
+    } else this.placeNearHero(a, spot.ang)
     a.pos.y = def.fly || 0
     a.rig.play(def.fly ? 'fly' : 'idle', { force: true })
     a.rig.t = random() * 3
     this.scene.add(a.root)
     this.enemies.push(a)
     if (this.enemyVfx(def)) this.heroFx.attachSkin(def.vfx, a)
-    this.ui.trackEnemy(a, def.boss ? 'boss' : def.hp >= 90 ? 'elite' : 'regular')
+    this.ui.trackEnemy(a, def.boss ? 'boss' : k >= ELITE_SIZE ? 'elite' : 'regular')
 
-    this.fx.enemySpawn(a.pos.x, a.pos.z, !!def.boss)
-    this.lights.flash(a.pos, 0x9a3bff, 2.2, 4.5, 0.7, 0.6)
     audio.play('mob_spawn', { at: a.pos, slot: 'spawn', max: 2, gap: 0.1 })
     if (def.boss) {
       this.boss = a
       this.shake(0.5, 0.5)
-      if (def.cry) audio.play(def.cry, { at: a.pos })
     }
   }
 
-  placeNearHero(a) {
+  planWave(w) {
+    if (w.boss) return w.spawns.map(([type, count]) => ({ type, count }))
+    const packs = []
+    for (const [type, n] of w.spawns) {
+      const k = ENEMIES[type].size || 1
+      const count = Math.max(1, Math.round(n / k))
+      const share = n / count
+      const hp = share / mobCost(k)
+      const dmg = share / mobHit(k)
+      const span = Math.max(1, Math.round(PACK_SPAN / k))
+      for (let left = count; left > 0; left -= span) packs.push({ type, count: Math.min(span, left), hp, dmg })
+    }
+    for (let i = packs.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1))
+      const t = packs[i]
+      packs[i] = packs[j]
+      packs[j] = t
+    }
+    return packs
+  }
+
+  placeNearHero(a, packAng) {
     const h = this.hero
-    const ang = random() * Math.PI * 2
+    const ang = packAng === undefined ? random() * Math.PI * 2 : packAng + (random() - 0.5) * PACK_SPREAD
     const r = SPAWN_RING[0] + random() * (SPAWN_RING[1] - SPAWN_RING[0])
     let x = (h ? h.pos.x : 0) + Math.cos(ang) * r
     let z = (h ? h.pos.z : 0) + Math.sin(ang) * r
@@ -1669,7 +1982,7 @@ export class Game {
       c.t += dt
       if (c.dash) this.bossDash(e, c)
       if (c.leap) this.leapStep(e, c)
-      if (c.t >= c.done && (e.rig.oneShotDone || c.t >= c.done + BOSS_CAST_OVERRUN)) {
+      if (!c.dash && c.t >= c.done && ((e.def.boss ? e.rig.finished : e.rig.oneShotDone) || c.t >= c.done + BOSS_CAST_OVERRUN)) {
         e.cast = null
         e.castGap = BOSS_CAST_GAP
       }
@@ -1677,12 +1990,55 @@ export class Game {
     }
     e.castGap = Math.max(0, e.castGap - dt)
     const h = this.hero
-    if (e.castGap > 0 || this.gearOpen || !h || h.dead || e.rig.state === 'attack' && !e.rig.oneShotDone) return false
+    const busy = e.def.boss ? !this.bossStill(e) : e.rig.state === 'attack' && !e.rig.oneShotDone
+    if (e.castGap > 0 || this.gearOpen || !h || h.dead || busy) return false
     const d = Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z)
     const s = readySkill(e, d)
     if (!s) return false
+    if (s.kind !== 'nova' && !this.aimedAt(e, h)) return false
     this.bossCast(e, s, d)
     return true
+  }
+
+  facingHero(e, h, tolerance) {
+    return Math.abs(wrapAngle(Math.atan2(h.pos.x - e.pos.x, h.pos.z - e.pos.z) - e.facing)) <= tolerance
+  }
+
+  aimedAt(e, h) {
+    if (!e.def.boss) return this.facingHero(e, h, ENEMY_AIM)
+    return this.facingHero(e, h, BOSS_AIM) && Math.abs(e.turnVel) < BOSS_SETTLE
+  }
+
+  bossStill(e) {
+    return e.rig.finished && !e.rig.comboOpen && e.rig.weightOf('Run') < BOSS_STILL
+  }
+
+  bossChasing(e, d, range) {
+    const off = Math.abs(wrapAngle(e.targetFacing - e.facing))
+    const wheel = d > BOSS_WHEEL_NEAR
+    const skill = skillSoon(e, d, BOSS_SKILL_LEAD)
+    if (e.chasing) {
+      if (wheel && off > BOSS_AIM) return true
+      const brake = e.def.speed * e.rig.weightOf('Run') * BOSS_REST_FADE * 0.5
+      return !skill && d - brake > range
+    }
+    if (e.restT < ENEMY_REST_MIN) return false
+    return (wheel && off > BOSS_WHEEL) || (!skill && d > range + CHASE_SLACK)
+  }
+
+  bossStride(e, dt) {
+    const w = e.rig.weightOf('Run')
+    if (w <= 0) return
+    e.pos.x += Math.sin(e.facing) * e.def.speed * w * dt
+    e.pos.z += Math.cos(e.facing) * e.def.speed * w * dt
+  }
+
+  sinkCorpse(e, dt) {
+    e.update(dt)
+    const sink = (e.dying - e.rig.total - BOSS_CORPSE_HOLD) / BOSS_SINK_TIME
+    if (sink <= 0) return false
+    e.pos.y = -e.height * BOSS_SINK_DEPTH * Math.min(1, sink * sink)
+    return sink >= 1
   }
 
   bossCast(e, s, dist) {
@@ -1692,13 +2048,19 @@ export class Game {
     }
     const h = this.hero
     e.skillCd[s.key] = s.cd
-    e.faceTo(h.pos.x, h.pos.z)
-    e.facing = e.targetFacing
-    e.rig.play('cast', { force: true, fade: 0.1, skill: s.fx })
-    if (e.rig.impactAt > 0 && e.rig.impactAt < s.windup) {
+    if (e.def.boss) {
+      e.targetFacing = e.facing
+      e.turnVel = 0
+    } else {
+      e.faceTo(h.pos.x, h.pos.z)
+      e.facing = e.targetFacing
+    }
+    const native = !!(e.def.boss && s.dashSpeed)
+    e.rig.play(native ? 'chargeWind' : 'cast', { force: true, fade: 0.1, skill: s.fx })
+    if (!e.def.boss && e.rig.impactAt > 0 && e.rig.impactAt < s.windup) {
       e.rig.play('cast', { force: true, fade: 0.1, skill: s.fx, speed: Math.max(BOSS_MIN_CAST_SPEED, e.rig.impactAt / s.windup) })
     }
-    const impact = Math.max(e.rig.impactAt, s.windup)
+    const impact = native ? e.rig.total : e.def.boss ? s.impact ?? e.rig.impactAt : Math.max(e.rig.impactAt, s.windup)
     const yaw = e.facing
     const fwd = _v.set(Math.sin(yaw), 0, Math.cos(yaw))
     const c = { s, t: 0, impact, done: impact + BOSS_RECOVER, yaw, radius: s.radius || 0, arc: s.arc || Math.PI, width: s.width || 0, length: s.length || 0 }
@@ -1707,16 +2069,25 @@ export class Game {
       c.center = h.pos.clone().setY(0)
       if (random() < 0.5) c.yaw += Math.PI / 2
     } else if (s.kind === 'charge') {
-      c.length = clamp(dist + BOSS_CHARGE_OVERSHOOT, 6, s.length)
+      c.length = clamp(dist + BOSS_CHARGE_OVERSHOOT, e.def.boss ? BOSS_CHARGE_MIN : 6, s.length)
       c.from = e.pos.clone().setY(0)
       c.to = c.from.clone().addScaledVector(fwd, c.length - e.radius)
       c.center = c.from.clone().addScaledVector(fwd, c.length / 2)
     } else c.center = e.pos.clone().setY(0)
+    if (native) {
+      const edge = Math.hypot(c.to.x, c.to.z)
+      const lim = ARENA_RADIUS - e.radius
+      if (edge > lim) c.to.multiplyScalar(lim / edge)
+      c.native = true
+      c.done = Infinity
+      c.dashTime = c.from.distanceTo(c.to) / s.dashSpeed
+    }
     c.warn = this.fx.warn({ x: c.center.x, z: c.center.z, yaw: c.yaw, radius: c.radius, arc: c.arc, width: c.width, length: c.length, windup: impact })
     e.cast = c
     const vfxId = this.enemyVfx(e.def)
     const onImpact = () => this.bossImpact(e, c)
-    if (vfxId && this.heroFx.hasSkill(vfxId, s.fx)) this.heroFx.castSkill(vfxId, s.fx, e, [], { impact, center: c.center, onImpact })
+    const timing = native && vfxId ? { at: this.dashBlocks(vfxId, s, impact, c.dashTime) } : undefined
+    if (vfxId && this.heroFx.hasSkill(vfxId, s.fx)) this.heroFx.castSkill(vfxId, s.fx, e, [], { impact, center: c.center, onImpact, timing })
     else this.heroFx.later(impact, onImpact)
     const skillSound = `${soundCode(e.def)}_skill_${s.fx}`
     audio.play(audio.has(skillSound) ? skillSound : `${soundCode(e.def)}_ult`, { at: e.pos, slot: 'boss_skill', max: 1 })
@@ -1730,20 +2101,64 @@ export class Game {
     this.lights.flash(c.center, color, c.s.kind === 'nova' ? 6 : 4, Math.max(c.radius, c.width) * 2.4 + 4, 0.6, 1.2)
     const hitSound = BOSS_HIT_SOUND[c.s.key]
     if (hitSound) audio.play(hitSound, { at: c.center, slot: 'boss_hit', max: 1 })
-    if (c.s.kind === 'charge') c.dash = { t0: c.t }
-    else if (!this.enemyVfx(e.def)) {
-      this.fx.shock(c.center.x, c.center.z, Math.max(c.radius, c.width) * 2.2, color, 0.6)
-      this.fx.spark(c.center.x, 0.6, c.center.z, 50, color, 10)
+    if (c.native) {
+      c.dash = { t0: c.t }
+      e.airborne = true
+      e.rig.play('charge', { force: true, fade: 0 })
+      return
     }
+    if (c.s.kind === 'charge') c.dash = { t0: c.t }
     const h = this.hero
     if (!h || h.dead || this.state !== 'battle' || !this.insideCast(c, h)) return
-    this.hurtHero(c.s.dmg)
+    this.hurtHero(c.s.dmg * e.might, SKILL_HITS[c.s.key], c.center)
+    this.hitStop(BOSS_SKILL_STOP)
     const vfxId = this.enemyVfx(e.def)
     if (vfxId) this.heroFx.skillHitFx(vfxId, c.s.fx, e, h)
-    else this.fx.slash(h.pos.x, 1.1, h.pos.z, e.facing, 2.4, color, 0.24)
+  }
+
+  dashBlocks(vfxId, s, start, length) {
+    const at = {}
+    for (const x of this.heroFx.entries(vfxId, s.fx)) {
+      if (prefabRole(x.fx) === 'hit') continue
+      at[x.fx] = x.block === s.dashBlock ? start + (x.on ? length : 0) : 0
+    }
+    return at
+  }
+
+  gallop(e, c) {
+    const t = c.t - c.dash.t0
+    const r = BOSS_MIN_FADE
+    const end = c.dashTime + r
+    const run = t < r ? (t * t) / (2 * r) : t < end - r ? t - r / 2 : c.dashTime - ((end - t) * (end - t)) / (2 * r)
+    const k = t >= end ? 1 : clamp(run / c.dashTime, 0, 1)
+    if (t >= end - r && !c.braking) {
+      c.braking = true
+      e.rig.play('chargeEnd', { force: true, fade: 0 })
+    }
+    e.pos.x = THREE.MathUtils.lerp(c.from.x, c.to.x, k)
+    e.pos.z = THREE.MathUtils.lerp(c.from.z, c.to.z, k)
+    const h = this.hero
+    if (!c.struck && h && !h.dead && this.state === 'battle' && Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z) <= e.radius + h.radius) {
+      c.struck = true
+      this.hurtHero(c.s.dmg * e.might, SKILL_HITS[c.s.key], e.pos)
+      this.hitStop(BOSS_SKILL_STOP)
+      this.shake(1, 0.5)
+      this.lights.flash(h.pos, BOSS_STRIKE_FLASH, 6, 12, 0.5, 1)
+      audio.play('step_big_anima_bosses', { at: h.pos, slot: 'boss_strike', max: 1, gap: 0.2 })
+      const vfxId = this.enemyVfx(e.def)
+      if (vfxId) this.heroFx.skillHitFx(vfxId, c.s.fx, e, h)
+    }
+    if (k < 1) return
+    c.dash = null
+    e.airborne = false
+    c.done = c.t + Math.max(0, e.rig.total - e.rig.stateT)
   }
 
   bossDash(e, c) {
+    if (c.native) {
+      this.gallop(e, c)
+      return
+    }
     const k = clamp((c.t - c.dash.t0) / BOSS_DASH_TIME, 0, 1)
     const eased = 1 - Math.pow(1 - k, 3)
     e.pos.x = THREE.MathUtils.lerp(c.from.x, c.to.x, eased)
@@ -1756,12 +2171,10 @@ export class Game {
     const rig = e.rig
     e.skillCd[s.key] = s.cd
     e.faceTo(h.pos.x, h.pos.z)
-    e.facing = e.targetFacing
     const speed = s.speed || 1
     rig.play('leap', { force: true, fade: 0.1, speed })
-    const air = rig.clips.get(LEAP_AIR_CLIP)
     const lift = rig.impactAt * LEAP_LIFT
-    const land = rig.impactAt + ((air ? air.duration : 0) + (rig.impacts.get(LEAP_LAND_CLIP) || 0)) / speed
+    const land = rig.starts[rig.starts.length - 1] + (rig.impacts.get(LEAP_LAND_CLIP) || 0) / speed
     const to = h.pos.clone().setY(0)
     const edge = Math.hypot(to.x, to.z)
     const lim = ARENA_RADIUS - LEAP_EDGE
@@ -1815,21 +2228,17 @@ export class Game {
     if (e.dead || this.state === 'end') return
     const at = c.center
     const color = e.def.color || 0xff4a3a
-    this.shake(0.5, 0.35)
+    this.shake(0.5 * Math.min(1, e.size || 1), 0.35)
     this.lights.flash(at, color, 4, c.radius * 2.4 + 4, 0.6, 1.2)
-    this.fx.decal(at.x, at.z, c.radius * 2, color, 0.9, this.fx.crack)
     const vfxId = this.enemyVfx(e.def)
     if (vfxId) {
       const list = this.heroFx.entries(vfxId, c.s.fx)
       const land = c.s.land || NO_OPTS
       for (let i = 0; i < list.length; i++) this.heroFx.spawnAt(vfxId, list[i].fx, new THREE.Vector3(at.x, 0.03, at.z), e.facing, land.scale || e.scale, 3, land.mute || null)
-    } else {
-      this.fx.shock(at.x, at.z, c.radius * 2.2, color, 0.6)
-      this.fx.spark(at.x, 0.6, at.z, 40, color, 9)
     }
     const h = this.hero
     if (!h || h.dead || this.state !== 'battle' || this.gearOpen || !this.insideCast(c, h)) return
-    this.hurtHero(c.s.dmg)
+    this.hurtHero(c.s.dmg * e.might, SKILL_HITS[c.s.key], at)
   }
 
   insideCast(c, a) {
@@ -1864,20 +2273,49 @@ export class Game {
   }
 
   hitStop(ms) {
-    this.timeScale = 0.06
+    if (this.gearOpen) return
+    const now = performance.now()
+    const until = this.stopUntil || 0
+    if (now < until ? now + ms <= until : now - until < STOP_GAP && ms < HEAVY_STOP) return
+    this.stopUntil = now + ms
+    this.timeScale = STOP_SCALE
     clearTimeout(this._hs)
     this._hs = setTimeout(() => { this.timeScale = 1 }, ms)
   }
 
-  damageNumber(x, y, z, value, color, big) {
+  hitFreeze(e, ms) {
+    if (!e || e.def.boss || this.committed(e)) return
+    e.freeze(ms / 1000)
+  }
+
+  numberSize(value, crit) {
+    const base = this.heroDef ? this.heroDef.atkDmg : value
+    return clamp(1 + NUMBER_GROW * Math.log2(Math.max(0.25, value / base)), NUMBER_SIZE[0], NUMBER_SIZE[1]) * (crit ? CRIT_NUMBER : 1)
+  }
+
+  damageNumber(x, y, z, value, crit, kill) {
     _v.set(x, y, z).project(this.camera)
     const at = `translate(${((_v.x * 0.5 + 0.5) * view.w).toFixed(1)}px, ${((-_v.y * 0.5 + 0.5) * view.h).toFixed(1)}px)`
-    const dx = (random() - 0.5) * 70
-    this.floats.show('dmg', String(Math.round(value)), [
+    const s = this.ui.hudScale / DAMAGE_PHONE_SCALE
+    const k = this.numberSize(value, crit)
+    const dx = (random() - 0.5) * 70 * s
+    const text = Math.round(value * ATK_PER_DMG).toLocaleString('en-US')
+    const size = `${(19 * s * k).toFixed(1)}px`
+    if (crit) {
+      this.floats.show('dmg crit', text, [
+        { transform: `${at} translate(-50%, -50%) scale(.3)`, opacity: 0 },
+        { transform: `${at} translate(calc(-50% + ${(dx * 0.2).toFixed(1)}px), -70%) scale(1.5)`, opacity: 1, offset: 0.1 },
+        { transform: `${at} translate(calc(-50% + ${(dx * 0.3).toFixed(1)}px), -85%) scale(1)`, opacity: 1, offset: 0.24 },
+        { transform: `${at} translate(calc(-50% + ${(dx * 0.6).toFixed(1)}px), -120%) scale(1)`, opacity: 1, offset: 0.72 },
+        { transform: `${at} translate(calc(-50% + ${dx.toFixed(1)}px), -175%) scale(.9)`, opacity: 0 },
+      ], { duration: 1150, easing: 'cubic-bezier(.2,.7,.3,1)' }, { color: '', fontSize: size })
+      return
+    }
+    this.floats.show(kill ? 'dmg kill' : 'dmg', text, [
       { transform: `${at} translate(-50%, -50%) scale(.4)`, opacity: 0 },
-      { transform: `${at} translate(calc(-50% + ${(dx * 0.3).toFixed(1)}px), -78%) scale(${big ? 1.5 : 1.12})`, opacity: 1, offset: 0.2 },
-      { transform: `${at} translate(calc(-50% + ${dx.toFixed(1)}px), -180%) scale(${big ? 1.1 : 0.86})`, opacity: 0 },
-    ], { duration: big ? 1000 : 760, easing: 'cubic-bezier(.15,.8,.3,1)' }, { color, fontSize: big ? '34px' : '19px' })
+      { transform: `${at} translate(calc(-50% + ${(dx * 0.3).toFixed(1)}px), -78%) scale(${kill ? 1.3 : 1.12})`, opacity: 1, offset: 0.2 },
+      { transform: `${at} translate(calc(-50% + ${dx.toFixed(1)}px), -180%) scale(.86)`, opacity: 0 },
+    ], { duration: kill ? 900 : 760, easing: 'cubic-bezier(.15,.8,.3,1)' }, { color: '', fontSize: size })
   }
 
   useSkill(key) {
@@ -1890,6 +2328,27 @@ export class Game {
     return true
   }
 
+  castReady(key) {
+    if (key === 'ult') return this.ultReady
+    return this.cooldowns[key] <= 0 && !!this.activeDef().skills[SKILL_SLOT[key]]
+  }
+
+  castNow(key) {
+    return key === 'ult' ? this.castUltimate() : this.useSkill(key)
+  }
+
+  castQueued() {
+    const key = this.queuedCast
+    if (!key || this.heroWindup()) return
+    this.queuedCast = null
+    if (!this.heroLocked()) this.castNow(key)
+  }
+
+  heroWindup() {
+    const rig = this.hero.rig
+    return WINDUP_STATES.has(rig.state) && rig.stateT < rig.impactAt
+  }
+
   steering() {
     const axis = this.input.axis()
     return axis[0] !== 0 || axis[1] !== 0
@@ -1897,17 +2356,19 @@ export class Game {
 
   autoCombat() {
     const hero = this.hero
-    if (!hero || hero.dead || this.heroLocked() || this.heroBusy()) return
+    if (!hero || hero.dead || this.heroLocked() || this.heroBusy() || this.heroWindup()) return
+    if (this.titanMode && this.titanT <= 0) return
     const near = this.nearestEnemy()
     if (!near) return
     const def = this.activeDef()
     const slack = this.steering() ? 0 : AUTO_ATTACK_SLACK
-    if (this.ultReady && near.d < this.heroDef.ult.reach * AUTO_ULT_SHARE && this.castUltimate()) return
+    const gap = near.d - near.e.radius
+    if (this.ultReady && gap < this.heroDef.ult.reach * AUTO_ULT_SHARE && this.castUltimate()) return
     for (const key of AUTO_SKILLS) {
       const skill = def.skills[SKILL_SLOT[key]]
-      if (skill && this.cooldowns[key] <= 0 && near.d < this.skillReach(skill, def) && this.useSkill(key)) return
+      if (skill && this.cooldowns[key] <= 0 && gap < this.skillReach(skill, def) && this.useSkill(key)) return
     }
-    if (this.cooldowns.attack <= 0 && near.d < def.atkRange + slack) this.attack()
+    if (this.cooldowns.attack <= 0 && near.d < def.atkRange + Math.max(slack, near.e.radius)) this.attack()
   }
 
   skillReach(skill, def) {
@@ -1933,12 +2394,9 @@ export class Game {
     const h = this.activeDef()
     this.cooldowns.attack = h.atkRate
     const near = this.nearestEnemy()
-    if (near && near.d < h.atkRange + 1.5) {
-      this.hero.faceTo(near.e.pos.x, near.e.pos.z)
-      this.hero.facing = this.hero.targetFacing
-    }
+    const yaw = near && near.d - near.e.radius < h.atkRange + 1.5 ? this.aimHero(near.e.pos.x, near.e.pos.z) : this.hero.facing
     this.combo = ((this.combo || 0) + 1) % 2
-    this.layerLegs()
+    this.layerLegs(yaw)
     this.hero.rig.play(this.combo ? 'attack' : 'attack2', { force: true })
     if (h.combo && h.combo.next) this.cooldowns.attack = this.hero.rig.release
     this.hero.attackT = 0
@@ -1946,37 +2404,37 @@ export class Game {
     const vfxId = this.heroVfx()
     const combo = vfxId ? this.comboIndexOf(this.hero.rig) : 0
     const ranged = vfxId && this.heroFx.scriptRanged(vfxId)
-    const aim = near && (!ranged || near.d <= h.atkRange + 2) ? near.e : null
+    const aim = near && (!ranged || near.d - near.e.radius <= h.atkRange + 2) ? near.e : null
     const fxRes = vfxId ? this.heroFx.attack(vfxId, combo, this.hero, aim, {
       impact: hitAt,
       fallback: ranged ? this.aheadOf(this.hero, h.atkRange).setY(this.hero.height * 0.55) : null,
       onHit: e => {
         if (!e || e.dead || this.state !== 'battle') return
-        this.damage(e, h.atkDmg, h.color, `${h.model}_hit_combo`)
-        e.stagger = 0.2
+        const crit = this.damage(e, h.atkDmg, h.color, `${h.model}_hit_combo`)
+        if (this.stun(e, 0.2)) this.shove(e, KNOCK.shot * (crit ? CRIT_KNOCK : 1))
+        this.hitFreeze(e, this.titanMode ? HIT_STOP.titan : HIT_STOP.ranged)
       },
     }) : null
-    if (!(fxRes && fxRes.ranged)) this.hero.pendingHit = { dmg: h.atkDmg, range: h.atkRange, arc: this.titanMode ? 2.6 : 1.9, delay: fxRes && fxRes.scripted ? fxRes.hitAt : hitAt, fx: fxRes ? combo : null, vfx: vfxId, aim: this.hero.facing }
+    if (!(fxRes && fxRes.ranged)) this.hero.pendingHit = { dmg: h.atkDmg, range: h.atkRange, arc: this.titanMode ? 2.6 : 1.9, delay: fxRes && fxRes.scripted ? fxRes.hitAt : hitAt, fx: fxRes ? combo : null, vfx: vfxId, aim: this.hero.aimYaw }
     audio.play(this.attackSound(h, this.hero.rig), this.titanMode ? TITAN_SWING : NO_OPTS)
-    if (fxRes) return
-
-    const f = this.hero.facing
-    const px = this.hero.pos.x + Math.sin(f) * 1.2
-    const pz = this.hero.pos.z + Math.cos(f) * 1.2
-    setTimeout(() => {
-      if (!this.hero) return
-      this.fx.slash(px, this.hero.height * 0.55, pz, f, this.titanMode ? 6.5 : 2.6, h.color, 0.2)
-    }, Math.max(0, hitAt - 0.04) * 1000)
   }
 
-  layerLegs() {
+  layerLegs(yaw = this.hero.facing) {
     const h = this.hero
-    h.aimYaw = h.facing
+    h.aimYaw = yaw
     if (this.steering()) h.rig.setLegs(true, this.runRate(h, this.activeDef()))
   }
 
+  aimHero(x, z) {
+    const h = this.hero
+    const yaw = Math.atan2(x - h.pos.x, z - h.pos.z)
+    if (!this.steering()) h.targetFacing = yaw
+    return yaw
+  }
+
   aheadOf(actor, dist) {
-    return actor.pos.clone().setY(0).add(_v.set(Math.sin(actor.facing), 0, Math.cos(actor.facing)).multiplyScalar(dist))
+    const yaw = yawOf(actor)
+    return actor.pos.clone().setY(0).add(_v.set(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(dist))
   }
 
   attackSound(def, rig) {
@@ -2032,13 +2490,9 @@ export class Game {
     const reach = s.reach || 10
     const near = this.nearestEnemy()
     const target = near && near.d <= reach ? near.e : null
-    if (target) {
-      hero.faceTo(target.pos.x, target.pos.z)
-      hero.facing = hero.targetFacing
-    }
-    this.layerLegs()
-    hero.rig.play('cast', { force: true, skill: SKILL_SLOT[s.key] + 1 })
-    audio.play(`${this.activeDef().model}_skill_${SKILL_SLOT[s.key] + 1}`)
+    this.layerLegs(target ? this.aimHero(target.pos.x, target.pos.z) : hero.facing)
+    hero.rig.play('cast', { force: true, skill: skillAnim(s) })
+    audio.play(`${this.activeDef().model}_skill_${skillAnim(s)}`)
     const color = this.activeDef().color
     if (this.heroFx.hasScript(vfxId)) {
       this.castScriptedSkill(vfxId, s, color)
@@ -2049,7 +2503,7 @@ export class Game {
     const R = s.radius || 3.5
     const center = (roles.has('aoe') || s.at === 'target') && target
       ? target.pos.clone().setY(0)
-      : hero.pos.clone().setY(0).add(_v.set(Math.sin(hero.facing), 0, Math.cos(hero.facing)).multiplyScalar(roles.has('aoe') ? 3 : R * 0.45))
+      : this.aheadOf(hero, roles.has('aoe') ? 3 : R * 0.45)
     const inArea = () => this.enemies.filter(e => !e.dead && Math.hypot(e.pos.x - center.x, e.pos.z - center.z) <= R + e.radius)
     const targets = projectile
       ? this.enemies.filter(e => !e.dead && e.pos.distanceTo(hero.pos) <= reach + 4).sort((a, b) => a.pos.distanceTo(hero.pos) - b.pos.distanceTo(hero.pos)).slice(0, s.count || 3)
@@ -2060,18 +2514,21 @@ export class Game {
       center,
       onHit: projectile ? e => {
         if (!e || e.dead || this.state !== 'battle') return
-        this.damage(e, s.dmg, color)
-        e.stagger = 0.25
+        this.damage(e, s.dmg, color, null, true)
+        if (this.stun(e, 0.25)) this.shove(e, KNOCK.bolt)
+        this.hitFreeze(e, HIT_STOP.ranged)
       } : null,
       onImpact: (share = 1) => {
         if (this.state !== 'battle') return
         this.shake(projectile ? 0.25 : 0.45, 0.3)
         if (projectile) return
         this.lights.flash(center, color, 4.5, R * 2.4, 0.65, 1.2)
-        for (const e of inArea()) {
-          this.damage(e, s.dmg * share, color)
-          e.stagger = 0.3
+        const hit = inArea()
+        for (const e of hit) {
+          this.damage(e, s.dmg * share, color, null, true)
+          this.stun(e, 0.3)
         }
+        for (const e of hit) this.hitFreeze(e, HIT_STOP.skill)
       },
     })
   }
@@ -2091,8 +2548,9 @@ export class Game {
         fallback: this.aheadOf(hero, reach * 0.7).setY(hero.height * 0.55),
         onHit: e => {
           if (!e || e.dead || this.state !== 'battle') return
-          this.damage(e, s.dmg, color)
-          e.stagger = 0.25
+          this.damage(e, s.dmg, color, null, true)
+          if (this.stun(e, 0.25)) this.shove(e, KNOCK.bolt)
+          this.hitFreeze(e, HIT_STOP.ranged)
         },
         onImpact: () => this.state === 'battle' && this.shake(0.25, 0.3),
       })
@@ -2104,13 +2562,16 @@ export class Game {
         center: focus ? null : this.aheadOf(hero, R),
         onHit: (e, i, share = 1) => {
           if (!e || e.dead || this.state !== 'battle') return
-          this.damage(e, s.dmg * share, color)
-          e.stagger = 0.3
+          this.damage(e, s.dmg * share, color, null, true)
+          this.stun(e, 0.3)
         },
         onImpact: () => {
           if (this.state !== 'battle') return
           this.shake(0.4, 0.3)
-          if (focus) this.lights.flash(focus.pos, color, 4, R * 2, 0.5, 1.2)
+          if (focus) {
+            this.lights.flash(focus.pos, color, 4, R * 2, 0.5, 1.2)
+            this.hitFreeze(focus, HIT_STOP.skill)
+          }
         },
       })
       return
@@ -2125,10 +2586,12 @@ export class Game {
         if (this.state !== 'battle') return
         this.shake(0.45, 0.3)
         this.lights.flash(center, color, 4.5, R * 2.4, 0.65, 1.2)
-        for (const e of inArea()) {
-          this.damage(e, s.dmg, color)
-          e.stagger = 0.3
+        const hit = inArea()
+        for (const e of hit) {
+          this.damage(e, s.dmg, color, null, true)
+          this.stun(e, 0.3)
         }
+        for (const e of hit) this.hitFreeze(e, HIT_STOP.skill)
       },
     })
   }
@@ -2141,18 +2604,14 @@ export class Game {
       return
     }
     this.layerLegs()
-    hero.rig.play('cast', { force: true, skill: SKILL_SLOT[s.key] + 1 })
-    audio.play(`${this.activeDef().model}_skill_${SKILL_SLOT[s.key] + 1}`)
+    hero.rig.play('cast', { force: true, skill: skillAnim(s) })
+    audio.play(`${this.activeDef().model}_skill_${skillAnim(s)}`)
     const color = this.activeDef().color
 
     setTimeout(() => {
       if (!this.hero || this.state !== 'battle') return
       if (s.type === 'nova') {
         const R = s.radius
-        this.fx.shock(hero.pos.x, hero.pos.z, R * 2.4, color, 0.6)
-        this.fx.decal(hero.pos.x, hero.pos.z, R * 2, color, 0.8, this.fx.crack, 0.6)
-        this.fx.spark(hero.pos.x, 0.7, hero.pos.z, 70, color, 12)
-        this.fx.flash(hero.pos.x, 1.2, hero.pos.z, R * 2.2, color, 0.35)
         audio.play('explosion')
         this.shake(0.45, 0.3)
         for (const e of this.enemies) {
@@ -2164,19 +2623,11 @@ export class Game {
         targets.forEach((e, i) => {
           setTimeout(() => {
             if (e.dead || this.state !== 'battle') return
-            _v.copy(hero.pos).setY(1.3)
-            _v2.copy(e.pos).setY(e.height * 0.5)
-            this.fx.beam(_v, _v2, 0.34, color, 0.22)
-            this.fx.flash(e.pos.x, e.height * 0.5, e.pos.z, 2.1, color, 0.28)
             this.damage(e, s.dmg, color)
           }, i * 70)
         })
       } else if (s.type === 'beam') {
         const f = hero.facing
-        _v.copy(hero.pos).setY(1.4)
-        _v2.set(hero.pos.x + Math.sin(f) * s.length, 1.4, hero.pos.z + Math.cos(f) * s.length)
-        this.fx.beam(_v, _v2, 1.5, color, 0.4)
-        this.fx.spark(_v2.x, 1.2, _v2.z, 50, color, 10)
         audio.play('explosion')
         this.shake(0.5, 0.35)
         for (const e of this.enemies) {
@@ -2191,40 +2642,67 @@ export class Game {
     }, hero.rig.impactAt * 1000)
   }
 
-  damage(e, amount, color, hit) {
+  damage(e, amount, color, hit, heavy = false) {
     if (this.shieldUp && e.def && e.def.boss && !e.dead) {
       this.blockHit(e)
-      return
+      return false
     }
     const mods = this.gearMods
-    const crit = !!mods && random() < mods.crit
+    const smash = this.titanMode && !(e.def && e.def.boss)
+    const crit = smash || (!!mods && random() < mods.crit)
     if (mods) amount *= mods.atk * (crit ? mods.critMult : 1)
+    amount *= this.titanMode ? TITAN_DMG * (smash ? TITAN_SMASH : 1) : 1 - WEAK_DEAL * this.painNow()
+    amount *= (e.armor || 1) * (1 + (rollRandom() * 2 - 1) * HIT_ROLL)
     const dealt = e.hit(amount)
-    if (!dealt) return
+    if (!dealt) return false
     const code = e.def && soundCode(e.def)
-    this.lights.flash(e.pos, color || 0xffd070, 1.8, 3.4, 0.22, e.height * 0.5)
-    this.damageNumber(e.pos.x, e.height * 0.75 + e.pos.y, e.pos.z, dealt, '#fff', amount > 120 || crit)
-    this.fx.spark(e.pos.x, e.height * 0.5 + e.pos.y, e.pos.z, 12, color || 0xffd070, 5, 1, 0.22)
+    const boss = !!(e.def && e.def.boss)
+    this.lights.flash(e.pos, color || 0xffd070, crit ? 2.6 : 1.8, crit ? 4.2 : 3.4, crit ? 0.3 : 0.22, e.height * 0.5)
+    this.damageNumber(e.pos.x, e.height * 0.75 + e.pos.y, e.pos.z, amount, crit, e.dead)
     if (hit) audio.play(hit, { slot: 'hit', max: 3, gap: 0.04 })
-    if (!e.dead) audio.play(audio.has(`${code}_take_damage`) ? `${code}_take_damage` : `${code}_damage`, { at: e.pos, slot: e.def.boss ? 'boss_hurt' : 'enemy_hurt', max: 3, gap: 0.05 })
-    if (!this.titanMode) this.addUlt(dealt * 0.0022 * this.heroDef.ultGain)
+    if (!e.dead) audio.play(audio.has(`${code}_take_damage`) ? `${code}_take_damage` : `${code}_damage`, { at: e.pos, slot: boss ? 'boss_hurt' : 'enemy_hurt', max: 3, gap: 0.05 })
+    if (!this.titanMode) this.addUlt(dealt / (mods ? mods.atk : 1) * ULT_CHARGE * this.heroDef.ultGain)
+    if (crit) {
+      this.hitFreeze(e, CRIT_STOP)
+      this.shake(CRIT_SHAKE, 0.18)
+    }
     if (e.dead) {
       this.kills++
       this.cancelBossCast(e)
       this.heroFx.detachSkin(e)
-      this.lights.flash(e.pos, 0xa050ff, 2.6, 4.5, 0.55, 0.8)
-      this.fx.enemyDeath(e.pos.x, e.pos.z, !!(e.def && e.def.boss))
-      this.loot.dropFrom(e, e.def && e.def.loot, !!(e.def && e.def.boss))
+      this.loot.dropFrom(e, e.def && e.def.loot, boss)
       audio.play(`${code}_death`, { at: e.pos, slot: 'enemy_death', max: 3 })
-      if (e.def && e.def.boss) {
+      if (boss) {
         this.shake(1.1, 0.9)
         this.hitStop(180)
+      } else {
+        this.hitFreeze(e, KILL_STOP)
+        this.launch(e, heavy || this.titanMode ? KILL_KNOCK.heavy : KILL_KNOCK.basic)
       }
     }
+    return crit
+  }
+
+  shove(e, dist) {
+    const h = this.hero
+    if (!h) return
+    const dx = e.pos.x - h.pos.x
+    const dz = e.pos.z - h.pos.z
+    const d = Math.hypot(dx, dz) || 1
+    this.knock(e, dx / d, dz / d, dist)
+  }
+
+  launch(e, dist) {
+    const h = this.hero
+    if (!h) return
+    const dx = e.pos.x - h.pos.x
+    const dz = e.pos.z - h.pos.z
+    const d = Math.hypot(dx, dz) || 1
+    e.knockX = (e.knockX || 0) + (dx / d) * dist
+    e.knockZ = (e.knockZ || 0) + (dz / d) * dist
   }
 
   blockHit(e) {
-    this.fx.spark(e.pos.x, e.height * 0.55 + e.pos.y, e.pos.z, 8, 0x9a7cff, 4, 1, 0.2)
     if (this.t - (this.immuneT || 0) < IMMUNE_TEXT_GAP) return
     this.immuneT = this.t
     this.lights.flash(e.pos, 0x8a6cff, 2.2, 4.5, 0.3, e.height * 0.5)
@@ -2232,10 +2710,10 @@ export class Game {
     audio.play('ui_button_locked', { slot: 'immune', gap: 0.4 })
   }
 
-  floatText(x, y, z, text) {
+  floatText(x, y, z, text, cls = 'dmg immune') {
     _v.set(x, y, z).project(this.camera)
     const at = `translate(${((_v.x * 0.5 + 0.5) * view.w).toFixed(1)}px, ${((-_v.y * 0.5 + 0.5) * view.h).toFixed(1)}px)`
-    this.floats.show('dmg immune', text, [
+    this.floats.show(cls, text, [
       { transform: `${at} translate(-50%, -50%) scale(.5)`, opacity: 0 },
       { transform: `${at} translate(-50%, -80%) scale(1.15)`, opacity: 1, offset: 0.25 },
       { transform: `${at} translate(-50%, -170%) scale(1)`, opacity: 0 },
@@ -2277,31 +2755,27 @@ export class Game {
       .filter(e => !e.dead && e.pos.distanceTo(h.pos) <= u.reach)
       .sort((a, b) => a.pos.distanceTo(h.pos) - b.pos.distanceTo(h.pos))
       .slice(0, u.count)
-    if (foes[0]) {
-      h.faceTo(foes[0].pos.x, foes[0].pos.z)
-      h.facing = h.targetFacing
-    }
-    this.layerLegs()
+    this.layerLegs(foes[0] ? this.aimHero(foes[0].pos.x, foes[0].pos.z) : h.facing)
     h.rig.play('cast', { force: true, skill: 4 })
     audio.play(`${def.model}_ult`)
     const hit = (e, i, share = 1) => {
       if (!e || e.dead || this.state !== 'battle') return
-      this.damage(e, u.dmg * share, def.color)
-      e.stagger = 0.4
+      this.damage(e, u.dmg * share, def.color, null, true)
+      this.stun(e, 0.4)
     }
     const landed = () => {
       if (this.state !== 'battle') return
       this.lights.flash(h.pos, def.color, 6, 12, 0.9, 1.5)
       this.shake(0.7, 0.45)
+      this.hitStop(HIT_STOP.ult)
     }
     const impact = h.rig.impactAt || 0.6
     const vfxId = this.heroVfx()
     if (vfxId && this.heroFx.hasSkill(vfxId, u.fx)) {
-      this.heroFx.castSkill(vfxId, u.fx, h, foes, { impact, timing: u.timing, onHit: hit, onImpact: landed })
+      this.heroFx.castSkill(vfxId, u.fx, h, foes, { impact, timing: u.timing, anchored: !!u.anchored, onHit: hit, onImpact: landed })
     } else {
       this.heroFx.later(impact, () => {
         foes.forEach(hit)
-        this.fx.shock(h.pos.x, h.pos.z, u.reach, def.color, 0.8)
         landed()
       })
     }
@@ -2324,9 +2798,7 @@ export class Game {
     this.input.release()
 
     const h = this.hero
-    this.fx.morphBurst(h.pos.x, h.pos.z, 0x6fd8ff)
     this.lights.flash(h.pos, 0x6fd8ff, 7, 15, 1.2, 1.6)
-    this.fx.decal(h.pos.x, h.pos.z, 14, 0x6fd8ff, 2.2, this.fx.crack, 0.4)
     this.shake(0.5, 0.5)
 
     gsap.to(this.bloom, { intensity: BLOOM_BASE * 2, duration: 0.3, yoyo: true, repeat: 1 })
@@ -2358,18 +2830,18 @@ export class Game {
 
     const h = this.hero
     const def = this.titanDef
-    this.fx.flash(h.pos.x, 2.4, h.pos.z, 14, 0xffffff, 0.35)
 
     const epoch = this.epoch
     const { data, land } = await this.titanLoad
     if (epoch !== this.epoch) return
     this.summoning = false
     const model = this.takeModel(data)
-    const titan = new Actor(model, { targetHeight: model.height * h.scale, radius: def.radius })
+    const titan = new Actor(model, { targetHeight: model.height * h.scale * (def.size || 1), radius: def.radius })
     titan.setPos(h.pos.x, h.pos.z)
     titan.targetFacing = titan.facing = h.facing
     titan.hp = h.hp * 2.2
     titan.maxHp = h.maxHp * 2.2
+    titan.rig.minFade = HERO_MIN_FADE
     titan.rig.retimeCombo(def.combo)
     titan.rig.play('morph', { force: true })
     this.heroFx.detachSkin(h)
@@ -2393,10 +2865,9 @@ export class Game {
 
     const landed = () => {
       if (this.hero !== titan) return
-      this.fx.titanLanding(titan.pos.x, titan.pos.z, def.color)
       this.lights.flash(titan.pos, def.color, 8, 18, 1.1, 1.5)
       this.shake(1.1, 0.7)
-      this.hitStop(70)
+      this.hitStop(HIT_STOP.morph)
       audio.play('explosion')
       audio.play(`${def.model}_summon_vo`)
       for (const e of this.enemies) {
@@ -2407,7 +2878,7 @@ export class Game {
     const summoned = this.heroFx.morph(def.vfx, 11, titan, h, foes, {
       impact: land,
       onHit: e => {
-        if (!e.dead && this.hero === titan) this.damage(e, 160, def.color)
+        if (!e.dead && this.hero === titan) this.damage(e, def.landDmg || 160, def.color, null, true)
       },
       onImpact: landed,
     })
@@ -2451,7 +2922,6 @@ export class Game {
     this.heroLight.intensity = 16
     this.key.intensity = 2.5
     this.bloom.intensity = BLOOM_BASE
-    this.fx.unmorph(h.pos.x, h.pos.z, 0x6fd8ff)
     this.ui.setHp(h.hp, h.maxHp)
     const battleView = this.battleOffset()
     gsap.to(this.camOffset, { x: battleView.x, y: battleView.y, z: battleView.z, duration: 1.0, ease: 'power2.inOut' })
@@ -2464,35 +2934,20 @@ export class Game {
     this.state = 'end'
     sayProgress(1)
     sayOnce('solved')
+    trackRunEnd('win', this.runStats())
     const epoch = this.epoch
     this.ui.show('hud', false)
     audio.duck(0.3, 400)
-    audio.play('ingame_victory')
     this.shake(0.4, 0.5)
     if (this.hero) this.hero.rig.play('roar', { force: true })
-    for (let i = 0; i < 5; i++) {
-      setTimeout(() => {
-        const a = random() * 6.28
-        this.fx.celebrate(Math.cos(a) * 4, 1 + random() * 3, Math.sin(a) * 4)
-      }, 400 + i * 260)
-    }
     setTimeout(() => { if (epoch === this.epoch) this.showOutcome('victory') }, 1400)
   }
 
   defeat() {
-    if (this.variant === 'rescue' && this.hero && !this.rescued && !this.titanMode) {
-      this.rescued = true
-      this.rescueActive = true
-      this.rescueT = 3
-      this.hero.hp = 1
-      this.ui.show('fail', true)
-      this.timeScale = 0.25
-      audio.play('freeze')
-      return
-    }
     if (this.state === 'end') return
     this.state = 'end'
     sayOnce('failed')
+    trackRunEnd('lose', this.runStats())
     this.lost = true
     const epoch = this.epoch
     this.ui.show('hud', false)
@@ -2515,9 +2970,20 @@ export class Game {
     this.ui.outcome.show(kind)
   }
 
+  runStats() {
+    return {
+      hero: this.heroIndex,
+      wave: this.waveIndex + 1,
+      kills: this.kills,
+      power: this.gear ? this.gear.power() : 0,
+      titan: this.titanMode ? 1 : 0,
+    }
+  }
+
   retry() {
     if (this.retrying) return
     this.retrying = true
+    trackRetry()
     setTimeout(() => {
       this.retrying = false
       this.restartBattle()
@@ -2542,7 +3008,6 @@ export class Game {
     gsap.killTweensOf(this.camLook)
     gsap.killTweensOf(this.bloom)
     this.ui.outcome.hide()
-    this.ui.show('fail', false)
     this.ui.show('end', false)
     this.clearHints()
     if (this.gearOpen) this.closeGear()
@@ -2562,6 +3027,8 @@ export class Game {
       this.retireActor(a)
     }
     this.hero = this.heroBase = this.boss = null
+    this.bossPull = 1
+    this.bossView = 0
     this.pending = []
     this.spawning = 0
     this.loot.clear()
@@ -2575,11 +3042,11 @@ export class Game {
     this.unmorphing = this.summoning = false
     this.kills = this.lootWait = 0
     this.timeScale = 1
-    this.rescued = this.rescueActive = false
     this.shieldUp = false
     this.ui.setShield(false)
     this.immuneT = 0
     for (const k in this.cooldowns) this.cooldowns[k] = 0
+    this.queuedCast = null
     this.ui.setTitanTimer(0, false)
     this.heroLight.intensity = 22
     this.key.intensity = 2.5
@@ -2618,6 +3085,7 @@ export class Game {
       h.pos.z += az * sp * dt
       h.targetFacing = Math.atan2(ax, az)
     }
+    if (h.knockX || h.knockZ) this.slide(h, dt)
 
     const r = Math.hypot(h.pos.x, h.pos.z)
     const lim = ARENA_RADIUS - 1.2
@@ -2627,6 +3095,7 @@ export class Game {
     }
 
     const busy = BUSY_STATES.has(h.rig.state) && !h.rig.oneShotDone
+    if (!busy) h.aimYaw = undefined
     const layered = !!moving && busy && LAYERED_STATES.has(h.rig.state)
     h.rig.setLegs(layered, this.runRate(h, def))
     h.rig.aim(layered ? clamp(wrapAngle((h.aimYaw ?? h.facing) - h.facing), -TWIST_MAX, TWIST_MAX) : 0)
@@ -2648,19 +3117,14 @@ export class Game {
           let da = ang - (p.aim ?? h.facing)
           while (da > Math.PI) da -= Math.PI * 2
           while (da < -Math.PI) da += Math.PI * 2
-          if (Math.abs(da) > p.arc) continue
-          this.damage(e, p.dmg, def.color, `${def.model}_hit_combo`)
+          if (Math.abs(da) > p.arc + Math.asin(Math.min(1, e.radius / (d || 1)))) continue
+          const crit = this.damage(e, p.dmg, def.color, `${def.model}_hit_combo`)
           if (p.fx !== null && p.fx !== undefined && p.vfx) this.heroFx.hitFx(p.vfx, p.fx, h, e)
-          e.stagger = 0.2
-          this.knock(e, dx / (d || 1), dz / (d || 1), this.titanMode ? KNOCK.titan : KNOCK.hero)
+          if (this.stun(e, 0.2)) this.knock(e, dx / (d || 1), dz / (d || 1), (this.titanMode ? KNOCK.titan : KNOCK.hero) * (crit ? CRIT_KNOCK : 1))
+          this.hitFreeze(e, this.titanMode ? HIT_STOP.titan : HIT_STOP.basic)
           hits++
         }
-        if (hits) {
-          this.shake(this.titanMode ? HIT_SHAKE.titan : HIT_SHAKE.hero, 0.16)
-        }
-        if (this.titanMode && (p.fx === null || p.fx === undefined)) {
-          this.fx.shock(h.pos.x + Math.sin(h.facing) * 3, h.pos.z + Math.cos(h.facing) * 3, 11, 0xffd070, 0.5)
-        }
+        if (hits) this.shake(this.titanMode ? HIT_SHAKE.titan : HIT_SHAKE.hero, 0.16)
       }
     }
 
@@ -2669,23 +3133,53 @@ export class Game {
 
   runRate(actor, def) {
     if (actor.runRate === undefined) {
-      const rate = def.speed / (strideSpeed(actor.model, 'Run') * actor.scale)
-      actor.runRate = rate >= RUN_RATE[0] && rate <= RUN_RATE[1] ? rate : 1
+      const rate = (actor.moveSpeed || def.speed) / (strideSpeed(actor.model, 'Run') * actor.scale)
+      actor.runRate = rate >= RUN_RATE[0] && rate <= RUN_RATE[1] ? rate : actor.moveSpeed && Number.isFinite(rate) && rate > 0 ? clamp(rate, RUN_RATE[0], RUN_RATE[1]) : 1
     }
     return actor.runRate
   }
 
+  thinCrowdAnimation(h) {
+    let alive = 0
+    for (let i = 0; i < this.enemies.length; i++) if (!this.enemies[i].dead) alive++
+    const crowd = alive > ANIM_LOD_CROWD && h
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i]
+      const far = crowd && !e.dead && !e.def.boss && (e.onScreen === false || Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) > ANIM_LOD_NEAR)
+      e.rig.lod = far ? 2 : 1
+    }
+  }
+
   updateEnemies(dt, fadeDt = dt) {
     const h = this.hero
+    this.thinCrowdAnimation(h)
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i]
       if (e.dead) {
+        if (e.def.boss) {
+          if (this.sinkCorpse(e, fadeDt)) {
+            this.scene.remove(e.root)
+            this.retireActor(e)
+            this.enemies.splice(i, 1)
+          }
+          continue
+        }
         if (e.dying > 1.5) {
           this.scene.remove(e.root)
           this.retireActor(e)
           this.enemies.splice(i, 1)
         } else {
+          if (e.knockX || e.knockZ) {
+            this.slide(e, fadeDt)
+            const r = Math.hypot(e.pos.x, e.pos.z)
+            const lim = ARENA_RADIUS - 0.4
+            if (r > lim) {
+              e.pos.x *= lim / r
+              e.pos.z *= lim / r
+            }
+          }
           const k = clamp(1 - (e.dying - 0.8) / 0.7, 0, 1)
+          useOwnLook(e.model)
           for (const s of e.model.skins) {
             s.material.transparent = true
             s.material.opacity = k
@@ -2696,47 +3190,101 @@ export class Game {
       }
       if (this.state === 'end' || !h || h.dead) {
         const rest = e.def.fly ? 'fly' : 'idle'
-        if (e.rig.state !== rest && e.rig.oneShotDone) e.rig.play(rest, { fade: 0.25 })
+        if (e.rig.state !== rest && (e.def.boss ? e.rig.finished : e.rig.oneShotDone)) e.rig.play(rest, { fade: 0.25 })
         e.update(dt)
         continue
       }
       if (e.knockX || e.knockZ) this.slide(e, dt)
-      if (e.def.boss || e.def.steady || e.cast) e.stagger = 0
+      if (e.poise > 0) e.poise -= dt
+      if (e.def.boss || e.def.steady || e.cast || this.committed(e)) e.stagger = 0
       if (e.stagger > 0) {
         e.stagger -= dt
-        if (e.rig.state !== 'hit') e.rig.play('hit', { force: true, fade: 0.06 })
+        if (e.rig.state !== 'hit') e.rig.play('hit', { force: true, fade: ENEMY_HIT_FADE })
         e.update(dt)
         continue
       }
+      if (e.def.boss && !e.cast && e.rig.finished && e.rig.comboOpen) {
+        this.enemyAttack(e, e.def.range)
+        this.settleEnemy(e, h, dt)
+        continue
+      }
       if (e.def.skills && this.updateBossCast(e, dt)) {
-        if (e.airborne) e.update(dt)
-        else this.settleEnemy(e, h, dt)
+        if (e.airborne) {
+          if (e.def.boss && !(e.cast && e.cast.native)) this.blockHero(e, h, dt)
+          e.update(dt)
+        } else this.settleEnemy(e, h, dt)
+        continue
+      }
+      if (this.committed(e)) {
+        e.cd -= dt
+        this.settleEnemy(e, h, dt)
         continue
       }
 
-      const dx = h.pos.x - e.pos.x
-      const dz = h.pos.z - e.pos.z
-      const d = Math.hypot(dx, dz) || 1
+      if (e.def.boss) this.bossStride(e, dt)
+      const d = Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z) || 1
       e.faceTo(h.pos.x, h.pos.z)
-      const range = e.def.range + (this.titanMode ? 2.2 : 0)
+      const range = e.range + (this.titanMode ? 2.2 : 0)
+      const reach = range + (e.chasing ? 0 : CHASE_SLACK)
+      const keep = d > reach && d < (e.def.keep || 0)
+      const turning = Math.abs(wrapAngle(e.targetFacing - e.facing)) > TURN_IN_PLACE
+      const rested = e.chasing || e.restT >= ENEMY_REST_MIN || d > range + CHASE_FAR
+      e.chasing = e.def.boss ? this.bossChasing(e, d, range) : d > reach && !keep && !turning && rested
+      e.restT = e.chasing ? 0 : (e.restT || 0) + dt
+      if (e.def.boss) e.turnRate = e.chasing ? BOSS_RUN_TURN : BOSS_TURN
 
-      const keep = d > range && d < (e.def.keep || 0)
-      if (keep) {
-        if (e.rig.state !== 'idle' && e.rig.oneShotDone) e.rig.play('idle', { fade: 0.18 })
-      } else if (d > range) {
-        const sp = e.def.speed * (this.titanMode ? 0.7 : 1)
-        e.pos.x += (dx / d) * sp * dt
-        e.pos.z += (dz / d) * sp * dt
-        if (!e.def.fly && e.rig.state !== 'run') e.rig.play('run', { fade: 0.18 })
-        else if (e.def.fly && e.rig.state !== 'fly' && e.rig.oneShotDone) e.rig.play('fly', { fade: 0.18 })
+      if (e.chasing) {
+        const slow = this.titanMode && !e.def.boss ? 0.7 : 1
+        const sp = e.moveSpeed * slow
+        if (!e.def.boss) {
+          e.pos.x += Math.sin(e.facing) * sp * dt
+          e.pos.z += Math.cos(e.facing) * sp * dt
+        }
+        if (!e.def.fly && e.rig.state !== 'run') e.rig.play('run', { fade: e.def.boss ? BOSS_RUN_FADE : 0.18, speed: e.def.boss ? 1 : this.runRate(e, e.def) * slow })
+        else if (e.def.fly && e.rig.state !== 'fly' && e.rig.finished) e.rig.play('fly', { fade: 0.18 })
       } else {
-        e.cd -= dt
         const rest = e.def.fly ? 'fly' : 'idle'
-        if (e.rig.state !== rest && e.rig.oneShotDone) e.rig.play(rest, { fade: 0.18 })
-        if (e.cd <= 0) this.enemyAttack(e, range)
+        if (e.rig.state !== rest && e.rig.finished) e.rig.play(rest, { fade: e.def.boss ? BOSS_REST_FADE : ENEMY_REST_FADE })
+        if (d <= reach) {
+          e.cd -= dt
+          if (e.cd <= 0 && (!e.def.boss || this.bossStill(e)) && this.aimedAt(e, h)) this.enemyAttack(e, range)
+        }
       }
 
       this.settleEnemy(e, h, dt)
+    }
+  }
+
+  committed(e) {
+    return e.def.boss ? !e.rig.finished : e.rig.state === 'attack' && !e.rig.oneShotDone
+  }
+
+  mobility(e) {
+    return e.def.boss || e.def.steady || e.cast || e.airborne || this.committed(e) ? 0 : 1 / (e.radius * e.radius)
+  }
+
+  blockHero(e, h, dt) {
+    const hx = e.pos.x - h.pos.x
+    const hz = e.pos.z - h.pos.z
+    const hd = Math.hypot(hx, hz)
+    const hmin = e.radius + (this.titanMode ? 1.6 : h.radius)
+    if (hd >= hmin) return
+    const nx = hd > 0.001 ? hx / hd : Math.sin(e.facing + Math.PI)
+    const nz = hd > 0.001 ? hz / hd : Math.cos(e.facing + Math.PI)
+    if (this.mobility(e) > 0 || (this.titanMode && !e.def.boss && !e.cast)) {
+      e.pos.x = h.pos.x + nx * hmin
+      e.pos.z = h.pos.z + nz * hmin
+      return
+    }
+    const gap = hmin - hd
+    const k = gap > SHOVE_SNAP ? Math.min(1, dt * SHOVE_RATE) : 1
+    h.pos.x -= nx * gap * k
+    h.pos.z -= nz * gap * k
+    const r = Math.hypot(h.pos.x, h.pos.z)
+    const lim = ARENA_RADIUS - 1.2
+    if (r > lim) {
+      h.pos.x *= lim / r
+      h.pos.z *= lim / r
     }
   }
 
@@ -2748,6 +3296,7 @@ export class Game {
     const vl = Math.hypot(vx, vz) || 1
     const cx = vx / vl
     const cz = vz / vl
+    const zone = this.ui.gearRing.zone
     for (const e of this.enemies) {
       if (e.dead || e.def.boss) continue
       const dx = e.pos.x - h.pos.x
@@ -2763,12 +3312,20 @@ export class Game {
         pz = -cx * need
       } else {
         const d = Math.hypot(dx, dz)
-        if (d >= reach || d < 1e-3) continue
-        px = (dx / d) * (reach - d)
-        pz = (dz / d) * (reach - d)
+        if (d < reach && d >= 1e-3) {
+          px = (dx / d) * (reach - d)
+          pz = (dz / d) * (reach - d)
+        }
       }
       e.pos.x += px * k
       e.pos.z += pz * k
+      if (zone && this.insideGearZone(e, zone)) {
+        const d = Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z)
+        const nx = d > 1e-3 ? (e.pos.x - h.pos.x) / d : cz
+        const nz = d > 1e-3 ? (e.pos.z - h.pos.z) / d : -cx
+        e.pos.x += nx * GEAR_ZONE_PUSH * dt
+        e.pos.z += nz * GEAR_ZONE_PUSH * dt
+      }
       const r = Math.hypot(e.pos.x, e.pos.z)
       const lim = ARENA_RADIUS - 0.8
       if (r > lim) {
@@ -2778,7 +3335,25 @@ export class Game {
     }
   }
 
+  insideGearZone(e, zone) {
+    _v.set(e.pos.x, e.pos.y, e.pos.z).project(this.camera)
+    const footX = (_v.x * 0.5 + 0.5) * view.w
+    const footY = (-_v.y * 0.5 + 0.5) * view.h
+    _v.set(e.pos.x, e.pos.y + e.height, e.pos.z).project(this.camera)
+    const headY = (-_v.y * 0.5 + 0.5) * view.h
+    const half = (footY - headY) * e.radius / e.height
+    return footX + half > zone.l - GEAR_ZONE_PAD && footX - half < zone.r + GEAR_ZONE_PAD && footY > zone.t - GEAR_ZONE_PAD && headY < zone.b + GEAR_ZONE_PAD
+  }
+
+  stun(e, time) {
+    if (e.poise > 0 && !this.titanMode) return false
+    e.stagger = Math.max(e.stagger, time)
+    e.poise = time + MOB_POISE
+    return true
+  }
+
   knock(e, nx, nz, dist) {
+    if (e.def && (e.def.boss || e.def.steady || e.cast || this.committed(e))) return
     e.knockX = (e.knockX || 0) + nx * dist
     e.knockZ = (e.knockZ || 0) + nz * dist
   }
@@ -2793,58 +3368,75 @@ export class Game {
   }
 
   enemyAttack(e, range) {
-    e.cd = e.def.rate
+    e.cd = e.rate
     if (this.state !== 'battle' || !this.hero || this.hero.dead) return
     e.rig.play('attack', { force: true, fade: 0.08 })
     audio.play(this.attackSound(e.def, e.rig), { at: e.pos, slot: 'enemy_attack', max: 3 })
+    const combo = this.comboIndexOf(e.rig)
+    const weight = e.def.boss ? BOSS_STRIKE[clamp(combo, 1, BOSS_STRIKE.length) - 1] : 0
     const land = () => {
       if (!this.hero || this.hero.dead) return false
-      this.hurtHero(e.def.dmg)
+      this.hurtHero(e.def.dmg * e.might, ENEMY_HITS[e.type], e.pos)
       audio.play(`${soundCode(e.def)}_hit_combo`, { at: e.pos, slot: 'enemy_hit', max: 2, gap: 0.08 })
       return true
     }
     const vfxId = this.enemyVfx(e.def)
-    const fxRes = vfxId ? this.heroFx.attack(vfxId, this.comboIndexOf(e.rig), e, this.hero, {
+    const fxRes = vfxId ? this.heroFx.attack(vfxId, combo, e, this.hero, {
       impact: e.rig.impactAt,
+      exact: true,
+      reach: range + ENEMY_HIT_SLACK,
       onHit: t => {
         if (!e.dead && t === this.hero && this.state === 'battle') land()
       },
     }) : null
     if (fxRes && fxRes.ranged) return
-    setTimeout(() => {
+    this.heroFx.later(e.rig.impactAt, () => {
       if (e.dead || !this.hero || this.state !== 'battle') return
       const dd = Math.hypot(this.hero.pos.x - e.pos.x, this.hero.pos.z - e.pos.z)
-      if (dd > range + 0.7 || !land()) return
-      if (fxRes) fxRes.onTarget(this.hero)
-      else this.fx.slash(this.hero.pos.x, 1.1, this.hero.pos.z, e.facing, 1.8, 0xff5a5a, 0.2)
-    }, e.rig.impactAt * 1000)
+      const hit = dd <= range + ENEMY_HIT_SLACK && land()
+      if (weight) this.bossStrike(e, weight, range, hit)
+      if (hit && fxRes) fxRes.onTarget(this.hero)
+    })
+  }
+
+  bossStrike(e, weight, range, hit) {
+    const h = this.hero
+    const dx = h.pos.x - e.pos.x
+    const dz = h.pos.z - e.pos.z
+    const d = Math.hypot(dx, dz)
+    const reach = Math.min(d, range)
+    if (hit) _v.set(h.pos.x, 0, h.pos.z)
+    else _v.set(e.pos.x + Math.sin(e.facing) * reach, 0, e.pos.z + Math.cos(e.facing) * reach)
+    this.lights.flash(_v, BOSS_STRIKE_FLASH, 5 * weight, 10 * weight, 0.45, 0.9)
+    audio.play('step_big_anima_bosses', { at: _v, slot: 'boss_strike', max: 1, gap: 0.2 })
+    const near = clamp(1 - d / BOSS_STRIKE_REACH, 0, 1)
+    this.shake((hit ? BOSS_LAND_SHAKE : BOSS_STRIKE_SHAKE * near) * weight, 0.3 + 0.12 * weight)
+    if (!hit) return
+    this.hitStop(BOSS_LAND_STOP * weight)
+    audio.play('explosion_vfx_3', { slot: 'boss_land', max: 1, gap: 0.2 })
+    if (weight <= 1 || d < 0.01 || this.heroLocked()) return
+    const push = BOSS_FINISH_PUSH * (weight - 1) * (this.titanMode ? HERO_KNOCK_TITAN : 1)
+    h.knockX = (h.knockX || 0) + (dx / d) * push
+    h.knockZ = (h.knockZ || 0) + (dz / d) * push
   }
 
   settleEnemy(e, h, dt) {
-    for (let k = 0; k < this.enemies.length; k++) {
+    const me = this.mobility(e)
+    for (let k = 0; me > 0 && k < this.enemies.length; k++) {
       const o = this.enemies[k]
-      if (o === e || o.dead) continue
+      if (o === e || o.dead || o.airborne) continue
       const ox = e.pos.x - o.pos.x
       const oz = e.pos.z - o.pos.z
       const od = Math.hypot(ox, oz)
       const min = e.radius + o.radius
       if (od < min && od > 0.001) {
-        const push = (min - od) * 0.5
+        const push = ((min - od) * me) / (me + this.mobility(o))
         e.pos.x += (ox / od) * push
         e.pos.z += (oz / od) * push
       }
     }
 
-    const hx = e.pos.x - h.pos.x
-    const hz = e.pos.z - h.pos.z
-    const hd = Math.hypot(hx, hz)
-    const hmin = e.radius + (this.titanMode ? 1.6 : h.radius)
-    if (hd < hmin) {
-      const nx = hd > 0.001 ? hx / hd : Math.sin(e.facing + Math.PI)
-      const nz = hd > 0.001 ? hz / hd : Math.cos(e.facing + Math.PI)
-      e.pos.x = h.pos.x + nx * hmin
-      e.pos.z = h.pos.z + nz * hmin
-    }
+    this.blockHero(e, h, dt)
 
     const er = Math.hypot(e.pos.x, e.pos.z)
     const elim = ARENA_RADIUS - 0.4
@@ -2859,24 +3451,101 @@ export class Game {
     this.footsteps(e, soundCode(e.def), e.def.boss ? 'step_big_middle_bosses' : 'step_ground', stepSound)
   }
 
-  hurtHero(dmg) {
+  hurtHero(dmg, hit = null, from = null) {
     if (!this.hero || this.hero.dead || this.state !== 'battle') return
-    const mult = (this.titanMode ? 0.25 : 1) * (this.gearMods ? this.gearMods.taken : 1) * (this.shieldUp ? SHIELD_HIT_MULT : 1)
+    const share = hit && hit.dot ? hit.share ?? 1 : 1
+    if (share < 1) this.addDot(hit, dmg * (1 - share))
+    this.woundHero(dmg * share, hit, false)
+    if (hit && this.hero && !this.hero.dead) this.strikeHero(hit, from)
+  }
+
+  woundHero(dmg, hit, tick) {
+    const kind = HIT_KINDS[hit ? hit.kind : 'slash']
+    const weak = this.titanMode ? 0 : this.painNow()
+    const pain = Math.max(this.shieldUp ? SHIELD_HIT_MULT : 1, 1 + WEAK_HURT * weak)
+    const mult = (this.titanMode ? 0.25 : 1) * (this.gearMods ? this.gearMods.taken : 1) * pain
     this.hero.hp = Math.max(0, this.hero.hp - dmg * mult)
-    this.hero.flash = 0.16
+    this.hero.flashColor = kind.rim
+    this.hero.flash = tick ? DOT_FLASH : 0.16
     this.ui.setHp(this.hero.hp, this.hero.maxHp)
-    this.shake(0.22, 0.2)
-    audio.play(`${this.activeDef().model}_damage`, { slot: 'hero_hurt', gap: 0.35 })
-    this.chroma.offset.set(0.0035, 0.0035)
-    gsap.to(this.chroma.offset, { x: 0.0004, y: 0.0004, duration: 0.45 })
+    if (!tick) {
+      const boss = hit && hit.boss ? BOSS_HIT_CHROMA : 1
+      this.shake(0.22 * kind.shake * (1 + weak), 0.2 + 0.06 * kind.shake + 0.15 * weak)
+      audio.play(`${this.activeDef().model}_damage`, { slot: 'hero_hurt', gap: 0.35 })
+      this.chroma.offset.set(0.0035 * boss * (1 + weak), 0.0035 * boss * (1 + weak))
+      gsap.to(this.chroma.offset, { x: 0.0004, y: 0.0004, duration: 0.45 * boss })
+    }
+    if (weak >= WEAK_WARN) this.warnWeak()
     if (!this.titanMode) this.addUlt(dmg * 0.0012)
     if (this.hero.hp <= 0) {
       if (this.titanMode) { this.endTitan(); return }
       this.hero.dead = true
+      this.clearDots()
       this.hero.rig.play('death', { force: true })
       audio.play(`${this.heroDef.model}_death`)
       this.defeat()
     }
+  }
+
+  strikeHero(hit, from) {
+    const h = this.hero
+    const kind = HIT_KINDS[hit.kind]
+    if (kind.label && this.t - (this.statusAt[hit.kind] ?? -STATUS_GAP) >= STATUS_GAP) {
+      this.statusAt[hit.kind] = this.t
+      this.floatText(h.pos.x, h.height * STATUS_LIFT + h.pos.y, h.pos.z, kind.label, 'dmg status')
+    }
+    if (kind.light) this.lights.flash(h.pos, kind.light, 2.4, 5, 0.35, h.height * 0.6)
+    if (!hit.push || !from || this.heroLocked()) return
+    const dx = h.pos.x - from.x
+    const dz = h.pos.z - from.z
+    const d = Math.hypot(dx, dz) || 1
+    const push = hit.push * (this.titanMode ? HERO_KNOCK_TITAN : 1)
+    h.knockX = (h.knockX || 0) + (dx / d) * push
+    h.knockZ = (h.knockZ || 0) + (dz / d) * push
+  }
+
+  addDot(hit, total) {
+    const every = hit.dot.every
+    const ticks = Math.max(1, Math.round(hit.dot.time / every))
+    let same = 0
+    let oldest = null
+    for (let i = 0; i < this.dots.length; i++) {
+      const d = this.dots[i]
+      if (d.hit !== hit) continue
+      same++
+      if (!oldest || d.left < oldest.left) oldest = d
+    }
+    let dot = oldest
+    if (same < (hit.dot.stacks || 1)) {
+      dot = this.dotPool.pop() || { hit: null, left: 0, next: 0, per: 0 }
+      dot.left = 0
+      dot.per = 0
+      this.dots.push(dot)
+    }
+    dot.per = (total + dot.per * dot.left) / ticks
+    dot.hit = hit
+    dot.left = ticks
+    dot.next = every
+  }
+
+  tickDots(dt) {
+    if (this.gearOpen) return
+    for (let i = this.dots.length - 1; i >= 0; i--) {
+      const d = this.dots[i]
+      d.next -= dt
+      if (d.next > 0) continue
+      d.next += d.hit.dot.every
+      d.left--
+      if (this.hero && !this.hero.dead && this.state === 'battle') this.woundHero(d.per, d.hit, true)
+      if (d.left > 0 || this.dots[i] !== d) continue
+      this.dots[i] = this.dots[this.dots.length - 1]
+      this.dots.pop()
+      this.dotPool.push(d)
+    }
+  }
+
+  clearDots() {
+    while (this.dots.length) this.dotPool.push(this.dots.pop())
   }
 
   footsteps(actor, code, key, opts = NO_OPTS) {
@@ -2890,7 +3559,14 @@ export class Game {
     const t = rig.action.time
     const prev = actor.stepT ?? t
     actor.stepT = t
-    if (stepCrossed(times, prev, t)) audio.play(key, opts)
+    if (!stepCrossed(times, prev, t)) return
+    audio.play(key, opts)
+    if (actor.def && actor.def.boss && this.hero) this.bossStomp(actor)
+  }
+
+  bossStomp(boss) {
+    const near = 1 - Math.hypot(boss.pos.x - this.hero.pos.x, boss.pos.z - this.hero.pos.z) / BOSS_STEP_REACH
+    if (near > 0) this.shake(BOSS_STEP_SHAKE * near, 0.12)
   }
 
   portraitAmount() {
@@ -2906,6 +3582,25 @@ export class Game {
 
   battleFraming() {
     return clamp((this.camOffset.length() - CLOSE_UP_DIST) / (BATTLE_DIST - CLOSE_UP_DIST), 0, 1)
+  }
+
+  fitBoss(dt) {
+    const b = this.boss
+    const live = !!(b && !b.dead)
+    this.bossView += ((live ? 1 : 0) - this.bossView) * Math.min(1, dt * BOSS_FIT_RATE)
+    const titan = this.titanMode && this.hero
+    if (live || titan) this.camera.updateMatrixWorld()
+    let want = live ? Math.max(BOSS_BACK, this.pullFor(b)) : 1
+    if (titan) want = Math.max(want, this.pullFor(this.hero))
+    this.bossPull += (want - this.bossPull) * Math.min(1, dt * BOSS_FIT_RATE)
+  }
+
+  pullFor(a) {
+    _v.copy(a.pos)
+    _v.y += a.height
+    _v.project(this.camera)
+    if (Math.abs(_v.x) > 1.1) return this.bossPull
+    return clamp(this.bossPull * Math.max(0, _v.y) / BOSS_FIT_TOP, 1, BOSS_PULL_MAX)
   }
 
   battleReach(p, framing) {
@@ -2967,15 +3662,25 @@ export class Game {
     const zoom = playing ? p : 0
     const selecting = this.state === 'select'
     const centred = selecting && !this.selectShowsRow()
+    if (centred) this.blendSelectPose(dt, this.camSnap)
     const follow = centred ? 1 : THREE.MathUtils.lerp(0.72 + 0.28 * p, 1, this.gearK)
     const target = this.cameraFocus()
     _v.set(target.x * follow, 0, target.z * follow)
+    const bossLook = playing && this.boss && this.hero ? this.bossView * (1 - this.gearK) : 0
+    if (bossLook > 0) {
+      const dx = this.boss.pos.x - target.x
+      const dz = this.boss.pos.z - target.z
+      const k = Math.min(BOSS_FOCUS, BOSS_FOCUS_MAX / (Math.hypot(dx, dz) || 1)) * bossLook
+      _v.x += dx * k
+      _v.z += dz * k
+    }
     if (this.camSnap) this.camTarget.copy(_v)
     else if (selecting && dt > 0) smoothDamp(this.camTarget, _v, _camVel, SELECT_CAM_SMOOTH, dt)
     else this.camTarget.lerp(_v, Math.min(1, dt * (3.2 + GEAR_CHASE * this.gearK)))
     const push = selecting && this.confirming ? Math.min(1, this.confirmT / CONFIRM_TIME) : 0
     const framing = playing ? this.battleFraming() : 0
-    const reach = playing ? this.battleReach(p, framing) : 1
+    const near = playing ? THREE.MathUtils.lerp(1, BATTLE_ZOOM * this.bossPull, framing) : 1
+    const reach = playing ? this.battleReach(p, framing) * near : 1
     const dist = this.camOffset.length() * reach * THREE.MathUtils.lerp(1, CONFIRM_PUSH, push * push * push) * THREE.MathUtils.lerp(1, this.gearDist, this.gearK)
     const flat = Math.hypot(this.camOffset.x, this.camOffset.z) || 1
     const portraitPitch = THREE.MathUtils.lerp(PORTRAIT_PITCH, PORTRAIT_FAR_PITCH, framing)
@@ -2989,9 +3694,11 @@ export class Game {
     this.camSnap = false
     _v2.copy(this.camTarget).add(this.camLook)
     _v2.y += GEAR_LOOK * this.gearK
-    _v2.x += Math.sin(this.camYaw) * 2.1 * zoom * (1 - this.gearK)
-    _v2.z += Math.cos(this.camYaw) * 2.1 * zoom * (1 - this.gearK)
+    if (bossLook > 0) _v2.y += this.boss.height * BOSS_LOOK * bossLook
+    _v2.x += Math.sin(this.camYaw) * 2.1 * near * zoom * (1 - this.gearK)
+    _v2.z += Math.cos(this.camYaw) * 2.1 * near * zoom * (1 - this.gearK)
     this.camera.lookAt(_v2)
+    if (playing) this.fitBoss(dt)
 
     if (this.shakeT > 0) {
       this.shakeT -= dt
@@ -3007,8 +3714,26 @@ export class Game {
     if (!this.renderHold && !this.contextLost) this.composer.render()
   }
 
+  skipShadowWalk() {
+    const map = this.renderer.shadowMap
+    const render = map.render.bind(map)
+    const hidden = []
+    map.render = (lights, scene, camera) => {
+      hidden.length = 0
+      for (let i = 0; i < SHADOWLESS.length; i++) {
+        const owner = this[SHADOWLESS[i]]
+        const group = owner && owner.group
+        if (group && group.visible) {
+          group.visible = false
+          hidden.push(group)
+        }
+      }
+      render(lights, scene, camera)
+      for (let i = 0; i < hidden.length; i++) hidden[i].visible = true
+    }
+  }
+
   govern(elapsed, work) {
-    if (this.perfHud) this.perfHud.sample(elapsed, work)
     if (this.renderHold || this.contextLost || (this.state !== 'select' && this.state !== 'battle')) {
       this.governor.hold()
       return
@@ -3016,7 +3741,7 @@ export class Game {
     const ratio = this.governor.sample(elapsed, work)
     if (ratio === null) return
     this.renderer.setPixelRatio(ratio)
-    this.resize()
+    this.resize(true)
     this.render()
   }
 
@@ -3032,6 +3757,7 @@ export class Game {
       if (this.benched) return
       if (dt == null || this.paused) { this.render(); return }
       this.realDt = dt
+      this.easeGear(dt)
       dt *= this.timeScale * THREE.MathUtils.lerp(1, this.gearSlow, this.gearK)
       this.t += dt
       this.step(dt)
@@ -3041,12 +3767,20 @@ export class Game {
     requestAnimationFrame(frame)
   }
 
+  easeGear(dt) {
+    if (this.gearT === this.gearTo) return
+    const span = this.gearTo ? GEAR_IN : GEAR_OUT
+    this.gearT = this.gearTo ? Math.min(1, this.gearT + dt / span) : Math.max(0, this.gearT - dt / span)
+    const t = this.gearT
+    this.gearK = t < 0.5 ? 2 * t * t : 1 - (2 - 2 * t) ** 2 / 2
+  }
+
   step(dt) {
     if (this.gearOpen && (this.state !== 'battle' || !this.hero || this.hero.dead)) this.closeGear()
     const heroDt = this.gearK > 0 ? THREE.MathUtils.lerp(dt, this.realDt, this.gearK) : dt
     this.ui.tick(dt)
     if (this.arena) this.arena.update(dt, this.t)
-    if (this.fx) this.fx.update(dt, this.camera, this.renderer.domElement.height)
+    if (this.fx) this.fx.update(dt)
     tickCharacters(heroDt)
     if (this.lights) this.updateLights(heroDt)
 
@@ -3061,7 +3795,10 @@ export class Game {
 
     if (this.state === 'battle' || this.state === 'morph' || this.state === 'end') {
       if (this.hero) {
-        if (this.state === 'battle') this.updateHero(dt)
+        if (this.state === 'battle') {
+          this.tickDots(dt)
+          this.updateHero(dt)
+        }
         this.hero.update(heroDt)
         audio.listen(this.hero.pos.x, this.hero.pos.z, this.camYaw)
         this.footsteps(this.hero, this.activeDef().model, this.titanMode ? 'step_big_anima_bosses' : 'step_ground')
@@ -3080,7 +3817,8 @@ export class Game {
       if (this.pending.length) {
         this.waveTimer += dt
         while (this.pending.length && this.pending[0].t <= this.waveTimer) {
-          this.spawnEnemy(this.pending.shift().type)
+          const next = this.pending.shift()
+          this.spawnEnemy(next.type, next)
         }
       } else if (!this.spawning && !anyAlive(this.enemies)) {
         if (this.waveIndex < WAVES.length - 1) {
@@ -3097,7 +3835,7 @@ export class Game {
       if (this.titanMode) {
         this.titanT -= dt
         this.ui.setTitanTimer(Math.max(0, this.titanT) / this.titanDef.duration, true)
-        if (this.titanT <= 0) this.endTitan()
+        if (this.titanT <= 0 && (!this.heroWindup() || this.titanT < -TITAN_OVERTIME)) this.endTitan()
       } else if (!this.titanReady) {
         this.addTitan(dt / TITAN_CHARGE_TIME)
       } else if (!this.gearOpen) {
@@ -3105,24 +3843,11 @@ export class Game {
         if (this.titanWait <= 0) this.transform()
       }
 
-      if (!this.gearOpen) this.autoCombat()
-    }
-
-    if (this.rescueActive) {
-      this.rescueT -= dt / this.timeScale * 0.25
-      const n = Math.max(0, Math.ceil(this.rescueT))
-      const count = this.rescueCount || (this.rescueCount = { el: this.ui.fail.querySelector('.countdown'), n: -1 })
-      if (n !== count.n) {
-        count.n = n
-        count.el.textContent = n
+      if (!this.gearOpen) {
+        this.castQueued()
+        this.autoCombat()
       }
-      if (this.rescueT <= 0) {
-        count.n = -1
-        this.rescueActive = false
-        this.timeScale = 1
-        this.ui.show('fail', false)
-        this.defeat()
-      }
+      if (!this.titanMode && this.painNow() >= WEAK_WARN) this.warnWeak()
     }
 
     this.updateCamera(this.gearK > 0 ? this.realDt : dt)
@@ -3160,8 +3885,10 @@ export class Game {
     for (const e of this.enemies) {
       _v.set(e.pos.x, e.pos.y + e.height * 1.08 + 0.3, e.pos.z).project(this.camera)
       const visible = _v.z < 1 && Math.abs(_v.x) < 1.2 && Math.abs(_v.y) < 1.2
+      e.onScreen = visible
       this.ui.placeEnemyBar(e, (_v.x * 0.5 + 0.5) * view.w, (-_v.y * 0.5 + 0.5) * view.h, visible)
     }
+    this.ui.drawEnemyBars()
   }
 
   updateGuide() {
@@ -3172,7 +3899,7 @@ export class Game {
   guideTarget() {
     const h = this.hero
     if (this.state !== 'battle' || !h || h.dead || !this.input.enabled) return -1
-    if (this.gearOpen || this.gearK > 0.01 || this.shieldUp || this.rescueActive || this.heroCueOn) return -1
+    if (this.gearOpen || this.gearK > 0.01 || this.shieldUp || this.heroCueOn) return -1
     const loot = this.restingLoot(h)
     if (loot) {
       _guideAt.set(loot.mesh.position.x, 0, loot.mesh.position.z)

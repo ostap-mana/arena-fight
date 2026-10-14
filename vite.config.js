@@ -4,7 +4,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import { HEROES } from './src/data/heroes.js'
-import { LOCATIONS, DEFAULT_LOCATION } from './src/data/locations.js'
+import { DEFAULT_LOCATION } from './src/data/locations.js'
 
 const TUNE_FILES = ['src/data/heroes.js', 'src/data/builds.js']
 const PUBLIC_DIR = resolve(import.meta.dirname, 'public')
@@ -48,7 +48,7 @@ function stampBuild() {
 
 function shelf(data) {
   var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
-  var arena = data.arenas[new URLSearchParams(location.search).get('loc')] || data.arenas[data.fallback]
+  var arena = data.arenas[data.fallback]
   var list = data.json.map(function (url) { return [url, 0] })
   if (arena) list.push(arena)
   data.lobby.forEach(function (pair) { list.push(pair[coarse ? 1 : 0]) })
@@ -131,7 +131,7 @@ function bootPrefetch() {
     name: 'boot-prefetch',
     transformIndexHtml() {
       const index = JSON.parse(readFileSync(resolve(PUBLIC_DIR, 'assets/locations/index.json'), 'utf8'))
-      const arenas = Object.fromEntries(LOCATIONS.filter(id => index[id]).map(id => [id, entry(`assets/locations/${index[id].file}`)]))
+      const arenas = index[DEFAULT_LOCATION] ? { [DEFAULT_LOCATION]: entry(`assets/locations/${index[DEFAULT_LOCATION].file}`) } : {}
       const lobby = [...new Set(HEROES.map(h => h.lobby || h.model))].map(id => {
         const full = `assets/glb/${id}.glb`
         return [entry(full), entry(/_lob$/.test(id) ? `assets/glb/${id}_m.glb` : full)]

@@ -7,6 +7,7 @@ import { fetchJson } from '../core/fetch.js'
 import { compileFor } from '../core/compile.js'
 import { removeAt } from '../core/list.js'
 import { markRange } from './buffer-range.js'
+import { isGlowCircleSystem, KEEP_GLOW_PREFAB } from './glow-filter.js'
 
 const random = stream('fx')
 
@@ -14,7 +15,6 @@ const BASE = 'assets/vfx/'
 const LUT = 48
 const STEP_SLOPE = 1e7
 const GRAVITY = 9.81
-const pending = new Set()
 const loader = new THREE.TextureLoader()
 const textureCache = new Map()
 let maxAnisotropy = 8
@@ -560,8 +560,7 @@ class Library {
     if (!t) return WHITE
     const key = t.f
     if (!textureCache.has(key)) {
-      const tex = loader.load(BASE + t.f, () => pending.delete(key), undefined, () => pending.delete(key))
-      pending.add(key)
+      const tex = loader.load(BASE + t.f)
       tex.colorSpace = t.srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace
       const wrap = w => (w === 0 ? THREE.RepeatWrapping : w === 2 ? THREE.MirroredRepeatWrapping : THREE.ClampToEdgeWrapping)
       tex.wrapS = wrap(t.wrap ? t.wrap[0] : 0)
@@ -608,7 +607,7 @@ class Library {
   }
 
   prefab(name) {
-    if (!this.compiled.has(name)) this.compiled.set(name, compilePrefab(this, this.prefabs[name] || []))
+    if (!this.compiled.has(name)) this.compiled.set(name, compilePrefab(this, this.prefabs[name] || [], KEEP_GLOW_PREFAB.test(name)))
     return this.compiled.get(name)
   }
 
@@ -904,7 +903,7 @@ class SystemDef {
   }
 }
 
-function compilePrefab(lib, nodes) {
+function compilePrefab(lib, nodes, keepGlow = false) {
   const out = nodes.map(n => ({ n, def: null }))
   const off = new Array(nodes.length).fill(false)
   nodes.forEach((n, i) => {
@@ -917,7 +916,7 @@ function compilePrefab(lib, nodes) {
   nodes.forEach((n, i) => {
     out[i].off = off[i]
     out[i].sub = subNodes.has(i)
-    if (n.ps && !off[i]) out[i].def = new SystemDef(lib, n.ps)
+    if (n.ps && !off[i] && (keepGlow || !isGlowCircleSystem(lib.data.materials, n.ps))) out[i].def = new SystemDef(lib, n.ps)
   })
   return out
 }
@@ -2208,14 +2207,6 @@ class Instance {
   }
 }
 
-export function vfxTexturesReady() {
-  if (!pending.size) return Promise.resolve()
-  return new Promise(resolve => {
-    const check = () => (pending.size ? setTimeout(check, 50) : resolve())
-    check()
-  })
-}
-
 function prefabMaterials(lib, name) {
   const out = []
   for (const c of lib.prefab(name)) {
@@ -2231,6 +2222,13 @@ const WARM_SLICE_MS = 6
 const WARM_BATCH = 24
 const WARM_GENTLE_BATCH = 1
 const WARM_HIDDEN = new THREE.Vector3(0, -40, 0)
+
+function drawOnce(renderer, scene, camera, target) {
+  const previous = renderer.getRenderTarget()
+  renderer.setRenderTarget(target)
+  renderer.render(scene, camera)
+  renderer.setRenderTarget(previous)
+}
 
 function uploadMaterialTextures(renderer, materials) {
   const textures = new Set()
@@ -2373,6 +2371,7 @@ export class Vfx {
       stage.fog = this.scene.fog
       stage.add(probe)
       await compileFor(renderer, stage, camera, target)
+      drawOnce(renderer, stage, camera, target)
       stage.remove(probe)
       probe.traverse(o => {
         if (o.isInstancedMesh) {

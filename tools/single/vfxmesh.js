@@ -1,5 +1,5 @@
-const POSITION_LEVELS = 2047
-const UV_LEVELS = 2047
+const POSITION_LEVELS = 1023
+const UV_LEVELS = 1023
 
 const zigzag = v => ((v << 1) ^ (v >> 31)) >>> 0
 const unzig = z => (z >>> 1) ^ -(z & 1)

@@ -16,10 +16,28 @@ const _e = new THREE.Euler()
 const _up = new THREE.Vector3(0, 1, 0)
 const PROJECTILE_SPEED = 17
 const HIT_SCALE = 0.8
+const HIT_CAP = 6
+const HAND_SOCKET = /Weapon|Hand/i
+const NO_SPAWN_OPTS = Object.freeze({})
+const _turn = new THREE.Quaternion()
+
+function castFrame(caster) {
+  return { pos: caster.pos.clone(), yaw: yawOf(caster) }
+}
+
+function pinToFrame(caster, frame) {
+  const turn = frame.yaw - yawOf(caster)
+  _v.sub(caster.pos).applyAxisAngle(_up, turn).add(frame.pos)
+  _q.premultiply(_turn.setFromAxisAngle(_up, turn))
+}
 const SHOT_STAGGER = 0.07
 const LINGER = 0.25
 const SCRIPT_SKILL = { 1: 'ActiveSkill1', 2: 'ActiveSkill2', 3: 'ActiveSkill3', 4: 'Ultimate' }
 const ANCHOR_HEIGHT = { FX_Bot: 0, FX_Center: 0.55, FX_Front: 0.55, FX_Head: 0.92, FX_Top: 1 }
+
+export function yawOf(actor) {
+  return actor.aimYaw ?? actor.facing
+}
 
 export function comboType(index) {
   return index === 0 ? 10 : 4 + index
@@ -175,6 +193,7 @@ export class HeroFx {
     this.lobbyMutes = new Map()
     this.castMutes = new Map()
     this.lobbyFocus = new Map()
+    this.liveHits = new Map()
     this.onSpawn = null
     this.models = []
     this.modelData = new Map()
@@ -275,21 +294,21 @@ export class HeroFx {
     return out.copy(actor.pos).setY(actor.pos.y + actor.height * (ANCHOR_HEIGHT[name] ?? 0.55))
   }
 
-  strikeAt(id, e, caster, center) {
+  strikeAt(id, e, caster, center, yaw = yawOf(caster)) {
     const pos = new THREE.Vector3(center.x, Math.max(0.02, center.y || 0), center.z)
-    return this.spawn(id, e.fx, { pos, quat: yawQuat(caster.facing), scale: caster.scale, lifetime: e.dying + LINGER, camera: this.camera })
+    return this.spawn(id, e.fx, { pos, quat: yawQuat(yaw), scale: caster.scale, lifetime: e.dying + LINGER, camera: this.camera })
   }
 
   shoot(id, e, caster, target, fallback, onArrive) {
     const socket = this.anchor(id, caster, e.socket) || caster.root
     socket.updateWorldMatrix(true, false)
     const from = socket.getWorldPosition(new THREE.Vector3())
-    const end = fallback ? fallback.clone() : from.clone().add(_v.set(Math.sin(caster.facing), 0, Math.cos(caster.facing)).multiplyScalar(8 * caster.scale))
+    const end = fallback ? fallback.clone() : from.clone().add(_v.set(Math.sin(yawOf(caster)), 0, Math.cos(yawOf(caster))).multiplyScalar(8 * caster.scale))
     const goal = out => (target && !target.dead ? this.point(id, target, e.target, out) : out.copy(end))
     const dist = from.distanceTo(goal(_v2))
     const speed = (e.speed || PROJECTILE_SPEED) * caster.scale
     const dur = Math.max(0.05, e.mode === 'fixed_time' ? e.flight : dist / speed)
-    const inst = this.spawn(id, e.fx, { pos: from.clone(), quat: yawQuat(caster.facing), scale: caster.scale, camera: this.camera })
+    const inst = this.spawn(id, e.fx, { pos: from.clone(), quat: yawQuat(yawOf(caster)), scale: caster.scale, camera: this.camera })
     this.shots.push({
       inst, e, from, goal, dur, t: 0,
       side: curveAmount(e.side, dist) * caster.scale,
@@ -363,14 +382,17 @@ export class HeroFx {
     return actor.model.byName.get(name) || null
   }
 
-  produce(id, e, caster) {
+  produce(id, e, caster, frame = null) {
     const socket = this.anchor(id, caster, e.socket) || caster.root
     socket.updateWorldMatrix(true, false)
     socket.matrixWorld.decompose(_v, _q, _s)
     const full = !!(e.copyRot && e.copyRot[0] && e.copyRot[1] && e.copyRot[2])
+    const pinned = !!frame && !HAND_SOCKET.test(e.socket || '')
+    const follow = e.follow && !pinned
+    if (pinned) pinToFrame(caster, frame)
     const inst = this.spawn(id, e.fx, {
-      follow: e.follow ? socket : null,
-      copyRot: !!(e.follow && full),
+      follow: follow ? socket : null,
+      copyRot: !!(follow && full),
       pos: _v.clone(),
       quat: copiedRotation(_q, e.copyRot),
       scale: caster.scale,
@@ -402,19 +424,26 @@ export class HeroFx {
     const tl = this.timeline(id, key, caster)
     if (!tl) return null
     const pick = () => (typeof targets === 'function' ? targets() : targets) || []
-    const ahead = () => caster.pos.clone().add(_v.set(Math.sin(caster.facing), 0, Math.cos(caster.facing)).multiplyScalar(3 * caster.scale))
+    const ahead = () => caster.pos.clone().add(_v.set(Math.sin(yawOf(caster)), 0, Math.cos(yawOf(caster))).multiplyScalar(3 * caster.scale))
     const center = () => {
       const first = pick().find(t => t && !t.dead)
       return opts.center || (first ? first.pos.clone() : ahead())
     }
+    const frame = opts.anchored ? castFrame(caster) : null
+    const spot = frame ? center() : null
+    const spotYaw = yawOf(caster)
     const area = e => {
+      if (spot) {
+        this.strikeAt(id, e, caster, spot, spotYaw)
+        return
+      }
       const first = pick().find(t => t && !t.dead)
       if (first) this.strike(id, e, caster, first)
       else this.strikeAt(id, e, caster, center())
     }
     let shot = 0
     for (const { e, at } of tl.list) {
-      if (e.kind === 'producer') this.later(at, () => { if (!caster.dead) this.produce(id, e, caster) })
+      if (e.kind === 'producer') this.later(at, () => { if (!caster.dead) this.produce(id, e, caster, frame) })
       else if (e.kind === 'projectile') {
         const n = shot++
         this.later(at, () => {
@@ -643,10 +672,17 @@ export class HeroFx {
     socket.updateWorldMatrix(true, false)
     const pos = socket.getWorldPosition(new THREE.Vector3())
     if (opts.ground) pos.y = Math.max(0.02, actor.pos.y + 0.02)
-    const yaw = opts.yaw !== undefined ? opts.yaw : actor.facing
+    let yaw = opts.yaw !== undefined ? opts.yaw : yawOf(actor)
+    const pinned = !!opts.frame && !HAND_SOCKET.test(socketName)
+    const follow = w.follow && !opts.ground && !pinned
+    if (pinned) {
+      const turn = opts.frame.yaw - yawOf(actor)
+      pos.sub(actor.pos).applyAxisAngle(_up, turn).add(opts.frame.pos)
+      yaw += turn
+    }
     return this.spawn(id, name, {
-      follow: w.follow && !opts.ground ? socket : null,
-      copyRot: !!(w.follow && w.copyRot && !opts.ground),
+      follow: follow ? socket : null,
+      copyRot: !!(follow && w.copyRot),
       pos,
       quat: yawQuat(yaw),
       scale: opts.scale || actor.scale,
@@ -737,7 +773,7 @@ export class HeroFx {
     const w = this.wrapper(id, name)
     const socket = this.vfx.socket(id, caster, opts.socket || w.socket || 'FX_Projectile_R')
     const from = socket ? socket.getWorldPosition(new THREE.Vector3()) : caster.pos.clone().setY(caster.height * 0.6)
-    const inst = this.spawn(id, name, { pos: from, quat: yawQuat(caster.facing), scale: caster.scale, camera: this.camera })
+    const inst = this.spawn(id, name, { pos: from, quat: yawQuat(yawOf(caster)), scale: caster.scale, camera: this.camera })
     const aim = () => {
       if (target && !target.dead) {
         const s = this.vfx.socket(id, target, 'FX_Center')
@@ -762,14 +798,18 @@ export class HeroFx {
     const hits = timing.hits || [impact]
     const share = 1 / hits.length
     const primary = targets[0] || null
-    const center = opts.center || (primary ? primary.pos : caster.pos.clone().add(new THREE.Vector3(Math.sin(caster.facing) * 3, 0, Math.cos(caster.facing) * 3)))
+    const live = opts.center || (primary ? primary.pos : caster.pos.clone().add(new THREE.Vector3(Math.sin(yawOf(caster)) * 3, 0, Math.cos(yawOf(caster)) * 3)))
+    const center = opts.anchored ? live.clone() : live
+    const castYaw = yawOf(caster)
+    const aoeYaw = () => (opts.anchored ? castYaw : yawOf(caster))
     const byRole = { caster: [], projectile: [], hit: [], aoe: [] }
     for (const e of list) {
-      if (e.fx in blockAt) this.later(blockAt[e.fx] + e.t, () => this.spawnEntry(id, e.fx, caster, targets, center))
+      if (e.fx in blockAt) this.later(blockAt[e.fx] + e.t, () => this.spawnEntry(id, e.fx, caster, targets, center, aoeYaw()))
       else byRole[prefabRole(e.fx)].push(e)
     }
-    for (const e of byRole.caster) this.later(e.t, () => this.spawnOn(id, e.fx, caster))
-    for (const e of byRole.aoe) this.later(hits[0] + e.t, () => this.spawnAt(id, e.fx, _v.set(center.x, 0.03, center.z).clone(), caster.facing, caster.scale))
+    const casterOpts = opts.anchored ? { frame: castFrame(caster) } : NO_SPAWN_OPTS
+    for (const e of byRole.caster) this.later(e.t, () => this.spawnOn(id, e.fx, caster, casterOpts))
+    for (const e of byRole.aoe) this.later(hits[0] + e.t, () => this.spawnAt(id, e.fx, _v.set(center.x, 0.03, center.z).clone(), aoeYaw(), caster.scale))
     const hitBlocks = byBlock(byRole.hit)
     const hitTarget = (t, k) => {
       if (!hitBlocks.length) return
@@ -809,13 +849,23 @@ export class HeroFx {
   }
 
   hitOn(id, name, caster, target) {
-    return this.spawnOn(id, name, target, { yaw: Math.atan2(caster.pos.x - target.pos.x, caster.pos.z - target.pos.z), scale: caster.scale * HIT_SCALE })
+    const live = this.liveHits.get(name) || 0
+    if (live >= HIT_CAP) return null
+    const inst = this.spawnOn(id, name, target, { yaw: Math.atan2(caster.pos.x - target.pos.x, caster.pos.z - target.pos.z), scale: caster.scale * HIT_SCALE })
+    if (!inst) return null
+    this.liveHits.set(name, live + 1)
+    const done = inst.onDone
+    inst.onDone = it => {
+      this.liveHits.set(name, Math.max(0, (this.liveHits.get(name) || 1) - 1))
+      if (done) done(it)
+    }
+    return inst
   }
 
-  spawnEntry(id, name, caster, targets, center) {
+  spawnEntry(id, name, caster, targets, center, yaw = yawOf(caster)) {
     const role = prefabRole(name)
     if (role === 'caster') return this.spawnOn(id, name, caster)
-    if (role === 'aoe') return this.spawnAt(id, name, new THREE.Vector3(center.x, 0.03, center.z), caster.facing, caster.scale)
+    if (role === 'aoe') return this.spawnAt(id, name, new THREE.Vector3(center.x, 0.03, center.z), yaw, caster.scale)
     if (role !== 'hit') return this.fly(id, name, caster, targets[0] || null, { fallback: center })
     for (const t of targets) if (t && !t.dead) this.hitOn(id, name, caster, t)
     return null
@@ -830,11 +880,11 @@ export class HeroFx {
       if (/Target/.test(e.fx)) {
         this.later(e.t, () => origin && this.spawnOn(id, e.fx, origin, { scale: caster.scale }))
       } else if (/AOE/.test(e.fx)) {
-        this.later(impact + e.t, () => this.spawnAt(id, e.fx, ground(), caster.facing, caster.scale))
+        this.later(impact + e.t, () => this.spawnAt(id, e.fx, ground(), yawOf(caster), caster.scale))
       } else if (/Hit/.test(e.fx)) {
         for (const t of targets) this.later(impact + e.t, () => {
           if (t.dead) return
-          this.spawnOn(id, e.fx, t, { yaw: Math.atan2(caster.pos.x - t.pos.x, caster.pos.z - t.pos.z), scale: caster.scale * HIT_SCALE })
+          this.hitOn(id, e.fx, caster, t)
         })
       } else {
         this.later(e.t, () => this.spawnOn(id, e.fx, caster))
@@ -867,22 +917,26 @@ export class HeroFx {
     const impact = opts.impact || 0.3
     for (const e of list) {
       const role = prefabRole(e.fx)
-      if (role === 'caster') this.later(Math.min(e.t, impact), () => this.spawnOn(id, e.fx, caster))
+      if (role === 'caster') this.later(opts.exact ? e.t : Math.min(e.t, impact), () => this.spawnOn(id, e.fx, caster))
     }
     const projectiles = list.filter(e => prefabRole(e.fx) === 'projectile')
     const hits = list.filter(e => prefabRole(e.fx) === 'hit')
     const aoes = list.filter(e => prefabRole(e.fx) === 'aoe')
+    const aoeAt = (e, t) => {
+      const reach = opts.reach || 0
+      const near = t && reach && Math.hypot(t.pos.x - caster.pos.x, t.pos.z - caster.pos.z) <= reach
+      const c = near ? t.pos : reach ? _v.set(caster.pos.x + Math.sin(yawOf(caster)) * reach * 0.6, 0, caster.pos.z + Math.cos(yawOf(caster)) * reach * 0.6) : t ? t.pos : caster.pos
+      this.spawnAt(id, e.fx, new THREE.Vector3(c.x, 0.03, c.z), yawOf(caster), caster.scale)
+    }
+    if (opts.exact) for (const e of aoes) this.later(e.t, () => { if (!caster.dead) aoeAt(e, target) })
     const onTarget = t => {
-      for (const e of hits) this.later(e.t, () => t && this.spawnOn(id, e.fx, t, { yaw: Math.atan2(caster.pos.x - t.pos.x, caster.pos.z - t.pos.z), scale: caster.scale * HIT_SCALE }))
-      for (const e of aoes) this.later(e.t, () => {
-        const c = t ? t.pos : caster.pos
-        this.spawnAt(id, e.fx, new THREE.Vector3(c.x, 0.03, c.z), caster.facing, caster.scale)
-      })
+      for (const e of hits) this.later(e.t, () => t && this.hitOn(id, e.fx, caster, t))
+      if (!opts.exact) for (const e of aoes) this.later(e.t, () => aoeAt(e, t))
     }
     if (projectiles.length) {
       const e = projectiles[Math.floor(random() * projectiles.length)]
       this.later(impact, () => this.fly(id, e.fx, caster, target, {
-        fallback: caster.pos.clone().add(new THREE.Vector3(Math.sin(caster.facing) * 8, caster.height * 0.55, Math.cos(caster.facing) * 8)),
+        fallback: caster.pos.clone().add(new THREE.Vector3(Math.sin(yawOf(caster)) * 8, caster.height * 0.55, Math.cos(yawOf(caster)) * 8)),
         onArrive: () => {
           onTarget(target)
           if (opts.onHit) opts.onHit(target)
@@ -905,7 +959,7 @@ export class HeroFx {
     const list = this.entries(id, type)
     for (const e of list) {
       if (prefabRole(e.fx) !== 'hit') continue
-      this.later(e.t, () => this.spawnOn(id, e.fx, target, { yaw: Math.atan2(caster.pos.x - target.pos.x, caster.pos.z - target.pos.z), scale: caster.scale * HIT_SCALE }))
+      this.later(e.t, () => this.hitOn(id, e.fx, caster, target))
     }
   }
 

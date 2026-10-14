@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { DYN_LIGHTS, DYN_LIGHTS_GLSL } from './lights.js'
-import { LOCATIONS, DEFAULT_LOCATION } from '../data/locations.js'
+import { DEFAULT_LOCATION } from '../data/locations.js'
 import { fetchBuffer, fetchJson } from '../core/fetch.js'
 
 export const ARENA_RADIUS = 18.5
@@ -34,8 +34,7 @@ const ARENA_DIR = 'assets/locations/'
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
 
 export function pickLocation() {
-  const q = new URLSearchParams(location.search).get('loc')
-  return LOCATIONS.includes(q) ? q : DEFAULT_LOCATION
+  return DEFAULT_LOCATION
 }
 
 export async function buildArena(scene, id = pickLocation()) {
@@ -94,6 +93,7 @@ export async function buildArena(scene, id = pickLocation()) {
   const floorY = meta.floorY ?? measureFloor(group)
   group.position.y = -floorY
   group.updateMatrixWorld(true)
+  markUncut(group, floorY)
 
   const shadowCatcher = new THREE.Mesh(
     new THREE.CircleGeometry(ARENA_RADIUS + 3, 64),
@@ -241,9 +241,33 @@ function patchLightmapUv(material) {
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_LIGHTMAP\n\tvLightMapUv = uv1 * lmST.xy + lmST.zw;\n#endif')
     if (dynamic) patchDynamicLights(shader)
     if (material.userData.terrain) patchTerrain(shader, material.userData.terrain)
-    patchCameraCut(shader)
+    if (!material.userData.noCut) patchCameraCut(shader)
   }
-  material.customProgramCacheKey = () => (material.userData.terrain ? 'spire-terrain' : 'spire-lm') + (dynamic ? '-dyn' : '')
+  material.customProgramCacheKey = () => (material.userData.terrain ? 'spire-terrain' : 'spire-lm') + (dynamic ? '-dyn' : '') + (material.userData.noCut ? '-whole' : '')
+}
+
+function markUncut(group, floorY) {
+  const spans = new Map()
+  const box = new THREE.Box3()
+  const matrix = new THREE.Matrix4()
+  const grow = (material, b) => {
+    const span = spans.get(material) || { reach: 0, top: -Infinity }
+    span.reach = Math.max(span.reach, Math.hypot(Math.max(-b.min.x, b.max.x), Math.max(-b.min.z, b.max.z)))
+    span.top = Math.max(span.top, b.max.y)
+    spans.set(material, span)
+  }
+  group.traverse(o => {
+    if (!o.isMesh || !o.material || !o.material.onBeforeCompile) return
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox()
+    if (o.isInstancedMesh) {
+      for (let i = 0; i < o.count; i++) {
+        o.getMatrixAt(i, matrix)
+        grow(o.material, box.copy(o.geometry.boundingBox).applyMatrix4(matrix.premultiply(o.matrixWorld)))
+      }
+    } else grow(o.material, box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld))
+  })
+  const lowest = Math.min(0, floorY) + CUT_HEIGHT
+  for (const [material, span] of spans) if (span.reach < ARENA_RADIUS + CUT_REACH || span.top < lowest) material.userData.noCut = true
 }
 
 function patchCameraCut(shader) {

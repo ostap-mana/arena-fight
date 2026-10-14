@@ -502,6 +502,16 @@ def color_prop(mat, key):
 MESH_VFX_SHADERS = ("VFX/VFX_Magic_MainTexture",)
 
 
+def fire_tint(mat):
+    colors = [c for c in (color_prop(mat, "_MainColor0"), color_prop(mat, "_MainColor1")) if c]
+    if not colors:
+        return None
+    mix = [sum(c[i] / max(max(c[:3]), 1e-6) for c in colors) / len(colors) for i in range(3)]
+    if min(mix) > 0.95:
+        return None
+    return [round(x, 4) for x in mix]
+
+
 def shader_name(b, mat):
     try:
         sh = b.deref(mat.m_Shader)
@@ -664,6 +674,9 @@ class Exporter:
             m["alphaMode"] = "BLEND"
             m["doubleSided"] = True
             m["extras"] = {"fx": "additive"}
+            tint = fire_tint(mat)
+            if tint:
+                m["extras"]["tint"] = tint
         vfx = mesh_vfx_extras(self.b, mat)
         if vfx:
             m["alphaMode"] = "BLEND"

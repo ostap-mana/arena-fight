@@ -1,3 +1,5 @@
+import { trackBoot, trackCta } from './track.js'
+
 const link = window.__INVOKERS_LINK
 const sent = new Set()
 let progressTold = 0
@@ -42,6 +44,7 @@ export function openStore(source) {
   storeLock = true
   setTimeout(() => { storeLock = false }, 1200)
   sayOnce('cta', { source })
+  trackCta()
   try {
     window.__PLAYABLE.openStore()
   } catch {
@@ -67,5 +70,7 @@ export function tellState(read) {
 
 export function bootMark(name) {
   const boot = globalThis.__BOOT
-  if (boot && boot.marks) boot.marks.push([name, Math.round(performance.now())])
+  const at = performance.now()
+  if (boot && boot.marks) boot.marks.push([name, Math.round(at)])
+  trackBoot(name, at)
 }

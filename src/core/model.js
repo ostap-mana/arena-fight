@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
+import { mergeGeometries, deinterleaveGeometry } from 'three/addons/utils/BufferGeometryUtils.js'
 import { characterMaterial, addProjectedShadow, characterTexturesReady } from '../world/character-shader.js'
 import { meshVfxMaterial } from '../world/vfx.js'
 import { fetchBuffer } from './fetch.js'
@@ -9,9 +10,12 @@ import { fetchBuffer } from './fetch.js'
 const MODEL_DIR = 'assets/glb/'
 const CLIP_SLICE_MS = 8
 const SMALL_PART_SHADOW = 0.4
+const BIND_EPS = 1e-4
+const CULL_PAD = 1.6
 const COMPACT = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
 const modelCache = new Map()
 const modelBytes = new Map()
+const sharedLooks = new WeakMap()
 const SKINNED_DEPTH = new THREE.MeshDepthMaterial()
 
 function useSkinnedDepth(mesh) {
@@ -64,10 +68,6 @@ export function prefetchModel(id) {
 }
 const IGNORED_CLIP = /^(FXA_|New Animation)/
 const SWING_BONE = /^(WeaponRoot_[LR]|Weapon1_[LR]|Wrist_[LR]|Elbow_[LR]|Shoulder_[LR])$/
-const WING_BONE = /^Wing/
-const WING_ANCHOR = 'Chest_M'
-const WING_SCALE = 1.35
-const WING_CLIP = { Run: 'Run', Walk: 'Run', Dash: 'Dash', Death: 'Death' }
 const _v = new THREE.Vector3()
 
 export function texturesReady() {
@@ -83,86 +83,101 @@ export function loadModelData(id) {
   return modelCache.get(id)
 }
 
-export function loadWingedModel(id, wingsId) {
-  const key = `${id}+${wingsId}`
-  if (!modelCache.has(key)) {
-    modelCache.set(key, Promise.all([loadModelData(id), loadModelData(wingsId)]).then(([body, wings]) => graftWings(body, wings)))
-  }
-  return modelCache.get(key)
+function closeMatrix(a, b) {
+  const x = a.elements
+  const y = b.elements
+  for (let i = 0; i < 16; i++) if (Math.abs(x[i] - y[i]) > BIND_EPS) return false
+  return true
 }
 
-function graftWings(body, wings) {
-  const scene = cloneSkinned(body.scene)
-  const source = cloneSkinned(wings.scene)
-  scene.updateMatrixWorld(true)
-  source.updateMatrixWorld(true)
-  const anchor = scene.getObjectByName(WING_ANCHOR) || scene
-  const sourceAnchor = source.getObjectByName(WING_ANCHOR) || source
-  const rebase = anchor.matrixWorld.clone().invert().multiply(sourceAnchor.matrixWorld)
-  const roots = []
-  const meshes = []
-  source.traverse(o => {
-    if (o.isBone && WING_BONE.test(o.name) && !WING_BONE.test(o.parent.name)) roots.push(o)
-    if (o.isSkinnedMesh) meshes.push(o)
+function skinnedMeshes(scene) {
+  const out = []
+  scene.traverse(o => {
+    if (o.isSkinnedMesh && !Array.isArray(o.material)) out.push(o)
   })
-  const grafted = new Set()
-  for (const bone of roots) {
-    bone.matrix.premultiply(rebase).decompose(bone.position, bone.quaternion, bone.scale)
-    bone.scale.multiplyScalar(WING_SCALE)
-    anchor.add(bone)
-    bone.traverse(b => grafted.add(b))
-  }
-  for (const mesh of meshes) {
-    const bones = mesh.skeleton.bones.map(b => (grafted.has(b) ? b : scene.getObjectByName(b.name) || anchor))
-    mesh.userData.attachment = true
-    scene.add(mesh)
-    mesh.bind(new THREE.Skeleton(bones, mesh.skeleton.boneInverses), mesh.bindMatrix)
-  }
-  const rebased = { names: new Set(roots.map(b => b.name)), matrix: rebase, rotation: new THREE.Quaternion().setFromRotationMatrix(rebase) }
-  const clips = new Map()
-  for (const [name, clip] of body.clips) clips.set(name, withWingTracks(clip, wings.clips.get(WING_CLIP[name] || 'Idle'), rebased))
-  return { scene, clips, impacts: body.impacts, metrics: null }
-}
-
-function rebaseValues(track, rebased) {
-  const [bone, property] = track.name.split('.')
-  if (!rebased.names.has(bone)) return track.values
-  const values = track.values.slice()
-  if (property === 'quaternion') {
-    const q = new THREE.Quaternion()
-    for (let i = 0; i < values.length; i += 4) {
-      q.fromArray(values, i).premultiply(rebased.rotation).toArray(values, i)
-    }
-  } else if (property === 'position') {
-    for (let i = 0; i < values.length; i += 3) _v.fromArray(values, i).applyMatrix4(rebased.matrix).toArray(values, i)
-  } else if (property === 'scale') {
-    for (let i = 0; i < values.length; i++) values[i] *= WING_SCALE
-  }
-  return values
-}
-
-function withWingTracks(clip, source, rebased) {
-  const out = clip.clone()
-  if (!source || !source.duration) return out
-  const repeats = Math.max(1, Math.round(clip.duration / source.duration))
-  const span = clip.duration / repeats
-  const stretch = span / source.duration
-  for (const track of source.tracks) {
-    const base = rebaseValues(track, rebased)
-    const count = track.times.length
-    const times = new Float32Array(count * repeats)
-    const values = new base.constructor(base.length * repeats)
-    for (let r = 0; r < repeats; r++) {
-      for (let i = 0; i < count; i++) times[r * count + i] = track.times[i] * stretch + r * span
-      values.set(base, r * base.length)
-    }
-    out.tracks.push(new track.constructor(track.name, times, values))
-  }
   return out
+}
+
+function unionSkeleton(skins) {
+  const bones = []
+  const inverses = []
+  const slot = new Map()
+  for (const mesh of skins) {
+    const { bones: own, boneInverses } = mesh.skeleton
+    for (let i = 0; i < own.length; i++) {
+      const at = slot.get(own[i])
+      if (at === undefined) {
+        slot.set(own[i], bones.length)
+        bones.push(own[i])
+        inverses.push(boneInverses[i])
+      } else if (!closeMatrix(inverses[at], boneInverses[i])) return null
+    }
+  }
+  return { skeleton: new THREE.Skeleton(bones, inverses), slot }
+}
+
+function remapJoints(mesh, slot) {
+  const own = mesh.skeleton.bones
+  const joints = mesh.geometry.getAttribute('skinIndex')
+  const out = new Uint16Array(joints.count * 4)
+  for (let i = 0; i < joints.count; i++) {
+    out[i * 4] = slot.get(own[joints.getX(i)]) ?? 0
+    out[i * 4 + 1] = slot.get(own[joints.getY(i)]) ?? 0
+    out[i * 4 + 2] = slot.get(own[joints.getZ(i)]) ?? 0
+    out[i * 4 + 3] = slot.get(own[joints.getW(i)]) ?? 0
+  }
+  mesh.geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(out, 4))
+}
+
+function unifySkins(scene) {
+  const skins = skinnedMeshes(scene)
+  if (skins.length < 2 || skins.every(s => s.skeleton === skins[0].skeleton)) return
+  if (new Set(skins.map(s => s.geometry)).size !== skins.length) return
+  if (skins.some(s => !s.geometry.getAttribute('skinIndex'))) return
+  const union = unionSkeleton(skins)
+  if (!union) return
+  for (const mesh of skins) {
+    remapJoints(mesh, union.slot)
+    mesh.bind(union.skeleton, mesh.bindMatrix)
+  }
+}
+
+function mergeKey(mesh) {
+  const g = mesh.geometry
+  if (!g.index || mesh.userData.attachment || Object.keys(g.morphAttributes).length) return null
+  const names = Object.keys(g.attributes).sort()
+  const parts = []
+  for (const n of names) {
+    const a = g.attributes[n]
+    parts.push(`${n}:${a.itemSize}:${a.array.constructor.name}:${a.normalized}`)
+  }
+  return `${mesh.material.uuid}|${mesh.parent.uuid}|${mesh.skeleton.uuid}|${g.index.array.constructor.name}|${parts.join(',')}`
+}
+
+function mergeTwins(scene) {
+  scene.updateMatrixWorld(true)
+  const groups = new Map()
+  for (const mesh of skinnedMeshes(scene)) {
+    const key = mergeKey(mesh)
+    if (!key) continue
+    const list = groups.get(key)
+    if (!list) groups.set(key, [mesh])
+    else if (closeMatrix(list[0].matrix, mesh.matrix) && closeMatrix(list[0].bindMatrix, mesh.bindMatrix)) list.push(mesh)
+  }
+  for (const list of groups.values()) {
+    if (list.length < 2) continue
+    for (const m of list) deinterleaveGeometry(m.geometry)
+    const merged = mergeGeometries(list.map(m => m.geometry))
+    if (!merged) continue
+    list[0].geometry = merged
+    for (let i = 1; i < list.length; i++) list[i].removeFromParent()
+  }
 }
 
 function prepareModel(gltf) {
   const scene = gltf.scene
+  unifySkins(scene)
+  mergeTwins(scene)
   const base = scene.getObjectByName('Base')
   const pelvis = scene.getObjectByName('Root_M')
   const clips = new Map()
@@ -322,7 +337,11 @@ function dressMaterial(source, opts) {
     m.blending = THREE.AdditiveBlending
     m.depthWrite = false
     m.transparent = true
-    m.emissive.set(0xffffff)
+    const tint = source.userData.tint
+    if (tint) {
+      m.color.setRGB(tint[0], tint[1], tint[2])
+      m.emissive.setRGB(tint[0], tint[1], tint[2])
+    } else m.emissive.set(0xffffff)
     m.emissiveMap = m.map
     m.emissiveIntensity = 1.5
   } else if (opts.emissive) {
@@ -364,6 +383,15 @@ export function castBodyShadow(model) {
   })
 }
 
+export function cullOffscreen(model, on = true) {
+  if (model.culled === on) return
+  model.culled = on
+  for (const s of model.skins) {
+    s.boundingSphere.radius = sphereRadius(s) * CULL_PAD
+    s.frustumCulled = on
+  }
+}
+
 function sameSkeleton(a, b) {
   if (a.bones.length !== b.bones.length) return false
   for (let i = 0; i < a.bones.length; i++) {
@@ -381,6 +409,39 @@ function shareSkeletons(skins) {
   }
 }
 
+function sharedLook(data, source, opts) {
+  let cache = sharedLooks.get(data)
+  if (!cache) sharedLooks.set(data, (cache = new Map()))
+  if (!cache.has(source)) cache.set(source, dressMaterial(source, opts))
+  return cache.get(source)
+}
+
+function lookFor(data, mesh, opts) {
+  const source = mesh.material
+  if (!opts.shareLook || !mesh.isSkinnedMesh || Array.isArray(source) || (source.userData && source.userData.vfx)) return null
+  return { source, opts, shared: sharedLook(data, source, opts), own: null }
+}
+
+export function useOwnLook(model) {
+  if (model.ownLook) return
+  model.ownLook = true
+  for (const s of model.skins) {
+    const look = s.look
+    if (!look) continue
+    if (!look.own) look.own = dressMaterial(look.source, look.opts)
+    s.material = look.own
+  }
+}
+
+export function useSharedLook(model) {
+  if (!model.ownLook) return
+  model.ownLook = false
+  for (const s of model.skins) {
+    const look = s.look
+    if (look) s.material = look.shared
+  }
+}
+
 export function buildModel(data, opts = {}) {
   const { footY, height } = measure(data)
   const root = cloneSkinned(data.scene)
@@ -391,7 +452,9 @@ export function buildModel(data, opts = {}) {
     if (o.name && !byName.has(o.name)) byName.set(o.name, o)
     if (o.isBone) bones.push(o)
     if (!o.isMesh) return
-    o.material = dressMaterial(o.material, opts)
+    const look = lookFor(data, o, opts)
+    if (look) o.look = look
+    o.material = look ? look.shared : dressMaterial(o.material, opts)
     o.frustumCulled = false
     o.castShadow = !!opts.castShadow
     o.receiveShadow = false
@@ -417,8 +480,4 @@ export function buildModel(data, opts = {}) {
   }
   if (opts.projectedShadow !== false && skins.some(s => s.material.userData.character)) addProjectedShadow(model)
   return model
-}
-
-export function disposeModel(m) {
-  for (const s of m.skins) s.material.dispose()
 }

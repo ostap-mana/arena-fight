@@ -15,10 +15,9 @@ let lighting = null
 function bitmapsDecodeOffThread() {
   if (typeof createImageBitmap === 'undefined' || typeof navigator === 'undefined') return false
   const ua = navigator.userAgent
-  const safari = /^((?!chrome|android).)*safari/i.test(ua)
-  const safariVersion = Number((ua.match(/Version\/(\d+)/) || [])[1] || 0)
+  const webkit = /AppleWebKit/i.test(ua) && !/Chrome|Chromium|Android/i.test(ua)
   const firefoxVersion = Number((ua.match(/Firefox\/(\d+)/) || [])[1] || 0)
-  return !(safari && safariVersion < 17) && !(firefoxVersion && firefoxVersion < 98)
+  return !webkit && !(firefoxVersion && firefoxVersion < 98)
 }
 
 function loadTexture(url) {

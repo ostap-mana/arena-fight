@@ -4,6 +4,7 @@ import { characterMaterial } from './character-shader.js'
 import { audio } from '../core/audio.js'
 import { ARENA_RADIUS } from './arena.js'
 import { stream } from '../core/rng.js'
+import { LootAura } from './loot-aura.js'
 
 const random = stream('sim')
 
@@ -17,10 +18,8 @@ const LAUNCH_Y = 1.1
 const FLY_TIME = 0.62
 const FLY_PER_UNIT = 0.025
 const FLY_EXTRA_MAX = 0.3
-const SCATTER = [1.1, 2.5]
-const AWAY = [3.6, 5.4]
-const AWAY_FAN = 1.4
-const REST_HOLD = 0.9
+const BESIDE = [0.35, 1]
+const BEHIND_FAN = 2.2
 const FLOOR_LIMIT = ARENA_RADIUS - 1.2
 const ARC = [1.7, 2.7]
 const HOVER_Y = 0.55
@@ -28,19 +27,21 @@ const BOB = 0.09
 const BOB_SPEED = 2.6
 const SPIN = 1.7
 const TUMBLE = 7
-const PICK_RADIUS = 2
-const PICK_POP = 0.1
-const PICK_POP_LIFT = 0.7
-const PICK_POP_SCALE = 1.25
-const PICK_FLY = 0.24
-const PICK_LIFT = 0.5
-const PICK_SHRINK = 0.55
-const PICK_SPIN = 5
+const EMERGE_TIME = 0.3
+const EMERGE_RISE = 0.5
+const EMERGE_SCALE = 0.2
+const EMERGE_SPIN = 14
+const HOP_TIME = [0.26, 0.16]
+const HOP_HEIGHT = [0.45, 0.14]
+const REST_HOLD = HOP_TIME[0] + HOP_TIME[1]
+const PICK_RADIUS = 3.2
+const MAGNET_FEEL = 2.2
+const MAGNET_LEAN = 0.55
+const MAGNET_BOB_SPEED = 9
 const STAGGER = 0.09
 const HIT_LIFETIME = 1.2
 const HIGHLIGHT_MUTE = new Set(['PS_Beam_3_1', 'PS_Beam_4_1', 'PS_Beam_5_1'])
-const _v = new THREE.Vector3()
-const _lift = new THREE.Vector3()
+const TAKE_MUTE = new Set(['PS_G_Glow_1_2_Fade', 'PS_Star_1_1_ReUse', 'PS_Star_1_1_ReUse '])
 const _box = new THREE.Box3()
 const _size = new THREE.Vector3()
 const _center = new THREE.Vector3()
@@ -59,12 +60,48 @@ function between([a, b]) {
   return a + random() * (b - a)
 }
 
+function easeOutBack(k) {
+  const c = 1.70158
+  const u = k - 1
+  return 1 + (c + 1) * u * u * u + c * u * u
+}
+
+function hopHeight(t) {
+  for (let i = 0; i < HOP_TIME.length; i++) {
+    if (t < HOP_TIME[i]) {
+      const u = t / HOP_TIME[i]
+      return 4 * HOP_HEIGHT[i] * u * (1 - u)
+    }
+    t -= HOP_TIME[i]
+  }
+  return 0
+}
+
 function keepOnFloor(p) {
   const r = Math.hypot(p.x, p.z)
   if (r <= FLOOR_LIMIT) return p
   p.x *= FLOOR_LIMIT / r
   p.z *= FLOOR_LIMIT / r
   return p
+}
+
+function awayFrom(pos, angle, dist) {
+  return keepOnFloor(new THREE.Vector3(pos.x + Math.sin(angle) * dist, HOVER_Y, pos.z + Math.cos(angle) * dist))
+}
+
+function besideCorpse(at, body, spread, hero) {
+  const ang = hero ? Math.atan2(at.x - hero.pos.x, at.z - hero.pos.z) + (random() - 0.5) * BEHIND_FAN : random() * Math.PI * 2
+  return awayFrom(at, ang, body + between(BESIDE) * spread)
+}
+
+function rankOf(item) {
+  return RARITIES.indexOf(item.rarity)
+}
+
+function bestRank(table) {
+  let best = 0
+  for (const rarity in (table && table.rarity) || {}) best = Math.max(best, RARITIES.indexOf(rarity))
+  return best
 }
 
 function dress(mesh) {
@@ -105,12 +142,14 @@ export class Loot {
     this.group = new THREE.Group()
     this.group.name = 'loot'
     scene.add(this.group)
+    this.auras = new LootAura(this.group)
     this.drops = []
     this.queue = []
     this.templates = null
     this.config = null
     this.onCollect = null
     this.plan = null
+    this.lastDropAt = null
   }
 
   async load() {
@@ -135,6 +174,7 @@ export class Loot {
   warmProbe(at, scale) {
     const probe = new THREE.Group()
     for (const t of Object.values(this.templates || {})) probe.add(t.clone(true))
+    probe.add(this.auras.probe())
     probe.position.copy(at)
     probe.scale.setScalar(scale)
     this.group.add(probe)
@@ -151,18 +191,36 @@ export class Loot {
     return [...Object.values(cfg.rarity).flatMap(r => [r.highlight, r.trail]), cfg.hit].filter(Boolean)
   }
 
-  setPlan(items, kills) {
+  setPlan(items, roster) {
     this.plan = items.slice()
-    this.planKills = Math.max(1, kills)
+    this.planLeft = new Map()
+    for (const { table, count } of roster) this.planLeft.set(table, (this.planLeft.get(table) || 0) + count)
+    this.planKills = Math.max(1, roster.reduce((n, p) => n + p.count, 0))
     this.planSeen = 0
     this.planGiven = 0
   }
 
-  dropPlanned(at) {
+  laterCarries(rank) {
+    for (const [table, left] of this.planLeft) if (left > 0 && bestRank(table) >= rank) return true
+    return false
+  }
+
+  dropPlanned(at, table, body) {
     this.planSeen++
-    const due = Math.min(this.plan.length, Math.round((this.planSeen * this.plan.length) / this.planKills))
-    for (let i = 0; this.planGiven < due; i++) {
-      this.queue.push({ item: this.plan[this.planGiven++], at, delay: i * STAGGER, spread: 1 })
+    const left = this.planLeft.get(table)
+    if (left > 0) this.planLeft.set(table, left - 1)
+    const plan = this.plan
+    const cap = bestRank(table)
+    let upto = Math.min(plan.length, Math.round((this.planSeen * plan.length) / this.planKills))
+    for (let j = plan.length - 1; j >= upto; j--) {
+      const rank = rankOf(plan[j])
+      if (rank <= cap && !this.laterCarries(rank)) {
+        upto = j + 1
+        break
+      }
+    }
+    for (let i = 0; this.planGiven < upto && rankOf(plan[this.planGiven]) <= cap; i++) {
+      this.queue.push({ item: plan[this.planGiven++], at, body, delay: i * STAGGER, spread: 1 })
     }
   }
 
@@ -174,14 +232,17 @@ export class Loot {
       for (const item of rest) if (this.onCollect) this.onCollect(item)
       return
     }
-    rest.forEach((item, i) => this.queue.push({ item, at: new THREE.Vector3(at.x, LAUNCH_Y, at.z), delay: i * STAGGER, spread: 0.8 }))
+    const from = this.lastDropAt || new THREE.Vector3(at.x, LAUNCH_Y, at.z)
+    rest.forEach((item, i) => this.queue.push({ item, at: from, body: 0, delay: i * STAGGER, spread: 0.8 }))
   }
 
   dropFrom(actor, table, boss = false) {
     if (!table || !this.ready) return
     const at = new THREE.Vector3(actor.pos.x, actor.pos.y + Math.min(LAUNCH_Y, actor.height * 0.45), actor.pos.z)
+    this.lastDropAt = at
+    const body = actor.radius || 0
     if (this.plan && !boss) {
-      this.dropPlanned(at)
+      this.dropPlanned(at, table, body)
       return
     }
     let count = table.relics || 0
@@ -192,26 +253,18 @@ export class Loot {
         rarity: pickWeighted(table.rarity),
         set: table.set || SETS[Math.floor(random() * SETS.length)],
       }
-      this.queue.push({ item, at, delay: i * STAGGER, spread: boss ? 1.7 : 1 })
+      this.queue.push({ item, at, body, delay: i * STAGGER, spread: boss ? 1.7 : 1 })
     }
   }
 
-  launch({ item, at, spread }, hero) {
+  launch({ item, at, body, spread }, hero) {
     const template = this.templates[item.slot]
     if (!template) return
     const mesh = template.clone(true)
     mesh.position.copy(at)
+    mesh.scale.setScalar(EMERGE_SCALE)
     this.group.add(mesh)
-    let to
-    if (hero) {
-      const away = Math.atan2(at.x - hero.pos.x, at.z - hero.pos.z) + (random() - 0.5) * AWAY_FAN
-      const dist = between(AWAY)
-      to = keepOnFloor(new THREE.Vector3(hero.pos.x + Math.sin(away) * dist, HOVER_Y, hero.pos.z + Math.cos(away) * dist))
-    } else {
-      const ang = random() * Math.PI * 2
-      const dist = between(SCATTER) * spread
-      to = new THREE.Vector3(at.x + Math.cos(ang) * dist, HOVER_Y, at.z + Math.sin(ang) * dist)
-    }
+    const to = besideCorpse(at, body || 0, spread, hero)
     const travel = Math.hypot(to.x - at.x, to.z - at.z)
     const look = this.config.rarity[item.rarity] || this.config.rarity.common
     this.drops.push({
@@ -221,16 +274,32 @@ export class Loot {
       to,
       dur: FLY_TIME + Math.min(FLY_EXTRA_MAX, travel * FLY_PER_UNIT),
       arc: between(ARC),
-      phase: 'fly',
+      phase: 'emerge',
       t: 0,
       tumble: new THREE.Vector3(random() - 0.5, random() - 0.5, random() - 0.5).normalize(),
       spin: (random() < 0.5 ? -1 : 1) * SPIN,
       look,
-      trail: this.vfx.spawn(LIB, look.trail, { follow: mesh }),
+      trail: null,
       glow: null,
+      aura: null,
     })
+    if (this.config.hit) this.vfx.spawn(LIB, this.config.hit, { pos: at, camera: this.camera, lifetime: HIT_LIFETIME, mute: TAKE_MUTE })
     const rare = RARITIES.indexOf(item.rarity) >= 3
     audio.play(rare ? 'loot_drop_artifact' : 'loot_drop_equip', { at, slot: 'loot_drop', max: 3, gap: 0.05 })
+  }
+
+  emerge(d, dt) {
+    const m = d.mesh
+    const k = Math.min(1, d.t / EMERGE_TIME)
+    m.position.set(d.from.x, d.from.y + EMERGE_RISE * (1 - (1 - k) * (1 - k)), d.from.z)
+    m.scale.setScalar(EMERGE_SCALE + (1 - EMERGE_SCALE) * easeOutBack(k))
+    m.rotation.y += EMERGE_SPIN * dt
+    if (k < 1) return
+    m.scale.setScalar(1)
+    d.from.y += EMERGE_RISE
+    d.phase = 'fly'
+    d.t = 0
+    d.trail = this.vfx.spawn(LIB, d.look.trail, { follow: m })
   }
 
   land(d) {
@@ -238,23 +307,38 @@ export class Loot {
     d.t = 0
     d.mesh.quaternion.identity()
     if (d.trail) d.trail.stop()
-    d.trail = null
     d.glow = this.vfx.spawn(LIB, d.look.highlight, { pos: new THREE.Vector3(d.to.x, 0.02, d.to.z), mute: HIGHLIGHT_MUTE })
+    d.aura = this.auras.take(d.item.rarity, d.to.x, d.to.z)
   }
 
-  pick(d) {
-    d.phase = 'pick'
-    d.t = 0
-    d.from.copy(d.mesh.position)
-    if (d.glow) d.glow.stop()
-    d.glow = null
-    d.trail = this.vfx.spawn(LIB, d.look.trail, { follow: d.mesh })
+  rest(d, target, dt) {
+    const m = d.mesh
+    let lean = 0
+    let dist = Infinity
+    if (target) {
+      dist = Math.hypot(target.pos.x - d.to.x, target.pos.z - d.to.z)
+      const reach = PICK_RADIUS + target.radius
+      lean = Math.min(1, Math.max(0, (reach + MAGNET_FEEL - dist) / MAGNET_FEEL))
+      if (dist < reach && d.t >= REST_HOLD) return true
+    }
+    const pull = lean * lean * MAGNET_LEAN / Math.max(dist, 1e-3)
+    m.position.x = d.to.x + (target ? (target.pos.x - d.to.x) * pull : 0)
+    m.position.z = d.to.z + (target ? (target.pos.z - d.to.z) * pull : 0)
+    m.position.y = HOVER_Y + hopHeight(d.t) + Math.sin(d.t * (BOB_SPEED + (MAGNET_BOB_SPEED - BOB_SPEED) * lean)) * BOB * (1 + lean)
+    m.rotation.y += d.spin * (1 + 2 * lean) * dt
+    this.auras.follow(d.aura, m.position.x, m.position.z)
+    return false
   }
 
   finish(d, anchor) {
-    if (d.trail) d.trail.stop()
+    if (d.trail) this.vfx.kill(d.trail)
+    if (d.glow) this.vfx.kill(d.glow)
+    this.auras.release(d.aura)
+    d.trail = null
+    d.glow = null
+    d.aura = null
     this.group.remove(d.mesh)
-    if (this.config.hit && anchor) this.vfx.spawn(LIB, this.config.hit, { follow: anchor, lifetime: HIT_LIFETIME })
+    if (this.config.hit && anchor) this.vfx.spawn(LIB, this.config.hit, { follow: anchor, lifetime: HIT_LIFETIME, mute: TAKE_MUTE })
     audio.play('loot_take', { slot: 'loot_take', max: 2, gap: 0.06 })
     if (this.onCollect) this.onCollect(d.item)
   }
@@ -292,39 +376,19 @@ export class Loot {
       const d = this.drops[i]
       d.t += dt
       const m = d.mesh
-      if (d.phase === 'fly') {
+      if (d.phase === 'emerge') this.emerge(d, dt)
+      else if (d.phase === 'fly') {
         const k = Math.min(1, d.t / d.dur)
         m.position.lerpVectors(d.from, d.to, k)
         m.position.y += 4 * d.arc * k * (1 - k)
         m.rotateOnAxis(d.tumble, TUMBLE * dt)
         if (k >= 1) this.land(d)
-      } else if (d.phase === 'rest') {
-        m.position.y = HOVER_Y + Math.sin(d.t * BOB_SPEED) * BOB
-        m.rotation.y += d.spin * dt
-        const near = target && Math.hypot(target.pos.x - m.position.x, target.pos.z - m.position.z) < PICK_RADIUS + target.radius
-        if (near && d.t >= REST_HOLD) this.pick(d)
-      } else {
-        m.rotation.y += d.spin * PICK_SPIN * dt
-        if (d.t < PICK_POP) {
-          const p = 1 - (1 - d.t / PICK_POP) ** 2
-          m.position.set(d.from.x, d.from.y + PICK_POP_LIFT * p, d.from.z)
-          m.scale.setScalar(1 + (PICK_POP_SCALE - 1) * p)
-          continue
-        }
-        const k = Math.min(1, (d.t - PICK_POP) / PICK_FLY)
-        if (target) _v.set(target.pos.x, target.pos.y + target.height * 0.55, target.pos.z)
-        else _v.copy(d.from)
-        _lift.set(d.from.x, d.from.y + PICK_POP_LIFT, d.from.z)
-        const e = k * k * k
-        m.position.lerpVectors(_lift, _v, e)
-        m.position.y += Math.sin(Math.PI * k) * PICK_LIFT * (1 - k)
-        m.scale.setScalar(PICK_POP_SCALE * (1 - PICK_SHRINK * e))
-        if (k >= 1) {
-          this.drops.splice(i, 1)
-          this.finish(d, anchor)
-        }
+      } else if (this.rest(d, target, dt)) {
+        this.drops.splice(i, 1)
+        this.finish(d, anchor)
       }
     }
+    this.auras.update(dt)
   }
 
   clear() {
@@ -332,7 +396,9 @@ export class Loot {
       for (const fx of [d.trail, d.glow]) if (fx) fx.stop()
       this.group.remove(d.mesh)
     }
+    this.auras.clear()
     this.drops.length = 0
     this.queue.length = 0
+    this.lastDropAt = null
   }
 }

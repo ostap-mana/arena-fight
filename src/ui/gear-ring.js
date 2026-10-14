@@ -80,7 +80,6 @@ function relicArt(item) {
 
 function itemHtml(item, upgrade, build) {
   return `<div class="gi ${item.rarity}${build ? ' build' : ''}" data-id="${item.id}">
-    <i class="glow"></i>
     <img class="ic" src="${relicArt(item)}" alt="" draggable="false">
     <i class="grad"></i>
     <i class="border"></i>
@@ -129,7 +128,7 @@ export class GearRing {
       <div class="strip"><div class="tk">
         <div class="slabel"><b></b><span></span></div>
         <div class="row">
-          <button class="auto"><i class="sweep"></i><span>AUTO</span></button>
+          <button class="auto"><i class="sweep"><i></i></i><span>AUTO</span></button>
           <div class="items"></div>
           ${TAP}
         </div>
@@ -312,14 +311,14 @@ export class GearRing {
     }, CLOSE_MS)
   }
 
-  place(cx, top, bottom) {
+  place(cx, top, bottom, fitH = 0) {
     const W = view.w
     const H = view.h
     const safe = safeInsets()
     const heroH = Math.max(40, bottom - top)
     const k = this.scale
     const gap = STACK_GAP * k
-    const s = clamp(heroH * SLOT_OF_HERO, SLOT_MIN * k, SLOT_MAX * k)
+    const s = Math.round(clamp((fitH || heroH) * SLOT_OF_HERO, SLOT_MIN * k, SLOT_MAX * k))
     if (setPx(this.el, '--s', s)) {
       this.plateH = null
       this.guideMeasure = true
@@ -340,13 +339,21 @@ export class GearRing {
     hero.bottom = bottom
     hero.side = heroH * WEAR_SIDE
     this.hero = hero
-    this.placeShade(x, cy, off + s * 0.1, half + s * 0.15)
+    const fit = fitH || heroH
+    const fitOff = Math.min(fit * HERO_HALF + s * 0.5 + COLUMN_GAP * k, Math.max(s * 0.6, W / 2 - Math.max(safe.l, safe.r) - EDGE - s / 2 - bulge))
+    const fitHalf = Math.max(s * ROW_STEP, (fit - s) / 3) * 1.5 + s / 2
+    this.placeShade(x, cy, fitOff + s * 0.1, fitHalf + s * 0.15)
     for (let i = 0; i < LEFT.length; i++) this.putSlot(LEFT[i], -1, i, x, cy, off, bulge, step, s)
     for (let i = 0; i < RIGHT.length; i++) this.putSlot(RIGHT[i], 1, i, x, cy, off, bulge, step, s)
     this.measurePanels(s)
     const ringW = off + bulge + s / 2
     const ringTop = Math.min(top, cy - half)
     const ringBottom = Math.max(bottom, cy + half)
+    const zone = this.zone || (this.zone = { l: 0, r: 0, t: 0, b: 0 })
+    zone.l = x - ringW
+    zone.r = x + ringW
+    zone.t = ringTop
+    zone.b = ringBottom
     const lowY = EDGE + safe.t
     const highY = H - EDGE - safe.b
     const stackFits = ringTop - gap - this.plateAt(s) >= lowY && ringBottom + gap + this.stripH <= highY
@@ -355,9 +362,8 @@ export class GearRing {
     const sides = !stackFits && leftRoom >= s * PLATE_W * SIDE_PLATE_MIN && rightRoom >= s * SIDE_STRIP_MIN
     if (sides) this.placeSides(x, cy, ringW, s, gap, leftRoom, rightRoom, lowY, highY)
     else this.placeStacked(x, s, gap, ringTop, ringBottom, W, safe, lowY, highY)
-    setPx(this.halo, 'left', x)
-    setPx(this.halo, 'top', bottom)
-    setPx(this.halo, 'width', off * 2 + s * 1.6)
+    setWholePx(this.halo, 'width', fitOff * 2 + s * 1.6)
+    setSpot(this.halo, x, bottom)
     this.placeGuide(s)
   }
 
@@ -518,10 +524,11 @@ export class GearRing {
   }
 
   placeShade(x, y, rx, ry) {
-    setWholePx(this.shade, '--hx', x)
-    setWholePx(this.shade, '--hy', y)
     setWholePx(this.shade, '--rx', rx / SHADE_CLEAR)
     setWholePx(this.shade, '--ry', ry / SHADE_CLEAR)
+    setWholePx(this.shade, 'width', view.w * 2)
+    setWholePx(this.shade, 'height', view.h * 2)
+    setShift(this.shade, x - view.w, y - view.h)
   }
 
   wornAt(item) {
@@ -835,6 +842,16 @@ function setTurn(node, x, y, angle) {
   cache.ty = ty
   cache.ta = ta
   node.style.transform = `translate3d(${(tx / 10).toFixed(1)}px, ${(ty / 10).toFixed(1)}px, 0) rotate(${(ta / 1000).toFixed(3)}rad)`
+}
+
+function setSpot(node, x, y) {
+  const tx = Math.round(x * 10)
+  const ty = Math.round(y * 10)
+  const cache = cacheOf(node)
+  if (cache.sx === tx && cache.sy === ty) return
+  cache.sx = tx
+  cache.sy = ty
+  node.style.translate = `${(tx / 10).toFixed(1)}px ${(ty / 10).toFixed(1)}px`
 }
 
 function setShift(node, x, y) {

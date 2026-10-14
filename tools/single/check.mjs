@@ -72,7 +72,7 @@ async function run(index) {
   await shot(page, `h${index}-0-select`)
   await page.mouse.click(width / 2, height / 2)
   await page.waitForTimeout(800)
-  await page.evaluate(i => window.__game.previewHero(i), index)
+  await page.evaluate(i => window.__game.tapCard(i), index)
   await page.waitForTimeout(3500)
   await shot(page, `h${index}-1-preview`)
   await page.evaluate(() => window.__game.backgroundLoad)

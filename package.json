@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:test": "vite build --mode telemetry --outDir dist-test",
+    "dev:test": "vite --mode telemetry",
     "preview": "vite preview",
     "single": "node tools/single/build.mjs",
     "single:check": "node tools/single/check.mjs"

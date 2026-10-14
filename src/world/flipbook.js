@@ -89,14 +89,6 @@ function texture(file, srgb) {
   return entry
 }
 
-export async function preloadFlipbooks(names) {
-  await loadManifest()
-  await Promise.all(names.filter(n => manifest[n]).map(n => {
-    const d = manifest[n]
-    return Promise.all([texture(d.file, true).ready, d.mv ? texture(d.mv, false).ready : null])
-  }))
-}
-
 const VS = `
   attribute vec4 iPosRot;
   attribute vec4 iSizeFrame;

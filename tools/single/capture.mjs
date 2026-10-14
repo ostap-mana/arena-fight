@@ -22,7 +22,7 @@ async function run(heroIndex) {
   await page.waitForFunction(() => window.__game && window.__game.state === 'select', null, { timeout: 120000 })
   await page.mouse.click(215, 466)
   await page.waitForTimeout(1500)
-  await page.evaluate(i => { const g = window.__game; g.previewHero(i) }, heroIndex)
+  await page.evaluate(i => { const g = window.__game; g.tapCard(i) }, heroIndex)
   await page.waitForTimeout(4000)
   await page.evaluate(() => window.__game.backgroundLoad)
   await page.evaluate(() => window.__game.confirmPick())

@@ -3242,5 +3242,108 @@
   "size": 792424,
   "root": "MDL_ING_GIA067",
   "name": "GIA067"
+ },
+ {
+  "id": "DEM141",
+  "file": "dem141.glb",
+  "bones": 77,
+  "meshes": [
+   "MESH_VFX1",
+   "MESH_Horse",
+   "MESH_Body",
+   "MESH_Weapon"
+  ],
+  "textures": [
+   "T_FX_Noise_20_3",
+   "T_ING_DEM141_Horse_HiRes_Albedo",
+   "T_ING_DEM141_Horse_HiRes_NM",
+   "T_ING_DEM141_Body_Albedo",
+   "T_ING_DEM141_Body_NM",
+   "T_ING_DEM141_Weapon_Albedo",
+   "T_ING_DEM141_Weapon_NM"
+  ],
+  "clips": [
+   {
+    "name": "ComboAttack_1",
+    "duration": 1.6333,
+    "bones": 207,
+    "channels": 97
+   },
+   {
+    "name": "ComboAttack_2",
+    "duration": 2.6,
+    "bones": 207,
+    "channels": 110
+   },
+   {
+    "name": "ComboAttack_3",
+    "duration": 2.1333,
+    "bones": 207,
+    "channels": 89
+   },
+   {
+    "name": "Death",
+    "duration": 2.1333,
+    "bones": 207,
+    "channels": 80
+   },
+   {
+    "name": "Idle",
+    "duration": 2.1333,
+    "bones": 207,
+    "channels": 66
+   },
+   {
+    "name": "Run",
+    "duration": 0.8667,
+    "bones": 207,
+    "channels": 83
+   },
+   {
+    "name": "Skill_1_EndCast",
+    "duration": 1.5,
+    "bones": 207,
+    "channels": 84
+   },
+   {
+    "name": "Skill_1_PreCast",
+    "duration": 2.6667,
+    "bones": 207,
+    "channels": 94
+   },
+   {
+    "name": "Skill_2_Cast",
+    "duration": 0.4333,
+    "bones": 207,
+    "channels": 84
+   },
+   {
+    "name": "Skill_2_EndCast",
+    "duration": 1.9333,
+    "bones": 207,
+    "channels": 96
+   },
+   {
+    "name": "Skill_2_PreCast",
+    "duration": 2.0,
+    "bones": 207,
+    "channels": 92
+   },
+   {
+    "name": "Skill_3_EndCast",
+    "duration": 1.0,
+    "bones": 207,
+    "channels": 1
+   },
+   {
+    "name": "Skill_3_PreCast",
+    "duration": 1.0,
+    "bones": 207,
+    "channels": 1
+   }
+  ],
+  "size": 2996916,
+  "root": "MDL_ING_DEM141",
+  "name": "DEM141"
  }
 ]

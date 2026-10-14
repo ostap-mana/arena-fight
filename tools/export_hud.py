@@ -154,6 +154,7 @@ SPRITES = {
     "wave/marker": (BATTLE_HUD_BUNDLE, "S_HUD_LevelProgressionSlider"),
     "wave/enemies": (BATTLE_HUD_BUNDLE, "S_HUD_EnemyCounter"),
     "wave/boss": (BATTLE_HUD_BUNDLE, "S_HUD_BossBadge"),
+    "wave/boss-plate": (BATTLE_HUD_BUNDLE, "S_HUD_BossDamageCounterBg"),
     "loot/background": (BATTLE_HUD_BUNDLE, "S_HUD_LootBackground"),
     "loot/flash": (BATTLE_HUD_BUNDLE, "S_HUD_HorizontalTwoSidedGradient"),
     "loot/star": (LOBBY_UI_BUNDLE, "S_Default_Star"),
@@ -212,6 +213,7 @@ TINT = {
     "buttons/auto-badge-ring": (1.0, 0.7570274, 0.1568627),
     "buttons/auto-badge-disk": (1.0, 0.7327648, 0.0),
     "loot/flash": (0.8584906, 0.9572436, 0.9622642),
+    "wave/boss-plate": (0.6509434, 0.1934407, 0.1934407, 0.6980392),
 }
 TINT.update({f"loot/frame-{r}": c for r, c in RARITY_BORDER.items()})
 TINT.update({f"gear/border-{r}": c for r, c in RARITY_BORDER.items()})

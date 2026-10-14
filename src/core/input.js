@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-const IGNORED = '#gearring, button, .card, .store, .replay'
+const IGNORED = '#gearring, #skillbar, button, .card, .store, .replay'
 const TAP_TIME = 500
 const TAP_SLOP = 14
 const STICK_RANGE = 100 / 216
@@ -106,10 +106,8 @@ export class Input {
       const len = Math.hypot(dx, dy)
       if (len > this.radius) {
         const k = this.radius / len
-        this.origin.set(e.clientX - dx * k, e.clientY - dy * k)
         dx *= k
         dy *= k
-        this.placeStick()
       }
       this.move.set(dx / this.radius, dy / this.radius)
       if (this.knob) this.knob.style.transform = `translate(${dx}px, ${dy}px)`
