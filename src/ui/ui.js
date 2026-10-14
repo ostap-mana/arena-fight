@@ -51,6 +51,9 @@ const ULT_STEPS = 120
 const ULT_FILL_MS = 500
 const ULT_FLASH_MS = 300
 const ULT_FLASH_STEPS = 8
+const ULT_MANA = 300
+const ULT_MANA_GATHER_MS = 200
+const ULT_MANA_SHOW_MS = 1000
 const BOSS_BAR_HALF = 140
 const BOSS_BAR_HALF_H = 9.17
 const BAR_EDGE = 6
@@ -206,9 +209,9 @@ export class UI {
           <div class="tip"><i class="plate"></i><img class="ico" src="${powerIconImg}" alt="" draggable="false"><span></span></div>
         </div>
         <div id="skillbar">
-          <div class="sk ult cooling"><img class="icon" alt="" draggable="false"><i class="charge"><i class="lead"></i><i class="main"></i><i class="flash"></i></i><i class="frame"></i></div>
-          <div class="sk s1"><img class="icon" alt="" draggable="false"><i class="cd"></i><i class="frame"></i><b class="cdn"></b></div>
-          <div class="sk s2"><img class="icon" alt="" draggable="false"><i class="cd"></i><i class="frame"></i><b class="cdn"></b></div>
+          <div class="sk ult cooling"><img class="icon" alt="" draggable="false"><i class="dim"></i><i class="charge"><i class="lead"></i><i class="main"></i><i class="flash"></i></i><i class="frame"></i><b class="pct"><span><em>0</em><small>%</small></span></b><i class="press"></i><i class="burst"><i class="circle"></i><i class="star"></i></i><i class="mana"><i class="glow"></i><b></b></i></div>
+          <div class="sk s1"><img class="icon" alt="" draggable="false"><i class="cd"></i><i class="frame"></i><b class="cdn"></b><i class="press"></i><i class="burst"><i class="circle"></i><i class="star"></i></i></div>
+          <div class="sk s2"><img class="icon" alt="" draggable="false"><i class="cd"></i><i class="frame"></i><b class="cdn"></b><i class="press"></i><i class="burst"><i class="circle"></i><i class="star"></i></i></div>
         </div>
         <div id="titantimer"><div class="c">TITAN</div><div class="t"><i class="back"></i><i class="fill"></i></div></div>
         <div id="stick">
@@ -299,7 +302,11 @@ export class UI {
       this.skillSlots[k] = { el, icon: el.querySelector('.icon'), num: el.querySelector('.cdn'), k: 0, step: -1, secs: -1, ready: false }
     }
     this.onSkill = null
-    this.ultBar = { flash: this.skillbar.querySelector('.ult .flash'), goal: 0, from: 0, shown: 0, since: 0, gainAt: -Infinity, lead: 0, main: 0, glow: 0 }
+    this.ultBar = {
+      flash: this.skillbar.querySelector('.ult .flash'), goal: 0, from: 0, shown: 0, since: 0, gainAt: -Infinity, lead: 0, main: 0, glow: 0,
+      pctText: this.skillbar.querySelector('.ult .pct em'), pct: 0,
+      manaBox: this.skillbar.querySelector('.ult .mana'), manaText: this.skillbar.querySelector('.ult .mana b'), mana: 0, manaShown: -1, manaAt: -Infinity, manaUntil: 0, manaOn: false,
+    }
     this.skillModel = null
     this.animaCard = this.root.querySelector('#animacard')
     this.animaIcon = this.animaCard.querySelector('.portrait .icon')
@@ -537,7 +544,8 @@ export class UI {
   }
 
   paintSkill(s, k, secs) {
-    if (k - s.k > SKILL_CAST_JUMP) this.deferClass(s.el, 'cast')
+    if (k - s.k > SKILL_CAST_JUMP) this.deferClass(s.el, 'pressed')
+    else if (k === 0 && s.k > 0) this.deferClass(s.el, 'charged')
     s.k = k
     this.paintSweep(s, Math.ceil(k * SKILL_STEPS))
     const whole = s.step > 0 ? Math.ceil(secs) : 0
@@ -548,17 +556,21 @@ export class UI {
   }
 
   paintUlt(s, k, ready) {
-    if (s.ready && !ready) this.deferClass(s.el, 'cast')
+    const bar = this.ultBar
     if (ready !== s.ready) {
+      this.deferClass(s.el, ready ? 'charged' : 'pressed')
       s.ready = ready
       s.el.classList.toggle('ready', ready)
       s.el.classList.toggle('cooling', !ready)
+      this.dropUltMana(bar)
     }
-    const bar = this.ultBar
     const now = performance.now()
     const goal = Math.min(1, k)
     if (goal !== bar.goal) {
-      if (goal > bar.goal) bar.gainAt = now
+      if (goal > bar.goal) {
+        bar.gainAt = now
+        if (!ready) this.gainUltMana(bar, (goal - bar.goal) * ULT_MANA, now)
+      }
       bar.from = goal > bar.goal ? bar.shown : goal
       bar.goal = goal
       bar.since = now
@@ -571,6 +583,40 @@ export class UI {
     if (glow !== bar.glow) {
       bar.glow = glow
       bar.flash.style.opacity = String(glow / ULT_FLASH_STEPS)
+    }
+    const pct = Math.floor(goal * 100)
+    if (pct !== bar.pct) {
+      bar.pct = pct
+      bar.pctText.textContent = String(pct)
+    }
+    if (bar.manaOn && now >= bar.manaUntil) {
+      bar.manaOn = false
+      bar.manaBox.classList.remove('show')
+      bar.manaBox.classList.add('hide')
+    }
+  }
+
+  dropUltMana(bar) {
+    bar.manaOn = false
+    bar.manaAt = -Infinity
+    this.cancelDeferred(bar.manaBox, 'show')
+    bar.manaBox.classList.remove('show', 'hide')
+  }
+
+  gainUltMana(bar, gain, now) {
+    if (now - bar.manaAt > ULT_MANA_GATHER_MS) {
+      bar.mana = 0
+      bar.manaAt = now
+      bar.manaBox.classList.remove('hide')
+      this.deferClass(bar.manaBox, 'show')
+    }
+    bar.mana += gain
+    bar.manaUntil = now + ULT_MANA_SHOW_MS
+    bar.manaOn = true
+    const whole = Math.max(1, Math.round(bar.mana))
+    if (whole !== bar.manaShown) {
+      bar.manaShown = whole
+      bar.manaText.textContent = String(whole)
     }
   }
 
@@ -730,6 +776,16 @@ export class UI {
       const d = list[i]
       if (this.frame - d.at >= 2) d.node.classList.add(d.cls)
       else list[keep++] = d
+    }
+    list.length = keep
+  }
+
+  cancelDeferred(node, cls) {
+    const list = this.deferred
+    let keep = 0
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i]
+      if (d.node !== node || d.cls !== cls) list[keep++] = d
     }
     list.length = keep
   }

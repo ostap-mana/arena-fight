@@ -550,6 +550,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 
 #skillbar {
   --u: calc(0.40625px * var(--hud-scale, 1));
+  --hermite: cubic-bezier(.333, 0, .667, 1);
   position: absolute; right: calc(var(--safe-r) + 12px); top: 46%; transform: translateY(-50%);
   display: flex; flex-direction: column; align-items: center; gap: calc(34 * var(--u)); pointer-events: none; z-index: 24;
 }
@@ -562,18 +563,51 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #skillbar .sk::before { content: ''; position: absolute; inset: calc(-12 * var(--u)) calc(-12 * var(--u)) calc(-12 * var(--u)) calc(-30 * var(--u)); }
 #hud.gearmode #skillbar .sk { pointer-events: none; }
 #skillbar .icon { inset: 5.5%; width: 89%; height: 89%; border-radius: 50%; object-fit: cover; transition: filter .2s; }
-#skillbar .cd { inset: 5.5%; border-radius: 50%; background: conic-gradient(rgba(0, 0, 0, .66) calc(var(--k) * 360deg), transparent 0); }
+#skillbar .cd { inset: 5.5%; border-radius: 50%; background: conic-gradient(transparent calc((1 - var(--k)) * 360deg), rgba(0, 0, 0, .85) 0); }
 #skillbar .frame { inset: -9.4%; background: url('../assets/GENERAL/HUD/skills/mini/skill-frame.webp') center / contain no-repeat; filter: drop-shadow(0 calc(2 * var(--u)) calc(4 * var(--u)) rgba(0, 0, 0, .8)); }
 #skillbar .ult .icon { inset: 3%; width: 94%; height: 94%; }
 #skillbar .ult .frame { inset: -11%; background-image: url('../assets/GENERAL/HUD/skills/mini/ult-frame.webp'); }
 #skillbar .cdn {
-  inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 500; font-size: calc(60 * var(--u)); line-height: 1; color: #fff;
+  inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 500; font-size: calc(48 * var(--u)); line-height: 1; color: #fff;
   text-shadow: 0 0 calc(3 * var(--u)) #000, 0 0 calc(2 * var(--u)) #000, 0 calc(2 * var(--u)) calc(4 * var(--u)) #000;
 }
 #skillbar .sk.cooling .icon { filter: saturate(.6) brightness(.85); }
-#skillbar .sk.cast .icon { animation: skflash .5s ease-out; }
-#skillbar .sk.ult.ready .frame { filter: brightness(1.35) drop-shadow(0 calc(2 * var(--u)) calc(4 * var(--u)) rgba(0, 0, 0, .8)); }
 #skillbar .sk.ult { --l: 0; --m: 0; }
+#skillbar .ult .dim { inset: 3.85%; border-radius: 50%; background: rgba(0, 0, 0, .85); }
+#skillbar .ult .pct {
+  inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 500; line-height: 1; color: #fff; white-space: nowrap;
+  text-shadow: 0 0 calc(3 * var(--u)) #000, 0 0 calc(2 * var(--u)) #000, 0 calc(2 * var(--u)) calc(4 * var(--u)) #000;
+}
+#skillbar .ult .pct em { font-style: normal; font-size: calc(56 * var(--u)); }
+#skillbar .ult .pct small { font-size: calc(33.5 * var(--u)); }
+#skillbar .sk.ult.ready .dim, #skillbar .sk.ult.ready .pct, #skillbar .sk.ult.ready .mana { visibility: hidden; }
+#skillbar .press, #skillbar .burst, #skillbar .burst > i { opacity: 0; background: center / 100% 100% no-repeat; }
+#skillbar .press, #skillbar .burst { inset: 5.5%; }
+#skillbar .ult .press, #skillbar .ult .burst { inset: -14.4%; }
+#skillbar .burst > i { position: absolute; inset: 0; }
+#skillbar .press, #skillbar .burst .circle { background-image: url('../assets/GENERAL/HUD/buttons/pressed.webp'); }
+#skillbar .burst .star { background-image: url('../assets/GENERAL/HUD/buttons/ready.webp'); }
+#skillbar .sk.pressed .press { animation: skpressfade .417s var(--hermite), skpressgrow .417s var(--hermite); }
+#skillbar .sk.charged .burst { animation: skchargefade .333s var(--hermite); }
+#skillbar .sk.charged .burst .circle { animation: skchargefade .333s var(--hermite), skcirclegrow .333s var(--hermite); }
+#skillbar .sk.charged .burst .star { animation: skchargefade .333s var(--hermite), skstargrow .333s var(--hermite); }
+#skillbar .ult .mana { left: 50%; top: 3.85%; width: calc(203 * var(--u)); height: calc(175 * var(--u)); margin: calc(-87.5 * var(--u)) 0 0 calc(-101.5 * var(--u)); opacity: 0; }
+#skillbar .ult .mana > * { position: absolute; left: 50%; top: 50%; }
+#skillbar .ult .mana .glow {
+  width: calc(204.6 * var(--u)); height: calc(111 * var(--u)); margin: calc(-55.5 * var(--u)) 0 0 calc(-102.3 * var(--u));
+  background: url('../assets/GENERAL/HUD/buttons/ult-mana-glow.webp') center / 100% 100% no-repeat; opacity: 0;
+}
+#skillbar .ult .mana b {
+  width: calc(204.6 * var(--u)); height: calc(175 * var(--u)); margin: calc(-87.5 * var(--u)) 0 0 calc(-102.3 * var(--u));
+  display: grid; place-items: center; font-family: var(--display); font-style: normal; font-weight: 500; font-size: calc(56 * var(--u)); line-height: 1; color: #fff; white-space: nowrap;
+  text-shadow: 0 0 calc(3 * var(--u)) #000, 0 0 calc(2 * var(--u)) #000, 0 calc(2 * var(--u)) calc(4 * var(--u)) #000;
+}
+#skillbar .ult .mana.show, #skillbar .ult .mana.hide { opacity: 1; }
+#skillbar .ult .mana.show { animation: manapop .333s var(--hermite) both; }
+#skillbar .ult .mana.show .glow { animation: managlowfade .333s var(--hermite) both, managlowgrow .333s var(--hermite) both; }
+#skillbar .ult .mana.show b { animation: mananumfade .15s var(--hermite) both, mananumgrow .15s var(--hermite) both; }
+#skillbar .ult .mana.hide { animation: manashrink .167s var(--hermite) both; }
+#skillbar .ult .mana.hide b { animation: mananumout .167s var(--hermite) both; }
 #skillbar .ult .charge {
   inset: 5%; background: rgba(0, 0, 0, .8);
   -webkit-mask: url('../assets/GENERAL/HUD/buttons/ult-ring.webp') center / contain no-repeat;
@@ -584,7 +618,18 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #skillbar .ult .charge .main { background: conic-gradient(transparent calc((1 - var(--m)) * 360deg), #2fccff 0); }
 #skillbar .ult .charge .flash { background: conic-gradient(transparent calc((1 - var(--m)) * 360deg), #b8eeff 0); opacity: 0; }
 #skillbar .sk.ult.ready .charge { opacity: 0; }
-@keyframes skflash { 0% { filter: brightness(2.2); } 100% { filter: brightness(1); } }
+@keyframes skpressfade { 0% { opacity: 0; } 60% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes skpressgrow { 0% { transform: scale(1); } 100% { transform: scale(2.4); } }
+@keyframes skchargefade { 0% { opacity: 0; } 55% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes skcirclegrow { 0% { transform: scale(1); } 100% { transform: scale(2.5); } }
+@keyframes skstargrow { 0% { transform: scale(1); } 55%, 100% { transform: scale(2); } }
+@keyframes manapop { 0% { transform: scale(1); } 35.1% { transform: scale(.9); } 65.2%, 100% { transform: scale(1); } }
+@keyframes managlowfade { 0% { opacity: 0; } 5.1% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes managlowgrow { 0%, 35.1% { transform: scale(.2); } 65.2%, 100% { transform: scale(1); } }
+@keyframes mananumfade { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes mananumgrow { 0% { transform: scale(3); } 78% { transform: scale(.7); } 100% { transform: scale(1); } }
+@keyframes manashrink { 0% { transform: scale(1); } 100% { transform: scale(.8); } }
+@keyframes mananumout { 0% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(calc(88.5 * var(--u))) scale(.8); } }
 
 #topbar .tip {
   position: relative; display: flex; align-items: center; gap: calc(10 * var(--u)); margin-top: calc(22 * var(--u)); padding: calc(6 * var(--u)) calc(12 * var(--u));
