@@ -28,7 +28,7 @@ const SIDE_STRIP_MIN = 3.4
 const COUNT_MS = 650
 const FLY_MS = 360
 const OPEN_MS = 420
-const CLOSE_MS = 200
+const CLOSE_MS = 110
 const WEAR_MS = 380
 const WEAR_GAP = 90
 const AUTO_CLOSE_HOLD = 350
@@ -298,7 +298,7 @@ export class GearRing {
       slot.firstElementChild.animate([
         { transform: 'none', opacity: 1 },
         { transform: `translate(${dx}px, ${dy}px) scale(.2)`, opacity: 0 },
-      ], { duration: CLOSE_MS, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' })
+      ], { duration: CLOSE_MS, easing: 'cubic-bezier(.3,.7,.4,1)', fill: 'forwards' })
     }
     for (const part of [this.plate.firstElementChild, this.strip.firstElementChild, this.halo, this.shade]) {
       part.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CLOSE_MS, fill: 'forwards' })

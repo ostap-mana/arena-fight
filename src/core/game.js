@@ -209,7 +209,8 @@ const GEAR_ZONE_PAD = 10
 const GEAR_CHASE = 7
 const GEAR_LOOK = 0.55
 const GEAR_IN = 0.8
-const GEAR_OUT = 0.32
+const GEAR_OUT = 0.16
+const GEAR_BACK = 0.45
 const HERO_TAP_PAD = 12
 const HERO_TAP_WIDTH = 0.38
 const MOVE_FX = 'move'
@@ -508,6 +509,7 @@ export class Game {
     this.kills = 0
     this.lootWait = 0
     this.gearK = 0
+    this.gearBack = 0
     this.gearT = 0
     this.gearTo = 0
     this.dots = []
@@ -1119,6 +1121,7 @@ export class Game {
     audio.play('ui_expand_out')
     this.ui.closeGear()
     this.gearTo = 0
+    this.gearBack = 1
     this.applyGear()
     const power = this.gear.power()
     if (power > this.gearPower && this.state === 'battle') this.ui.showPowerGain(this.gearPower, power, this.gearGains())
@@ -4335,9 +4338,11 @@ export class Game {
       _v.x += dx * k
       _v.z += dz * k
     }
+    if (this.gearBack > 0) this.gearBack = Math.max(0, this.gearBack - dt / GEAR_BACK)
+    const chase = GEAR_CHASE * Math.max(this.gearK, this.gearBack)
     if (this.camSnap) this.camTarget.copy(_v)
     else if (selecting && dt > 0) smoothDamp(this.camTarget, _v, _camVel, SELECT_CAM_SMOOTH, dt)
-    else this.camTarget.lerp(_v, Math.min(1, dt * (3.2 + GEAR_CHASE * this.gearK)))
+    else this.camTarget.lerp(_v, Math.min(1, dt * (3.2 + chase)))
     const push = selecting && this.confirming ? Math.min(1, this.confirmT / CONFIRM_TIME) : 0
     const framing = playing ? this.battleFraming() : 0
     const near = playing ? THREE.MathUtils.lerp(1, BATTLE_ZOOM * this.bossPull, framing) : 1
@@ -4351,7 +4356,7 @@ export class Game {
     _off.applyAxisAngle(_up, this.camYaw)
     _v.copy(this.camTarget).add(_off)
     if (this.camSnap || selecting) this.camera.position.copy(_v)
-    else this.camera.position.lerp(_v, Math.min(1, dt * (5.5 + GEAR_CHASE * this.gearK)))
+    else this.camera.position.lerp(_v, Math.min(1, dt * (5.5 + chase)))
     this.camSnap = false
     _v2.copy(this.camTarget).add(this.camLook)
     _v2.y += GEAR_LOOK * this.gearK
