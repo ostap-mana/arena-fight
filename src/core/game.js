@@ -360,6 +360,10 @@ function smoothDamp(current, target, velocity, smoothTime, dt) {
   current.copy(target).add(_dampA.add(_dampB).multiplyScalar(k))
 }
 
+function swingShape() {
+  return { center: new THREE.Vector3(), yaw: 0, radius: 0, arc: Math.PI, width: 0, length: 0, dmg: 1, warn: null }
+}
+
 function readySkill(e, d) {
   const skills = e.def.skills
   for (let i = 0; i < skills.length; i++) {
@@ -2419,6 +2423,10 @@ export class Game {
       this.fx.dropWarn(e.swing.warn)
       e.swing.warn = null
     }
+    if (e.preSwing && e.preSwing.warn) {
+      this.fx.dropWarn(e.preSwing.warn)
+      e.preSwing.warn = null
+    }
     if (!e.cast) return
     this.fx.endWarn(e.cast.warn)
     if (e.cast.path) this.fx.endWarn(e.cast.path)
@@ -3592,7 +3600,7 @@ export class Game {
     const combo = this.comboIndexOf(e.rig)
     const weight = e.def.boss ? BOSS_STRIKE[clamp(combo, 1, BOSS_STRIKE.length) - 1] : 0
     const pattern = e.def.boss ? BOSS_SWINGS[clamp(combo, 1, BOSS_SWINGS.length) - 1] : elite ? ELITE_SWING : null
-    const swing = pattern ? this.aimSwing(e, pattern, range + ENEMY_HIT_SLACK) : null
+    const swing = (e.def.boss && this.takePreSwing(e, combo)) || (pattern ? this.aimSwing(e, pattern, range + ENEMY_HIT_SLACK) : null)
     const land = () => {
       if (!this.hero || this.hero.dead) return false
       this.hurtHero(e.def.dmg * e.might * (swing ? swing.dmg : 1), ENEMY_HITS[e.type], e.pos)
@@ -3615,13 +3623,46 @@ export class Game {
       const inside = swing ? this.insideCast(swing, this.hero) : dd <= range + ENEMY_HIT_SLACK
       const hit = inside && land()
       if (swing && !hit && dd < range + DODGE_REACH) this.sayDodged()
+      if (e.def.boss && combo === BOSS_SWINGS.length - 1) this.preAimSwing(e)
       if (weight) this.bossStrike(e, weight, range, hit)
       if (hit && fxRes) fxRes.onTarget(this.hero)
     })
   }
 
+  preAimSwing(e) {
+    const p = BOSS_SWINGS[BOSS_SWINGS.length - 1]
+    const s = e.preSwing || (e.preSwing = swingShape())
+    const yaw = e.facing
+    s.center.set(e.pos.x + Math.sin(yaw) * p.ahead, 0, e.pos.z + Math.cos(yaw) * p.ahead)
+    s.yaw = yaw
+    s.radius = p.radius
+    s.arc = p.arc
+    s.dmg = p.dmg
+    const windup = Math.max(0.3, e.rig.total - e.rig.stateT + (e.def.impacts.ComboAttack_3 || 0.6))
+    s.warn = this.fx.warn({ x: s.center.x, z: s.center.z, yaw, radius: p.radius, arc: p.arc, windup })
+  }
+
+  takePreSwing(e, combo) {
+    const pre = e.preSwing
+    if (!pre || !pre.warn) return null
+    if (combo !== BOSS_SWINGS.length) {
+      this.fx.dropWarn(pre.warn)
+      pre.warn = null
+      return null
+    }
+    const s = e.swing || (e.swing = swingShape())
+    s.center.copy(pre.center)
+    s.yaw = pre.yaw
+    s.radius = pre.radius
+    s.arc = pre.arc
+    s.dmg = pre.dmg
+    s.warn = pre.warn
+    pre.warn = null
+    return s
+  }
+
   aimSwing(e, p, reach) {
-    const s = e.swing || (e.swing = { center: new THREE.Vector3(), yaw: 0, radius: 0, arc: Math.PI, width: 0, length: 0, dmg: 1, warn: null })
+    const s = e.swing || (e.swing = swingShape())
     const yaw = e.facing
     s.center.set(e.pos.x + Math.sin(yaw) * p.ahead, 0, e.pos.z + Math.cos(yaw) * p.ahead)
     s.yaw = yaw
