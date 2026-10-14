@@ -93,6 +93,10 @@ const LOBBY_POST = {
 }
 const _v = new THREE.Vector3()
 const _v2 = new THREE.Vector3()
+const _cutA = new THREE.Vector3()
+const _cutB = new THREE.Vector3()
+const _cutEye = new THREE.Vector3()
+const _cutUp = new THREE.Vector3()
 const _off = new THREE.Vector3()
 const PORTRAIT_HFOV = THREE.MathUtils.degToRad(36)
 const PORTRAIT_PITCH = THREE.MathUtils.degToRad(45)
@@ -209,6 +213,8 @@ const GEAR_ZONE_PAD = 10
 const GEAR_CHASE = 7
 const GEAR_LOOK = 0.55
 const GEAR_IN = 0.8
+const GEAR_CUT_INSET = 3
+const NO_CUT = 1e6
 const GEAR_OUT = 0.16
 const GEAR_BACK = 0.45
 const HERO_TAP_PAD = 12
@@ -510,6 +516,8 @@ export class Game {
     this.lootWait = 0
     this.gearK = 0
     this.gearBack = 0
+    this.heroCut = new THREE.Plane(new THREE.Vector3(0, 1, 0), NO_CUT)
+    this.heroCuts = [this.heroCut]
     this.gearT = 0
     this.gearTo = 0
     this.dots = []
@@ -602,6 +610,7 @@ export class Game {
     r.outputColorSpace = THREE.SRGBColorSpace
     r.toneMapping = THREE.ACESFilmicToneMapping
     r.toneMappingExposure = 1.05
+    r.localClippingEnabled = true
     this.renderer = r
     trackRenderer(r)
 
@@ -1104,7 +1113,34 @@ export class Game {
     s.bottom += (bottom - s.bottom) * k
     this.gearSpan = s
     this.ui.gearRing.place(s.x, s.top, s.bottom, this.gearWant)
+    this.cutBelowGear()
     return s.bottom - s.top
+  }
+
+  clipHero(actor) {
+    this.uncutHero()
+    actor.root.traverse(o => {
+      if (!o.material) return
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.clippingPlanes = this.heroCuts
+    })
+  }
+
+  uncutHero() {
+    this.heroCut.normal.set(0, 1, 0)
+    this.heroCut.constant = NO_CUT
+  }
+
+  cutBelowGear() {
+    const y = this.ui.gearRing.cutY
+    if (y == null) return this.uncutHero()
+    const cam = this.camera
+    const ny = 1 - (2 * (y - GEAR_CUT_INSET)) / view.h
+    _cutA.set(-1, ny, 0.5).unproject(cam)
+    _cutB.set(1, ny, 0.5).unproject(cam)
+    _cutEye.setFromMatrixPosition(cam.matrixWorld)
+    this.heroCut.setFromCoplanarPoints(_cutEye, _cutA, _cutB)
+    _cutUp.set(0, ny + 0.5, 0.5).unproject(cam)
+    if (this.heroCut.distanceToPoint(_cutUp) < 0) this.heroCut.negate()
   }
 
   fitGearDist(span) {
@@ -1116,6 +1152,7 @@ export class Game {
   closeGear() {
     if (!this.gearOpen) return
     this.gearOpen = false
+    this.uncutHero()
     const skipped = !!this.gearIntro
     this.gearIntro = null
     audio.play('ui_expand_out')
@@ -1984,6 +2021,7 @@ export class Game {
     this.hero = new Actor(this.takeModel(battleModel), { targetHeight: HERO_HEIGHT, radius: HERO_RADIUS })
     this.hero.rig.minFade = HERO_MIN_FADE
     this.hero.rig.retimeCombo(hero.combo)
+    this.clipHero(this.hero)
     this.scene.add(this.hero.root)
     if (hero.vfx) this.heroFx.attachSkin(hero.vfx, this.hero)
     this.hero.hp = this.hero.maxHp = hero.hp

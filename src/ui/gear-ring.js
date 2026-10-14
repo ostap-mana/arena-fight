@@ -164,6 +164,7 @@ export class GearRing {
     this.guideLocal = { x: 0, y: 0, r: 0, inView: false }
     this.stripX = 0
     this.stripY = 0
+    this.cutY = null
     this.items.addEventListener('scroll', () => this.measureGuide(), { passive: true })
     this.el.querySelector('.x').addEventListener('click', () => this.onClose && this.onClose())
     this.autoBtn.addEventListener('click', () => this.autoEquip())
@@ -398,6 +399,7 @@ export class GearRing {
     this.stripX = clamp(x - stripW / 2, EDGE + safe.l, W - stripW - EDGE - safe.r)
     this.stripY = Math.min(highY - this.stripH, ringBottom + gap)
     setShift(this.strip, this.stripX, this.stripY)
+    this.cutY = this.stripY + this.stripH
   }
 
   placeSides(x, cy, ringW, s, gap, leftRoom, rightRoom, lowY, highY) {
@@ -410,6 +412,7 @@ export class GearRing {
     this.stripX = x + ringW + gap
     this.stripY = clamp(cy - this.stripH / 2, lowY, highY - this.stripH)
     setShift(this.strip, this.stripX, this.stripY)
+    this.cutY = null
   }
 
   pickGuide() {

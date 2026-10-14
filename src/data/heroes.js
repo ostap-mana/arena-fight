@@ -47,6 +47,7 @@ export const HEROES = [
     poseTop: 2.07,
     vfx: 'eld037',
     lobbySkin: false,
+    skinMute: ['PS_Liquid_2_1'],
     name: 'Ardell the Torrent',
     short: 'Ardell',
     rarity: 'legendary',
