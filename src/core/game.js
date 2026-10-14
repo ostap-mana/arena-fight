@@ -46,6 +46,11 @@ const AUTO_SKILLS = ['s1', 's2']
 const AUTO_ATTACK_SLACK = 0.6
 const AUTO_SKILL_SLACK = 0.5
 const AUTO_ULT_SHARE = 0.6
+const AUTO_SKILL_WAIT = 1
+const AUTO_ULT_WAIT = 3
+const AUTO_SKILL_PACK = 2
+const AUTO_ULT_PACK = 3
+const AUTO_ULT_LOW = 0.4
 const _near = { e: null, d: 0 }
 const GEAR_HINT_TIME = 4
 const GEAR_OPEN_DELAY = 2.3
@@ -472,6 +477,8 @@ export class Game {
     this.shakeAmp = 0
     this.heroIndex = 0
     this.cooldowns = { s1: 0, s2: 0, attack: 0 }
+    this.readyAt = { s1: 0, s2: 0 }
+    this.ultReadyAt = 0
     this.selectActors = []
     this.modelSpares = new Map()
     this.lazyQueue = []
@@ -2537,12 +2544,28 @@ export class Game {
     const def = this.activeDef()
     const slack = this.steering() ? 0 : AUTO_ATTACK_SLACK
     const gap = near.d - near.e.radius
-    if (this.ultReady && gap < this.heroDef.ult.reach * AUTO_ULT_SHARE && this.castUltimate()) return
+    const worth = this.titanMode || near.e.def.boss || near.e.size >= ELITE_SIZE
+    const ultReach = this.heroDef.ult.reach * AUTO_ULT_SHARE
+    const ultNow = worth || hero.hp < hero.maxHp * AUTO_ULT_LOW || this.t - this.ultReadyAt >= AUTO_ULT_WAIT
+    if (this.ultReady && gap < ultReach && (ultNow || this.countNear(ultReach) >= AUTO_ULT_PACK) && this.castUltimate()) return
     for (const key of AUTO_SKILLS) {
       const skill = def.skills[SKILL_SLOT[key]]
-      if (skill && this.cooldowns[key] <= 0 && gap < this.skillReach(skill, def) && this.useSkill(key)) return
+      if (!skill || this.cooldowns[key] > 0) continue
+      const reach = this.skillReach(skill, def)
+      const now = worth || this.t - this.readyAt[key] >= AUTO_SKILL_WAIT
+      if (gap < reach && (now || this.countNear(reach) >= AUTO_SKILL_PACK) && this.useSkill(key)) return
     }
     if (this.cooldowns.attack <= 0 && near.d < def.atkRange + Math.max(slack, near.e.radius)) this.attack()
+  }
+
+  countNear(r) {
+    const h = this.hero
+    let n = 0
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i]
+      if (!e.dead && Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) - e.radius < r) n++
+    }
+    return n
   }
 
   skillReach(skill, def) {
@@ -2967,7 +2990,9 @@ export class Game {
   addUlt(v) {
     if (this.ultReady || this.titanMode || this.state === 'morph') return
     this.ult = clamp(this.ult + v, 0, 1)
-    if (this.ult >= 1) this.ultReady = true
+    if (this.ult < 1) return
+    this.ultReady = true
+    this.ultReadyAt = this.t
   }
 
 
@@ -4106,7 +4131,9 @@ export class Game {
 
     if (this.state === 'battle') {
       for (const k in this.cooldowns) {
-        if (this.cooldowns[k] > 0) this.cooldowns[k] -= dt
+        if (this.cooldowns[k] <= 0) continue
+        this.cooldowns[k] -= dt
+        if (this.cooldowns[k] <= 0 && k in this.readyAt) this.readyAt[k] = this.t
       }
       this.ui.updateSkillbar(this.activeDef(), this.titanMode, this.cooldowns, this.ult, this.ultReady)
 
