@@ -7,7 +7,7 @@ import { LobbyAmbient } from './lobby-ambient.js'
 import { stream } from '../core/rng.js'
 
 const random = stream('lobby')
-import { createStand } from './stand-circle.js'
+import { createStand, STAND_REACH } from './stand-circle.js'
 
 const HAZE_TINT = { fire: 0x6a3a2a, water: 0x2e4a5c, earth: 0x4a4432, wind: 0x55606a, light: 0x6a5c44, dark: 0x3a2e4a }
 const IDLE_DIM = 0.55
@@ -21,6 +21,8 @@ const CONTACT_SIZE = 1.6
 const STAND_Y = 0.04
 const PORTRAIT_STAND = 0.82
 const PORTRAIT_IDLE = 0.3
+
+export const standRadius = portrait => CIRCLE_SIZE / 2 * STAND_REACH * (1 + (PORTRAIT_STAND - 1) * portrait)
 const EXPOSURE = { fire: 0.66 }
 const FLASH_DECAY = 3.5
 const FLOOR_BOOK = 'stand_floor'

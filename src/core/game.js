@@ -7,7 +7,7 @@ import { loadModelData, prefetchModel, buildModel, castBodyShadow, cullOffscreen
 import { Actor } from '../entities/actor.js'
 import { buildArena, aimArenaCut, ARENA_RADIUS } from '../world/arena.js'
 import { FX } from '../world/fx.js'
-import { Showcase } from '../world/showcase.js'
+import { Showcase, standRadius } from '../world/showcase.js'
 import { LobbyGradeEffect, FocusSharpenEffect, SanitizeEffect } from '../world/lobby-post.js'
 import { Vfx } from '../world/vfx.js'
 import { HeroFx, prefabRole, yawOf } from '../world/hero-fx.js'
@@ -1937,24 +1937,20 @@ export class Game {
       return
     }
     const bandTop = titleBottom + h * SELECT_POSE_GAP
-    const poseFit = hero => {
-      const top = hero.poseTop || SELECT_POSE_TOP
-      const edge = hero.poseEdge || SELECT_POSE_EDGE_FALLBACK
-      const lookTop = d => bisect(-4, 4, look => project(0, top, d, look).y > toNdc(bandTop))
-      const pastEdge = (d, look) => edge.some(([x, y, z]) => {
+    const reach = standRadius(p)
+    const tallest = Math.max(...HEROES.map(hero => hero.poseTop || SELECT_POSE_TOP))
+    const points = [[reach, 0, 0], [-reach, 0, 0], ...HEROES.flatMap(hero => hero.poseEdge || SELECT_POSE_EDGE_FALLBACK)]
+    const lookTop = d => bisect(-4, 4, look => project(0, tallest, d, look).y > toNdc(bandTop))
+    const stageTooClose = d => {
+      const look = lookTop(d)
+      if (project(0, 0, d, look, reach).y < toNdc(feetPx)) return true
+      return points.some(([x, y, z]) => {
         const q = project(x, y, d, look, z)
         return Math.abs(q.x) > SELECT_POSE_EDGE || q.y > SELECT_POSE_EDGE || q.y < toNdc(feetPx)
       })
-      const poseTooClose = d => {
-        const look = lookTop(d)
-        return project(0, 0, d, look).y < toNdc(feetPx) || pastEdge(d, look)
-      }
-      const close = Math.min(dist, bisect(SELECT_POSE_NEAREST, 14, poseTooClose))
-      const headed = lookTop(close)
-      const look = project(0, 0, close, headed).y < toNdc(feetPx) ? lookFor(close) : headed
-      return { dist: close, look }
     }
-    this.selectFit = poseFit(HEROES[this.heroIndex])
+    const close = bisect(SELECT_POSE_NEAREST, 14, stageTooClose)
+    this.selectFit = { dist: close, look: lookTop(close) }
     this.blendSelectPose(0, !ease)
   }
 

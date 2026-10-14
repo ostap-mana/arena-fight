@@ -50,6 +50,8 @@ const LOOK = {
   },
 }
 
+export const STAND_REACH = RING + Math.max(...Object.values(LOOK).map(look => look.coronaLen))
+
 const GLSL_CONSTANTS = `
   const float TAU = 6.2831853;
   const float PI = 3.1415927;
