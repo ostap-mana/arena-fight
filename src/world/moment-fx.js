@@ -10,7 +10,7 @@ const HEAL_FX = 'B_FX_Effect_Heal_Hit'
 const HEAL_MIN = 0.012
 const HEAL_GAP = 1.1
 
-const DOT_FX = { fire: 'B_FX_DOT_Burn', bleed: 'B_FX_DOT_Bleeding_Sign' }
+const DOT_FX = { bleed: 'B_FX_DOT_Bleeding_Sign' }
 const DOT_KINDS = Object.keys(DOT_FX)
 
 const RESCUE_FX = 'B_FX_Effect_Cheat_Death'
