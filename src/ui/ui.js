@@ -620,8 +620,8 @@ export class UI {
     this.powerGoal.querySelector('.bar').animate([{ filter: 'brightness(2.4)' }, { filter: 'brightness(1)' }], { duration: 900, easing: 'ease-out' })
   }
 
-  setShield(on) {
-    this.topBar.classList.toggle('danger', on)
+  setShield(on, fragile = false) {
+    this.topBar.classList.toggle('danger', on && !fragile)
     this.waveInfo.classList.toggle('shielded', on)
   }
 
