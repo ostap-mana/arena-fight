@@ -276,8 +276,14 @@ const STATUS_LIFT = 1.65
 const HERO_KNOCK_TITAN = 0.4
 const BOSS_HIT_CHROMA = 1.8
 const BOSS_STRIKE = [1, 1.15, 1.45]
+const BOSS_SWINGS = [
+  { arc: 0.9, radius: 8.5, ahead: 0, dmg: 0.7 },
+  { arc: Math.PI, radius: 5.5, ahead: 4.5, dmg: 1.8 },
+  { arc: 1.3, radius: 9, ahead: 0, dmg: 1 },
+]
+const DODGE_REACH = 3
 const BOSS_STRIKE_REACH = 32
-const BOSS_STRIKE_SHAKE = 0.5
+const BOSS_STRIKE_SHAKE = 0.3
 const BOSS_STRIKE_FLASH = 0xff6a1a
 const BOSS_LAND_SHAKE = 0.75
 const BOSS_LAND_STOP = 95
@@ -2135,7 +2141,11 @@ export class Game {
     }
     if (c.s.kind === 'charge') c.dash = { t0: c.t }
     const h = this.hero
-    if (!h || h.dead || this.state !== 'battle' || !this.insideCast(c, h)) return
+    if (!h || h.dead || this.state !== 'battle') return
+    if (!this.insideCast(c, h)) {
+      if (this.nearCast(c, h)) this.sayDodged()
+      return
+    }
     this.hurtHero(c.s.dmg * e.might, SKILL_HITS[c.s.key], c.center)
     this.hitStop(BOSS_SKILL_STOP)
     const vfxId = this.enemyVfx(e.def)
@@ -2175,6 +2185,7 @@ export class Game {
       if (vfxId) this.heroFx.skillHitFx(vfxId, c.s.fx, e, h)
     }
     if (k < 1) return
+    if (!c.struck && h && !h.dead && this.nearCast(c, h)) this.sayDodged()
     c.dash = null
     e.airborne = false
     c.done = c.t + Math.max(0, e.rig.total - e.rig.stateT)
@@ -2263,7 +2274,11 @@ export class Game {
       for (let i = 0; i < list.length; i++) this.heroFx.spawnAt(vfxId, list[i].fx, new THREE.Vector3(at.x, 0.03, at.z), e.facing, land.scale || e.scale, 3, land.mute || null)
     }
     const h = this.hero
-    if (!h || h.dead || this.state !== 'battle' || this.gearOpen || !this.insideCast(c, h)) return
+    if (!h || h.dead || this.state !== 'battle' || this.gearOpen) return
+    if (!this.insideCast(c, h)) {
+      if (this.nearCast(c, h)) this.sayDodged()
+      return
+    }
     this.hurtHero(c.s.dmg * e.might, SKILL_HITS[c.s.key], at)
   }
 
@@ -2285,7 +2300,15 @@ export class Game {
     return Math.abs(da) <= c.arc + r / Math.max(d, 0.5)
   }
 
+  nearCast(c, a) {
+    return Math.hypot(a.pos.x - c.center.x, a.pos.z - c.center.z) < Math.max(c.radius, c.length / 2) + DODGE_REACH
+  }
+
   cancelBossCast(e) {
+    if (e.swing && e.swing.warn) {
+      this.fx.dropWarn(e.swing.warn)
+      e.swing.warn = null
+    }
     if (!e.cast) return
     this.fx.endWarn(e.cast.warn)
     if (e.cast.path) this.fx.endWarn(e.cast.path)
@@ -3401,9 +3424,10 @@ export class Game {
     audio.play(this.attackSound(e.def, e.rig), { at: e.pos, slot: 'enemy_attack', max: 3 })
     const combo = this.comboIndexOf(e.rig)
     const weight = e.def.boss ? BOSS_STRIKE[clamp(combo, 1, BOSS_STRIKE.length) - 1] : 0
+    const swing = e.def.boss ? this.aimSwing(e, combo) : null
     const land = () => {
       if (!this.hero || this.hero.dead) return false
-      this.hurtHero(e.def.dmg * e.might, ENEMY_HITS[e.type], e.pos)
+      this.hurtHero(e.def.dmg * e.might * (swing ? swing.dmg : 1), ENEMY_HITS[e.type], e.pos)
       audio.play(`${soundCode(e.def)}_hit_combo`, { at: e.pos, slot: 'enemy_hit', max: 2, gap: 0.08 })
       return true
     }
@@ -3420,10 +3444,33 @@ export class Game {
     this.heroFx.later(e.rig.impactAt, () => {
       if (e.dead || !this.hero || this.state !== 'battle') return
       const dd = Math.hypot(this.hero.pos.x - e.pos.x, this.hero.pos.z - e.pos.z)
-      const hit = dd <= range + ENEMY_HIT_SLACK && land()
+      const inside = swing ? this.insideCast(swing, this.hero) : dd <= range + ENEMY_HIT_SLACK
+      const hit = inside && land()
+      if (swing && !hit && dd < range + DODGE_REACH) this.sayDodged()
       if (weight) this.bossStrike(e, weight, range, hit)
       if (hit && fxRes) fxRes.onTarget(this.hero)
     })
+  }
+
+  aimSwing(e, combo) {
+    const p = BOSS_SWINGS[clamp(combo, 1, BOSS_SWINGS.length) - 1]
+    const s = e.swing || (e.swing = { center: new THREE.Vector3(), yaw: 0, radius: 0, arc: Math.PI, width: 0, length: 0, dmg: 1, warn: null })
+    const yaw = e.facing
+    s.center.set(e.pos.x + Math.sin(yaw) * p.ahead, 0, e.pos.z + Math.cos(yaw) * p.ahead)
+    s.yaw = yaw
+    s.radius = p.radius
+    s.arc = p.arc
+    s.dmg = p.dmg
+    s.warn = this.fx.warn({ x: s.center.x, z: s.center.z, yaw, radius: p.radius, arc: p.arc, windup: e.rig.impactAt })
+    return s
+  }
+
+  sayDodged() {
+    if (this.titanMode || this.t - (this.statusAt.dodge ?? -STATUS_GAP) < STATUS_GAP) return
+    this.statusAt.dodge = this.t
+    const h = this.hero
+    this.floatText(h.pos.x, h.height * STATUS_LIFT + h.pos.y, h.pos.z, 'DODGED', 'dmg status')
+    audio.play('dash', { slot: 'dodge', gap: 0.4 })
   }
 
   bossStrike(e, weight, range, hit) {
