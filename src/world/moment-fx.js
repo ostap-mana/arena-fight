@@ -10,9 +10,6 @@ const HEAL_FX = 'B_FX_Effect_Heal_Hit'
 const HEAL_MIN = 0.012
 const HEAL_GAP = 1.1
 
-const DOT_FX = { bleed: 'B_FX_DOT_Bleeding_Sign' }
-const DOT_KINDS = Object.keys(DOT_FX)
-
 const RESCUE_FX = 'B_FX_Effect_Cheat_Death'
 const RESCUE_LIFE = 1.8
 
@@ -42,7 +39,6 @@ export class MomentFx {
     this.camera = camera
     this.followOpts = { follow: null, pos: _pos, quat: _quat, scale: 1, lifetime: 1, camera }
     this.gateOpts = { pos: _pos, yaw: 0, scale: 1, camera, onDone: inst => this.forgetGate(inst) }
-    this.dots = {}
     this.gates = GATES.map(() => null)
     this.gateGroups = GATES.map(() => {
       const group = new THREE.Group()
@@ -77,7 +73,6 @@ export class MomentFx {
     this.hpHero = null
     this.hp = 0
     this.healAt = -Infinity
-    for (const kind of DOT_KINDS) this.dots[kind] = null
     for (let i = 0; i < this.gates.length; i++) this.dropGate(i)
   }
 
@@ -87,12 +82,8 @@ export class MomentFx {
     const live = g.state === 'battle' || g.state === 'morph'
     this.updateGates(g)
     const h = g.hero
-    if (!live || !h || h.dead) {
-      this.stopDots()
-      return
-    }
+    if (!live || !h || h.dead) return
     this.watchHeal(g, h)
-    this.watchDots(g, h)
     this.watchRescue(g, h)
     this.watchShield(g)
   }
@@ -152,38 +143,6 @@ export class MomentFx {
     if (gain < h.maxHp * HEAL_MIN || g.t - this.healAt < HEAL_GAP) return
     this.healAt = g.t
     this.on(h, HEAL_FX, this.heroLib(g), this.heroScale(g), 1.2)
-  }
-
-  watchDots(g, h) {
-    const dots = g.dots || []
-    for (let k = 0; k < DOT_KINDS.length; k++) {
-      const kind = DOT_KINDS[k]
-      let on = false
-      for (let i = 0; i < dots.length; i++) {
-        const d = dots[i]
-        if (d && d.hit && d.hit.kind === kind && d.left > 0) {
-          on = true
-          break
-        }
-      }
-      const cur = this.dots[kind]
-      if (on && (!cur || cur.actor !== h)) {
-        if (cur) cur.inst.stop()
-        const inst = this.on(h, DOT_FX[kind], this.heroLib(g), this.heroScale(g), Infinity)
-        this.dots[kind] = inst ? { inst, actor: h } : null
-      } else if (!on && cur) {
-        cur.inst.stop()
-        this.dots[kind] = null
-      }
-    }
-  }
-
-  stopDots() {
-    for (const kind of DOT_KINDS) {
-      const cur = this.dots[kind]
-      if (cur) cur.inst.stop()
-      this.dots[kind] = null
-    }
   }
 
   watchRescue(g, h) {
