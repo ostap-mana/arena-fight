@@ -596,9 +596,13 @@ export class UI {
     el.classList.toggle('ready', !!ready)
     if (this.shownGoalPower >= 0 && power !== this.shownGoalPower) {
       el.querySelector('.nums').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.16)', offset: 0.35 }, { transform: 'scale(1)' }], { duration: 420, easing: 'ease-out' })
-      if (done && this.shownGoalPower < goal) el.querySelector('.bar').animate([{ filter: 'brightness(2.4)' }, { filter: 'brightness(1)' }], { duration: 900, easing: 'ease-out' })
+      if (done && this.shownGoalPower < goal) this.flashGoal()
     }
     this.shownGoalPower = power
+  }
+
+  flashGoal() {
+    this.powerGoal.querySelector('.bar').animate([{ filter: 'brightness(2.4)' }, { filter: 'brightness(1)' }], { duration: 900, easing: 'ease-out' })
   }
 
   setShield(on) {
@@ -609,10 +613,11 @@ export class UI {
   setHeroBar(k, max) {
     const bar = this.heroBarState
     const reset = max !== bar.max
+    const grew = reset && bar.max > 0 && max > bar.max
     const hit = !reset && k < bar.k
     bar.max = max
     bar.k = k
-    this.heroBar.classList.toggle('snap', reset)
+    this.heroBar.classList.toggle('snap', reset && !grew)
     this.heroBar.style.setProperty('--k', k)
     if (hit) this.deferClass(this.heroBar, 'hit')
   }

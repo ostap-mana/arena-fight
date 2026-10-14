@@ -50,6 +50,7 @@ const _near = { e: null, d: 0 }
 const GEAR_HINT_TIME = 4
 const GEAR_OPEN_DELAY = 2.3
 const SHIELD_CLOSE_DELAY = 0.9
+const GEAR_SETTLE_WAIT = 420
 const MORPH_SWAP = 0.45
 const MORPH_CAMERA = 1.5
 const SPAWN_RING = [7.5, 11]
@@ -101,6 +102,8 @@ const TITAN_AUTO_DELAY = 1.2
 const TITAN_OVERTIME = 1.5
 const TITAN_DMG = 1.4
 const TITAN_SMASH = 3
+const TITAN_END_CALM = 3.6
+const TITAN_END_GAP = 1.2
 const BOSS_SPAWN_DIST = 13
 const BOSS_CAST_GAP = 1.4
 const BOSS_RECOVER = 0.35
@@ -235,7 +238,7 @@ const MOB_ARMOR_POW = 0.3
 const MOB_DMG_POW = 1.2
 const MOB_SPEED_POW = -0.35
 const MOB_RATE_POW = 0.5
-const HIT_ROLL = 0.2
+const HIT_ROLL = 0.07
 const WAVE_HP = [0.8, 1.7]
 const WAVE_DMG = [0.7, 1.6]
 const BOSS_MIGHT = 2.5
@@ -287,6 +290,7 @@ const WEAK_DEAL = 0.55
 const WEAK_WARN = 0.08
 const WEAK_WARN_GAP = 8
 const WEAK_EASE = 0.35
+const WEAK_GRACE = 5
 const IMMUNE_TEXT_GAP = 0.45
 const GATE_WARN_DELAY = 2.1
 const DEFEAT_REASON_DELAY = 2.4
@@ -1026,6 +1030,12 @@ export class Game {
     this.applyGear()
     const power = this.gear.power()
     if (power > this.gearPower && this.state === 'battle') this.ui.showPowerGain(this.gearPower, power, this.gearGains())
+    if (this.shieldPending) {
+      const epoch = this.epoch
+      setTimeout(() => {
+        if (epoch === this.epoch && !this.gearOpen) this.celebrateShield()
+      }, GEAR_SETTLE_WAIT)
+    }
     if (this.shieldUp && this.state === 'battle') this.cueHero(true)
     else if (skipped && this.state === 'battle') this.cueHero(true, GEAR_HINT_TIME)
   }
@@ -1047,9 +1057,9 @@ export class Game {
     this.gearMods = this.gear.modifiers()
     const h = this.titanMode ? this.heroBase : this.hero
     if (!h) return
-    const k = h.maxHp ? h.hp / h.maxHp : 1
-    h.maxHp = this.heroDef.hp * this.gearMods.hp
-    h.hp = Math.max(1, h.maxHp * k)
+    const max = this.heroDef.hp * this.gearMods.hp
+    h.hp = clamp(h.hp + max - (h.maxHp || max), 1, max)
+    h.maxHp = max
     if (!this.titanMode) this.ui.setHp(h.hp, h.maxHp)
     this.showPower()
     if (this.shieldUp && !this.underpowered()) this.breakShield()
@@ -1069,7 +1079,11 @@ export class Game {
   weakness() {
     if (!this.gear || !this.loot.plan) return 0
     const plan = this.loot.plan
-    const given = Math.min(this.loot.planGiven || 0, plan.length)
+    const dropped = Math.min(this.loot.planGiven || 0, plan.length)
+    const at = this.givenAt
+    while (this.givenSeen < dropped) at[this.givenSeen++] = this.t
+    let given = 0
+    while (given < dropped && this.t - at[given] >= WEAK_GRACE) given++
     if (!this.expected || this.expected.given !== given) {
       const top = this.expected ? this.expected.top : this.expectedPower(plan.length)
       this.expected = { given, power: this.expectedPower(given), top }
@@ -1125,14 +1139,22 @@ export class Game {
     this.showPower()
     this.cueHero(false)
     if (this.state !== 'battle') return
-    this.ui.showBanner('SHIELD BROKEN', 'strike now', 1.8)
-    audio.play('ui_braam')
-    this.shake(0.6, 0.45)
-    if (this.boss && !this.boss.dead) this.lights.flash(this.boss.pos, 0xffd070, 3.2, 6, 0.6, this.boss.height * 0.5)
+    if (this.gearOpen) this.shieldPending = true
+    else this.celebrateShield()
     const epoch = this.epoch
     setTimeout(() => {
       if (epoch === this.epoch && this.gearOpen) this.closeGear()
     }, SHIELD_CLOSE_DELAY * 1000)
+  }
+
+  celebrateShield() {
+    this.shieldPending = false
+    if (this.state !== 'battle') return
+    this.ui.showBanner('SHIELD BROKEN', `${this.gear.power().toLocaleString('en-US')} power · strike now`, 2.2)
+    this.ui.flashGoal()
+    audio.play('ui_braam')
+    this.shake(0.6, 0.45)
+    if (this.boss && !this.boss.dead) this.lights.flash(this.boss.pos, 0xffd070, 3.2, 6, 0.6, this.boss.height * 0.5)
   }
 
   lootAnchor() {
@@ -1154,7 +1176,7 @@ export class Game {
     if (!this.gearHinted) {
       if (this.canIntroGear()) this.introGear(added)
     } else if (nowReady && !ready) {
-      this.ui.showBanner('FULL SET', '', 2)
+      this.ui.showBanner('SET 4/4 READY', 'tap your hero to equip', 2)
       audio.play('loot_drop_artifact')
       this.cueHero(true, GEAR_HINT_TIME)
     }
@@ -1745,6 +1767,9 @@ export class Game {
     const build = BUILDS[hero.id]
     this.gear = new Gear(hero, build)
     this.expected = null
+    this.givenAt = new Float64Array(build ? build.plan.length : 0)
+    this.givenSeen = 0
+    this.shieldPending = false
     this.weak = 0
     this.weakAt = this.t
     this.weakWarnAt = -WEAK_WARN_GAP
@@ -1991,7 +2016,8 @@ export class Game {
     e.castGap = Math.max(0, e.castGap - dt)
     const h = this.hero
     const busy = e.def.boss ? !this.bossStill(e) : e.rig.state === 'attack' && !e.rig.oneShotDone
-    if (e.castGap > 0 || this.gearOpen || !h || h.dead || busy) return false
+    if (e.castGap > 0 || this.gearOpen || !h || h.dead || busy || this.unmorphing) return false
+    if (this.titanMode && this.titanT < TITAN_END_CALM) return false
     const d = Math.hypot(h.pos.x - e.pos.x, h.pos.z - e.pos.z)
     const s = readySkill(e, d)
     if (!s) return false
@@ -2917,6 +2943,7 @@ export class Game {
     this.hero = h
     this.input.enabled = true
     this.resetSkillCooldowns()
+    for (const e of this.enemies) if (!e.dead && e.def.skills) e.castGap = Math.max(e.castGap || 0, TITAN_END_GAP)
     if (this.heroDef.vfx) this.heroFx.attachSkin(this.heroDef.vfx, h)
     this.heroLight.color.set(this.heroDef.color)
     this.heroLight.intensity = 16
