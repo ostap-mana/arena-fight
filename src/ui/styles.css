@@ -673,20 +673,21 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 @keyframes animaglow { 0%, 100% { filter: brightness(1) } 50% { filter: brightness(1.45) } }
 #stick {
   --su: calc(0.40625px * var(--hud-scale, 1));
+  --ss: calc(var(--su) * 1.2);
   position: absolute; left: max(calc(8px + var(--safe-l)), min(150 * var(--su), 50% - 685.7 * var(--su))); bottom: calc(148.4 * var(--su) + var(--safe-b));
-  width: calc(216 * var(--su)); height: calc(216 * var(--su));
+  width: calc(216 * var(--ss)); height: calc(216 * var(--ss));
   opacity: .8; transition: opacity .18s; pointer-events: none;
 }
 #stick.held { opacity: 1; }
 #hud.hinting #stick:not(.held) { opacity: 0; }
 #stick .decor {
-  position: absolute; left: 50%; top: 50%; width: calc(20.5 * var(--su)); height: calc(20.5 * var(--su)); margin: calc(-10.25 * var(--su)) 0 0 calc(-10.25 * var(--su));
+  position: absolute; left: 50%; top: 50%; width: calc(20.5 * var(--ss)); height: calc(20.5 * var(--ss)); margin: calc(-10.25 * var(--ss)) 0 0 calc(-10.25 * var(--ss));
   background: url('../assets/GENERAL/HUD/buttons/stick-decor.webp') center / contain no-repeat;
 }
-#stick .decor.r { transform: translate(calc(62.5 * var(--su)), calc(0.2 * var(--su))); }
-#stick .decor.l { transform: translate(calc(-62.5 * var(--su)), calc(0.2 * var(--su))) rotate(180deg); }
-#stick .decor.t { transform: translate(0, calc(-63.2 * var(--su))) rotate(-90deg); }
-#stick .decor.d { transform: translate(0, calc(63.5 * var(--su))) rotate(90deg); }
+#stick .decor.r { transform: translate(calc(62.5 * var(--ss)), calc(0.2 * var(--ss))); }
+#stick .decor.l { transform: translate(calc(-62.5 * var(--ss)), calc(0.2 * var(--ss))) rotate(180deg); }
+#stick .decor.t { transform: translate(0, calc(-63.2 * var(--ss))) rotate(-90deg); }
+#stick .decor.d { transform: translate(0, calc(63.5 * var(--ss))) rotate(90deg); }
 #stick .base { position: absolute; inset: 0; background: url('../assets/GENERAL/HUD/buttons/stick-base.webp') center / contain no-repeat; filter: drop-shadow(0 3px 8px rgba(0,0,0,.55)); }
 #stick .knob {
   position: absolute; left: 50%; top: 50%; width: 28.52%; height: 28.52%; margin: -14.26% 0 0 -14.26%;
@@ -696,6 +697,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 
 #gesturehint {
   --gu: calc(0.40625px * var(--hud-scale, 1));
+  --gs: calc(var(--gu) * 1.2);
   position: absolute; left: calc(75% - 75.925 * var(--gu) - 4px - var(--safe-r) / 2 - 103px * var(--hud-scale, 1)); bottom: calc(var(--safe-b) + 36px * var(--hud-scale, 1));
   display: flex; flex-direction: column; align-items: center; transform: translateX(-50%);
   text-align: center; pointer-events: none; opacity: 0; transition: opacity .35s ease; z-index: 4;
@@ -715,11 +717,11 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #gesturehint .joy > i { position: absolute; display: block; background: center / 100% 100% no-repeat; }
 #gesturehint .joy .ring { left: calc(-128 * var(--tu)); top: calc(-128 * var(--tu)); width: calc(256 * var(--tu)); height: calc(256 * var(--tu)); background-image: url('../assets/GENERAL/HUD/select/tap-circle.webp'); opacity: 0; }
 #gesturehint .joy .jbase {
-  left: calc(-108 * var(--gu)); top: calc(-108 * var(--gu)); width: calc(216 * var(--gu)); height: calc(216 * var(--gu));
+  left: calc(-108 * var(--gs)); top: calc(-108 * var(--gs)); width: calc(216 * var(--gs)); height: calc(216 * var(--gs));
   background-image: url('../assets/GENERAL/HUD/buttons/stick-base.webp'); filter: drop-shadow(0 3px 8px rgba(0, 0, 0, .6));
 }
 #gesturehint .joy .jknob {
-  left: calc(-30.8 * var(--gu)); top: calc(-30.8 * var(--gu)); width: calc(61.6 * var(--gu)); height: calc(61.6 * var(--gu));
+  left: calc(-30.8 * var(--gs)); top: calc(-30.8 * var(--gs)); width: calc(61.6 * var(--gs)); height: calc(61.6 * var(--gs));
   background-image: url('../assets/GENERAL/HUD/buttons/stick-knob.webp'); filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .6));
 }
 #gesturehint .joy .finger { opacity: 0; rotate: -55deg; }
@@ -728,21 +730,21 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #gesturehint.play.move .finger { animation: joyhand 2.4s infinite; }
 @keyframes joyknob {
   0%, 14% { translate: 0 0; animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  38% { translate: calc(60 * var(--gu)) calc(-22 * var(--gu)); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  62% { translate: calc(-60 * var(--gu)) calc(-22 * var(--gu)); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
+  38% { translate: calc(60 * var(--gs)) calc(-22 * var(--gs)); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
+  62% { translate: calc(-60 * var(--gs)) calc(-22 * var(--gs)); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
   86%, 100% { translate: 0 0; }
 }
 @keyframes joyhand {
   0% { opacity: 0; translate: 0 0; transform: scale(1.4); animation-timing-function: cubic-bezier(.333, 0, .667, 1); }
   10% { opacity: 1; transform: scale(.9); }
   14% { translate: 0 0; animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  38% { translate: calc(60 * var(--gu)) calc(-22 * var(--gu)); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  62% { translate: calc(-60 * var(--gu)) calc(-22 * var(--gu)); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
+  38% { translate: calc(60 * var(--gs)) calc(-22 * var(--gs)); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
+  62% { translate: calc(-60 * var(--gs)) calc(-22 * var(--gs)); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
   86% { opacity: 1; translate: 0 0; transform: scale(.9); }
   100% { opacity: 0; translate: 0 0; transform: scale(1.2); }
 }
-#gesturehint.move { left: calc(max(8px + var(--safe-l), min(150 * var(--gu), 50% - 685.7 * var(--gu))) + 108 * var(--gu)); bottom: calc(148.4 * var(--gu) + var(--safe-b)); }
-#gesturehint.move .g-hand { order: 4; margin: calc(10px * var(--hud-scale, 1)) 0 0; }
+#gesturehint.move { left: calc(max(8px + var(--safe-l), min(150 * var(--gu), 50% - 685.7 * var(--gu))) + 108 * var(--gs)); bottom: calc(148.4 * var(--gu) + var(--safe-b)); }
+#gesturehint.move .g-hand { order: 4; width: calc(216 * var(--gs)); height: calc(216 * var(--gs)); margin: calc(10px * var(--hud-scale, 1)) 0 0; }
 
 #herocue { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 6; visibility: hidden; }
 #herocue .tapcue { --tap: calc(44px * var(--hud-scale, 1)); }
@@ -849,7 +851,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 }
 
 @media (max-aspect-ratio: 5/6) {
-  #stick { left: calc(50% - 108 * var(--su)); bottom: calc(var(--safe-b) + 36px * var(--hud-scale, 1)); }
+  #stick { left: calc(50% - 108 * var(--ss)); bottom: calc(var(--safe-b) + 36px * var(--hud-scale, 1)); }
   #gesturehint.move { left: 50%; bottom: calc(var(--safe-b) + 36px * var(--hud-scale, 1)); }
   #animacard {
     left: calc(50% - 67.05 * var(--u)); bottom: calc(var(--safe-b) + 140px * var(--hud-scale, 1));
