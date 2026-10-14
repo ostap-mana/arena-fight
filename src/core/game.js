@@ -3606,6 +3606,7 @@ export class Game {
     if (this.gearOpen) return
     for (let i = this.dots.length - 1; i >= 0; i--) {
       const d = this.dots[i]
+      if (!d) continue
       d.next -= dt
       if (d.next > 0) continue
       d.next += d.hit.dot.every
