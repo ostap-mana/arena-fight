@@ -774,6 +774,7 @@ export class Game {
     this.composer.setSize(view.w, view.h)
     if (this.ui.cardEls) this.ui.selectCard(this.heroIndex)
     if (this.state === 'select') this.fitSelectCamera(ease)
+    this.syncSelectSkins()
   }
 
   bindUI() {
@@ -924,7 +925,7 @@ export class Game {
     await this.quiet()
     await this.vfx.warm(this.renderer, this.camera, { names: this.lobbyFxNames(), target: this.composer.inputBuffer, onlyNamed: true, pause: nextFrame })
     await this.warmLobbySpawns(nextFrame)
-    this.attachSelectSkins()
+    this.syncSelectSkins()
     this.want(this.battleJobs(HEROES[this.heroIndex]))
     this.want(HEROES.map(h => [`bytes:${h.model}`, () => prefetchModel(h.model)]))
   }
@@ -1522,12 +1523,17 @@ export class Game {
     return [hero.vfx, titan && titan.vfx, ...this.enemyDefs().map(d => d.vfx)].filter(id => id && this.vfx.library(id))
   }
 
-  attachSelectSkins() {
+  syncSelectSkins() {
     if (this.state !== 'select' || !this.selectActors) return
-    this.selectActors.forEach((a, i) => {
+    const row = this.selectShowsRow()
+    for (let i = 0; i < this.selectActors.length; i++) {
+      const a = this.selectActors[i]
       const h = HEROES[i]
-      if (h.vfx && h.lobbySkin !== false && !(a.skinFx && a.skinFx.length)) this.heroFx.attachSkin(h.vfx, a, { lobby: true })
-    })
+      const lit = !!(a.skinFx && a.skinFx.length)
+      const want = !!h.vfx && h.lobbySkin !== false && a.root.visible && (row || i === this.heroIndex)
+      if (want && !lit) this.heroFx.attachSkin(h.vfx, a, { lobby: true })
+      else if (!want && lit) this.heroFx.detachSkin(a, true)
+    }
   }
 
   setupLights() {
@@ -1669,9 +1675,9 @@ export class Game {
     this.ui.show('select', true)
     await this.selectWarm
     await this.prepareSelect()
-    this.attachSelectSkins()
     this.fitSelectCamera()
     this.heroIndex = 0
+    this.syncSelectSkins()
     this.camTarget.set(0, 0, 0)
     _camVel.set(0, 0, 0)
     this.camera.position.copy(this.camTarget).add(this.camOffset)
@@ -1794,7 +1800,7 @@ export class Game {
   }
 
   stopIntroFx(a) {
-    for (const inst of a.introFx || []) inst.stop()
+    for (const inst of a.introFx || []) this.vfx.kill(inst)
     a.introFx = []
     a.introQueue = []
   }
@@ -1820,11 +1826,14 @@ export class Game {
     }
     const solo = Math.abs(this.selectOrbit) > ORBIT_SOLO
     const actors = this.selectActors
+    let flipped = false
     for (let i = 0; i < actors.length; i++) {
       const shown = !solo || i === this.heroIndex
+      if (actors[i].root.visible !== shown) flipped = true
       actors[i].root.visible = shown
       if (this.showcase) this.showcase.showStand(i, shown)
     }
+    if (flipped) this.syncSelectSkins()
     this.placeHeroLight()
   }
 
@@ -1985,6 +1994,7 @@ export class Game {
     this.ui.selectCard(i)
     this.highlightSelected()
     if (prev) this.settleHero(prev)
+    this.syncSelectSkins()
     if (this.state === 'select') this.fitSelectCamera(true)
   }
 

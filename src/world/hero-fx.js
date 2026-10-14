@@ -740,9 +740,12 @@ export class HeroFx {
     }
   }
 
-  detachSkin(actor) {
+  detachSkin(actor, now = false) {
     if (!actor || !actor.skinFx) return
-    for (const inst of actor.skinFx) inst.stop()
+    for (const inst of actor.skinFx) {
+      if (now) this.vfx.kill(inst)
+      else inst.stop()
+    }
     actor.skinFx = []
   }
 
