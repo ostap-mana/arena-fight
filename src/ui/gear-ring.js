@@ -612,10 +612,7 @@ export class GearRing {
     const icon = cell.querySelector('.ic')
     const from = icon.getBoundingClientRect()
     const src = icon.src
-    if (this.intro) {
-      this.intro = null
-      this.el.classList.remove('intro')
-    }
+    this.endIntro()
     this.change(() => this.gear.equip(item), 'equip')
     this.fly(src, from, item)
   }
@@ -699,8 +696,15 @@ export class GearRing {
     this.autoCue.style.top = `${(target.offsetTop + target.offsetHeight / 2).toFixed(1)}px`
   }
 
+  endIntro() {
+    if (!this.intro) return
+    this.intro = null
+    this.el.classList.remove('intro')
+  }
+
   autoEquip() {
     this.wantsAutoCue = false
+    this.endIntro()
     const before = { ...this.gear.equipped }
     this.change(() => this.gear.autoEquip(), 'auto')
     const changed = GEAR_SLOTS.filter(s => this.gear.equipped[s] && this.gear.equipped[s] !== before[s])

@@ -1081,7 +1081,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   margin-top: calc(var(--s) * .08); font-family: var(--display); font-size: calc(var(--s) * .25); line-height: 1.1; letter-spacing: .07em; text-transform: uppercase; color: #fff;
   text-shadow: 0 0 3px #000, 0 2px 6px #000;
 }
-#gearring.intro .auto, #gearring .plate.coached .x, #gearring .plate.coached .pdelta { display: none; }
+#gearring .plate.coached .x, #gearring .plate.coached .pdelta { display: none; }
 #gearring .items .gi.fresh { animation: ringfresh 1.1s ease-in-out infinite; }
 #gearring .gi.fresh::after {
   content: ''; position: absolute; inset: -17%; box-sizing: border-box; border-style: solid; border-width: calc(var(--s) * .2); pointer-events: none;
