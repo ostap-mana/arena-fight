@@ -272,10 +272,11 @@ const HEAVY_STOP = 60
 const STOP_GAP = 110
 const STOP_SCALE = 0.06
 const KILL_KNOCK = { basic: 1.4, heavy: 2.2 }
+const KILL_OVERKILL_MAX = 1.2
 const CRIT_KNOCK = 1.7
 const CRIT_SHAKE = 0.3
-const NUMBER_GROW = 0.35
-const NUMBER_SIZE = [0.85, 1.7]
+const NUMBER_GROW = 0.4
+const NUMBER_SIZE = [0.85, 2.1]
 const CRIT_NUMBER = 1.3
 const meanPow = p => MOB_SIZES.reduce((sum, k) => sum + k ** p, 0) / MOB_SIZES.length
 const MOB_HP_NORM = meanPow(MOB_HP_POW + MOB_ARMOR_POW)
@@ -2885,7 +2886,7 @@ export class Game {
         this.hitStop(180)
       } else {
         this.hitFreeze(e, KILL_STOP)
-        this.launch(e, heavy || this.titanMode ? KILL_KNOCK.heavy : KILL_KNOCK.basic)
+        this.launch(e, (heavy || this.titanMode ? KILL_KNOCK.heavy : KILL_KNOCK.basic) * (1 + clamp((amount - dealt) / e.maxHp, 0, KILL_OVERKILL_MAX)))
       }
     }
     return crit
