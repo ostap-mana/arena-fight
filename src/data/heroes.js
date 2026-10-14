@@ -185,9 +185,9 @@ export const ENEMIES = {
     loot: { relics: 8, rarity: { epic: 2, legendary: 3 }, set: 'eventset2' },
     name: 'Infernal Rider',
     title: 'the burning knight',
-    hp: 12000,
+    hp: 10000,
     speed: 19.4,
-    dmg: 12,
+    dmg: 16,
     range: 9,
     rate: 1.5,
     scale: 5.45,
@@ -218,8 +218,8 @@ export const ENEMIES = {
       B_FX_DEM141_Skill2_Precast_1_1: ['PS_G_Sparks_3_2_2', 'PS_Glow_2_1', 'PS_Glow_2_1_1', 'PS_Glow_2_1_Flash', 'PS_Glow_Flash_3_1_1_2', 'PS_Glow_Flash_3_1_2'],
     },
     skills: [
-      { key: 'hellfire', name: 'HELLFIRE', fx: 1, cd: 14, first: 8, kind: 'nova', radius: 13.5, windup: 2.6, impact: 2.5, dmg: 40, reach: 18 },
-      { key: 'infernalCharge', fx: 2, cd: 6.5, first: 3, kind: 'charge', width: 6.1, length: 29, windup: 1.2, dmg: 26, reach: 27, min: 8.1, dashSpeed: 31.3, dashBlock: '1527810951682459716' },
+      { key: 'hellfire', name: 'HELLFIRE', fx: 1, cd: 11, first: 5, kind: 'nova', radius: 10.5, windup: 2.6, impact: 2.5, dmg: 70, reach: 14 },
+      { key: 'infernalCharge', fx: 2, cd: 7.5, first: 4, kind: 'charge', width: 6.1, length: 29, windup: 1.2, dmg: 40, reach: 27, min: 7, dashSpeed: 31.3, dashBlock: '1527810951682459716' },
     ],
   },
 }

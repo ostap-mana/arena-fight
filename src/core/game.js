@@ -289,6 +289,7 @@ const BOSS_SWINGS = [
   { arc: 1.3, radius: 9, ahead: 0, dmg: 1 },
 ]
 const DODGE_REACH = 3
+const BOSS_HIT_CAP = 0.4
 const BOSS_STRIKE_REACH = 32
 const BOSS_STRIKE_SHAKE = 0.3
 const BOSS_STRIKE_FLASH = 0xff6a1a
@@ -2132,7 +2133,7 @@ export class Game {
     else this.heroFx.later(impact, onImpact)
     const skillSound = `${soundCode(e.def)}_skill_${s.fx}`
     audio.play(audio.has(skillSound) ? skillSound : `${soundCode(e.def)}_ult`, { at: e.pos, slot: 'boss_skill', max: 1 })
-    if (s.name) this.ui.showBanner(s.name, 'get out of the circle', 1.4)
+    if (s.name) this.ui.showBanner(s.name, 'get out of the circle', 2)
   }
 
   bossImpact(e, c) {
@@ -3578,7 +3579,8 @@ export class Game {
     const weak = this.titanMode ? 0 : this.painNow()
     const pain = Math.max(this.shieldUp ? SHIELD_HIT_MULT : 1, 1 + WEAK_HURT * weak)
     const mult = (this.titanMode ? 0.25 : 1) * (this.gearMods ? this.gearMods.taken : 1) * pain
-    this.hero.hp = Math.max(0, this.hero.hp - dmg * mult)
+    const lost = hit && hit.boss && !tick && !this.titanMode ? Math.min(dmg * mult, this.hero.maxHp * BOSS_HIT_CAP) : dmg * mult
+    this.hero.hp = Math.max(0, this.hero.hp - lost)
     this.rescueTitan()
     this.hero.flashColor = kind.rim
     this.hero.flash = tick ? DOT_FLASH : 0.16
