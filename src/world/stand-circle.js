@@ -370,6 +370,7 @@ const GLYPH_FS = `
     float fade = smoothstep(0.0, 0.1, vLife) * (1.0 - smoothstep(0.6, 1.0, vLife));
     float energy = (shape * 2.4 + rim * 0.1) * fade * uOn * (1.0 + 0.6 * uFlash) * uExposure;
     float hot = shape * fade * (1.0 - vLife) * 0.7 * uOn;
+    if (shape * fade * uOn < 0.04) discard;
     gl_FragColor = vec4(toneMap(uDeep, uColor, uHot, energy, hot), 1.0);
   }`
 
@@ -503,7 +504,7 @@ export function createStand(ctx) {
     uSize: { value: GLYPH_SIZE },
     uAge: { value: 1e6 },
   }
-  const glyphMaterial = additive(GLYPH_VS, GLYPH_FS, glyphUniforms)
+  const glyphMaterial = additive(GLYPH_VS, GLYPH_FS, glyphUniforms, { depthWrite: true })
   const glyphs = new THREE.Mesh(glyphGeometry(THREE), glyphMaterial)
   glyphs.frustumCulled = false
   glyphs.renderOrder = 5
