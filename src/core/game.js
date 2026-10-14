@@ -1218,7 +1218,7 @@ export class Game {
   showPower() {
     if (!this.gear) return
     const canWin = this.gear.bestPower() >= POWER_GOAL && this.underpowered()
-    this.ui.setPower(this.gear.power(), POWER_GOAL, canWin, this.gear.buildCount(this.gear.bestBuild()), this.gear.buildCount())
+    this.ui.setPower(this.gear.power(), POWER_GOAL, canWin)
     const waiting = this.gearHinted && this.gear.hasUpgrade()
     const calling = this.bossWave() && this.boss && !this.boss.dead && !this.titanMode && !this.titanReady
     const gate = this.shieldUp && !this.shieldFragile

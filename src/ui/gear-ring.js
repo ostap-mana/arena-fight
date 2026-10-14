@@ -30,8 +30,8 @@ const FLY_MS = 360
 const OPEN_MS = 420
 const CLOSE_MS = 110
 const WEAR_MS = 380
-const WEAR_GAP = 90
-const AUTO_CLOSE_HOLD = 350
+const AUTO_GAP = 40
+const AUTO_WEAR_MS = 260
 const FRESH_MS = 820
 const FRESH_DELAY = 120
 const FRESH_POP = 0.28
@@ -122,7 +122,7 @@ export class GearRing {
         <div class="pv"><i class="picon"></i><b class="pvalue">0</b><span class="pgoal">/ ${POWER_GOAL.toLocaleString('en-US')}</span></div>
         <div class="gbar"><i class="gfill"></i></div>
         <span class="pdelta"></span>
-        <button class="buildchip"><img class="bset" alt="" draggable="false"><span class="bname"></span><span class="pips">${'<i></i>'.repeat(BUILD_PIECES)}</span></button>
+        <button class="buildchip"><img class="bset" alt="" draggable="false"><span class="bname"></span></button>
         <span class="bbonus"></span>
         <button class="x" aria-label="Close"><i></i></button>
       </div></div>
@@ -540,7 +540,7 @@ export class GearRing {
     return { x: h.x + side * h.side, y: h.bottom - (h.bottom - h.top) * (WORN_AT[item.slot] || 0.5) / GEAR_TOP }
   }
 
-  wear(item) {
+  wear(item, ms = WEAR_MS) {
     const from = this.spots[item.slot]
     const to = this.wornAt(item)
     const icon = this.slots[item.slot].querySelector('.item .ic')
@@ -558,7 +558,7 @@ export class GearRing {
       { transform: 'translate(0, 0) scale(1)', opacity: 0.95 },
       { transform: `translate(${dx * 0.3}px, ${dy * 0.3 - size * 0.35}px) scale(.9)`, opacity: 1, offset: 0.35 },
       { transform: `translate(${dx}px, ${dy}px) scale(.22)`, opacity: 0.6 },
-    ], { duration: WEAR_MS, easing: 'cubic-bezier(.55,0,.75,.4)' }).onfinish = () => {
+    ], { duration: ms, easing: 'cubic-bezier(.55,0,.75,.4)' }).onfinish = () => {
       ghost.remove()
       this.ripple(to, item.rarity)
       if (this.onWear) this.onWear(item)
@@ -705,14 +705,14 @@ export class GearRing {
       const item = this.gear.equipped[type]
       if (!item) return
       this.pop(type, true, item.rarity)
-      this.wear(item)
-    }, i * WEAR_GAP))
+      this.wear(item, AUTO_WEAR_MS)
+    }, i * AUTO_GAP))
     this.autoBtn.animate([{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: 240, easing: SPRING })
     if (!changed.length) return
     const token = this.seq
     setTimeout(() => {
       if (token === this.seq && this.isOpen && this.onClose) this.onClose()
-    }, (changed.length - 1) * WEAR_GAP + WEAR_MS + AUTO_CLOSE_HOLD)
+    }, (changed.length - 1) * AUTO_GAP + AUTO_WEAR_MS)
   }
 
   change(action, kind) {
@@ -760,13 +760,8 @@ export class GearRing {
     this.buildBonus.classList.toggle('on', full)
     this.buildChip.classList.toggle('on', full)
     this.buildChip.classList.toggle('picked', this.filter === 'build')
-    const pips = this.buildChip.querySelectorAll('.pips i')
-    pips.forEach((pip, i) => pip.classList.toggle('on', i < count))
     const was = this.shownPieces === undefined ? count : this.shownPieces
-    if (count > was && pips[Math.min(BUILD_PIECES, count) - 1]) {
-      pips[Math.min(BUILD_PIECES, count) - 1].animate([{ transform: 'rotate(45deg) scale(2.2)' }, { transform: 'rotate(45deg) scale(1)' }], { duration: 400, easing: SPRING })
-      if (full && was < BUILD_PIECES) this.buildChip.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 560, easing: 'ease-out' })
-    }
+    if (full && was < BUILD_PIECES) this.buildChip.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 560, easing: 'ease-out' })
     this.shownPieces = count
   }
 

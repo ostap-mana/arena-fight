@@ -432,10 +432,6 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 #powergoal.ready .bar { animation: goalready 1.3s ease-in-out infinite; }
 #powergoal.done .bar { filter: drop-shadow(0 0 calc(10 * var(--u)) rgba(255, 210, 110, .9)); }
 #topbar.danger #powergoal .bar { animation: goaldanger .8s ease-in-out infinite; }
-#powergoal .pips { display: inline-flex; align-self: flex-end; gap: calc(9 * var(--u)); margin: 0 0 calc(13 * var(--u)) calc(4 * var(--u)); }
-#powergoal .pips i { display: block; width: calc(14 * var(--u)); height: calc(14 * var(--u)); transform: rotate(45deg); box-sizing: border-box; border: calc(2 * var(--u)) solid rgba(231, 196, 120, .45); background: rgba(0, 0, 0, .45); }
-#powergoal .pips i.own { border-color: #e7c478; }
-#powergoal .pips i.on { background: #ffd36a; border-color: #ffd36a; }
 @keyframes goalready { 0%, 100% { filter: drop-shadow(0 0 0 rgba(255, 210, 90, 0)); } 50% { filter: drop-shadow(0 0 calc(12 * var(--u)) rgba(255, 210, 90, 1)); } }
 @keyframes goaldanger { 0%, 100% { filter: drop-shadow(0 0 0 rgba(255, 77, 94, 0)); } 50% { filter: drop-shadow(0 0 calc(12 * var(--u)) rgba(255, 77, 94, 1)); } }
 
@@ -1129,9 +1125,6 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 3px #000;
 }
 #gearring .bbonus.on { opacity: 1; }
-#gearring .buildchip .pips { display: flex; gap: calc(var(--s) * .07); flex: none; }
-#gearring .buildchip .pips i { width: calc(var(--s) * .13); height: calc(var(--s) * .13); transform: rotate(45deg); border: 1px solid rgba(231, 196, 120, .8); background: rgba(0, 0, 0, .4); }
-#gearring .buildchip .pips i.on { background: #ffd36a; box-shadow: 0 0 calc(var(--s) * .1) rgba(255, 214, 110, .9); }
 #gearring .x {
   position: absolute; right: -4%; top: 0; width: calc(var(--s) * .52); height: calc(var(--s) * .52); border-radius: 50%; padding: 0; cursor: pointer;
   border: 1px solid rgba(231, 196, 120, .7); background: rgba(8, 12, 26, .8);

@@ -200,7 +200,7 @@ export class UI {
         <div id="topbar">
           <i class="shade"></i>
           <button id="powergoal">
-            <div class="nums"><img class="ico" src="${powerIconImg}" alt="" draggable="false"><b class="now">0</b><span class="goal"></span><span class="pips"><i></i><i></i><i></i><i></i></span></div>
+            <div class="nums"><img class="ico" src="${powerIconImg}" alt="" draggable="false"><b class="now">0</b><span class="goal"></span></div>
             <div class="bar"><i class="back"></i><div class="clip"><i class="fill"></i></div></div>
           </button>
           <div id="waveinfo"><b class="label"></b>
@@ -336,8 +336,6 @@ export class UI {
     this.powerPop = this.root.querySelector('#powerpop')
     this.powerGoal = this.root.querySelector('#powergoal')
     this.shownGoalPower = -1
-    this.goalPips = [...this.powerGoal.querySelectorAll('.pips i')]
-    this.pipOwn = this.pipOn = -1
     this.fitHud()
     addEventListener('resize', () => this.fitHud())
   }
@@ -633,9 +631,8 @@ export class UI {
     s.el.classList.toggle('cooling', step > 0)
   }
 
-  setPower(power, goal, ready, owned = 0, worn = 0) {
+  setPower(power, goal, ready) {
     const el = this.powerGoal
-    this.setPips(owned, worn)
     const done = power >= goal
     el.querySelector('.now').textContent = power.toLocaleString('en-US')
     el.querySelector('.goal').textContent = `/ ${goal.toLocaleString('en-US')}`
@@ -647,19 +644,6 @@ export class UI {
       if (done && this.shownGoalPower < goal) this.flashGoal()
     }
     this.shownGoalPower = power
-  }
-
-  setPips(owned, worn) {
-    const own = Math.min(this.goalPips.length, owned)
-    const on = Math.min(this.goalPips.length, worn)
-    if (own === this.pipOwn && on === this.pipOn) return
-    this.goalPips.forEach((p, i) => {
-      p.classList.toggle('own', i < own)
-      p.classList.toggle('on', i < on)
-    })
-    if (this.pipOn >= 0 && on > this.pipOn) this.goalPips[on - 1].animate([{ scale: '1.9' }, { scale: '1' }], { duration: 380, easing: 'cubic-bezier(.2,.7,.3,1)' })
-    this.pipOwn = own
-    this.pipOn = on
   }
 
   flashGoal() {
