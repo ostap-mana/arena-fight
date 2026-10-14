@@ -4569,7 +4569,7 @@ export class Game {
     if (this.loot && this.hero) this.loot.update(dt, this.hero, this.lootAnchor())
     if (this.guide) this.updateGuide()
     if (this.moments) this.moments.update(this, dt)
-    if (this.heroFx) this.heroFx.update(dt)
+    if (this.heroFx) this.heroFx.update(heroDt)
     if (this.vfx) this.vfx.update(heroDt, this.camera)
     this.updateEnemyBars()
     this.updateHeroBar()
