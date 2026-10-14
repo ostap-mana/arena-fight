@@ -144,10 +144,10 @@ export const TITANS = {
 }
 
 export const ENEMIES = {
-  grunt: { model: 'dem013', hp: 156, speed: 3, dmg: 4.5, range: 1.9, rate: 1.5, scale: 1.0, size: 1, loot: { chance: 0.55, rarity: { common: 6, uncommon: 3, rare: 1 } } },
+  grunt: { model: 'dem013', hp: 156, speed: 3, dmg: 4.5, range: 1.9, rate: 1.5, scale: 1.0, size: 1, loot: { chance: 0.55, rarity: { common: 1 } } },
   flyer: { model: 'dem019', hp: 133, speed: 4, dmg: 4, range: 2.2, rate: 1.7, scale: 1.05, size: 0.5, fly: 1.5, loot: { chance: 0.3, rarity: { common: 1 } } },
-  stalker: { model: 'dem103', hp: 179, speed: 3.7, dmg: 6, range: 2.0, rate: 1.4, scale: 1.05, size: 0.75, loot: { chance: 0.75, rarity: { common: 3, uncommon: 4, rare: 2 } } },
-  warden: { model: 'dem127', hp: 281, speed: 2.4, dmg: 11, range: 2.6, rate: 2.0, scale: 0.78, size: 2, loot: { relics: 2, rarity: { rare: 3, epic: 2, legendary: 1 } } },
+  stalker: { model: 'dem103', hp: 179, speed: 3.7, dmg: 6, range: 2.0, rate: 1.4, scale: 1.05, size: 0.75, loot: { chance: 0.75, rarity: { uncommon: 1 } } },
+  warden: { model: 'dem127', hp: 281, speed: 2.4, dmg: 11, range: 2.6, rate: 2.0, scale: 0.78, size: 2, loot: { relics: 2, rarity: { epic: 1 } } },
   golem: {
     model: 'gia067',
     vfx: 'gia067',
@@ -161,7 +161,7 @@ export const ENEMIES = {
     keep: 6.5,
     steady: true,
     color: 0xff3a1a,
-    loot: { chance: 0.3, rarity: { common: 1 } },
+    loot: { chance: 0.3, rarity: { rare: 1 } },
     skills: [
       {
         key: 'rockLeap',
@@ -185,7 +185,7 @@ export const ENEMIES = {
   knight: {
     model: 'dem141',
     vfx: 'dem141',
-    loot: { relics: 8, rarity: { epic: 2, legendary: 3 }, set: 'eventset2' },
+    loot: { relics: 8, rarity: { legendary: 1 }, set: 'eventset2' },
     name: 'Infernal Rider',
     title: 'the burning knight',
     hp: 10000,

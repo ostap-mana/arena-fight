@@ -48,6 +48,7 @@ const PULL_END_SCALE = 0.3
 const PULL_SPIN = 6
 const CHEST = 0.55
 const STAGGER = 0.09
+const TIER_SPACING = 3
 const HIT_LIFETIME = 1.2
 const HIGHLIGHT_MUTE = new Set(['PS_Beam_3_1', 'PS_Beam_4_1', 'PS_Beam_5_1'])
 const TAKE_MUTE = new Set(['PS_G_Glow_1_2_Fade', 'PS_Star_1_1_ReUse', 'PS_Star_1_1_ReUse '])
@@ -108,7 +109,7 @@ function rankOf(item) {
   return RARITIES.indexOf(item.rarity)
 }
 
-function bestRank(table) {
+function tierOf(table) {
   let best = 0
   for (const rarity in (table && table.rarity) || {}) best = Math.max(best, RARITIES.indexOf(rarity))
   return best
@@ -205,41 +206,49 @@ export class Loot {
 
   setPlan(items, roster) {
     this.plan = items.slice()
-    this.planLeft = new Map()
-    for (const { table, count } of roster) this.planLeft.set(table, (this.planLeft.get(table) || 0) + count)
-    this.planKills = Math.max(1, roster.reduce((n, p) => n + p.count, 0))
-    this.planSeen = 0
+    this.tierItems = RARITIES.map((_, rank) => items.filter(item => rankOf(item) === rank).length)
+    this.tierCarriers = RARITIES.map(() => 0)
+    for (const { table, count } of roster) this.tierCarriers[tierOf(table)] += count
+    this.tierSeen = RARITIES.map(() => 0)
+    this.tierGiven = RARITIES.map(() => 0)
     this.planGiven = 0
     this.clock = 0
     this.holdUntil = 0
   }
 
-  laterCarries(rank) {
-    for (const [table, left] of this.planLeft) if (left > 0 && bestRank(table) >= rank) return true
-    return false
+  takeTier(tier) {
+    const plan = this.plan
+    let j = this.planGiven
+    while (j < plan.length && rankOf(plan[j]) !== tier) j++
+    if (j >= plan.length) return null
+    const item = plan[j]
+    for (; j > this.planGiven; j--) plan[j] = plan[j - 1]
+    plan[this.planGiven++] = item
+    return item
+  }
+
+  tierDue(tier) {
+    const items = this.tierItems[tier]
+    const seen = ++this.tierSeen[tier]
+    const carriers = this.tierCarriers[tier]
+    if (seen >= carriers) return items
+    const span = Math.min(carriers, items * TIER_SPACING)
+    return Math.min(items, Math.ceil((seen * items) / span))
   }
 
   dropPlanned(at, table, body) {
-    this.planSeen++
-    const left = this.planLeft.get(table)
-    if (left > 0) this.planLeft.set(table, left - 1)
-    const plan = this.plan
-    const cap = bestRank(table)
-    let upto = Math.min(plan.length, Math.round((this.planSeen * plan.length) / this.planKills))
-    for (let j = plan.length - 1; j >= upto; j--) {
-      const rank = rankOf(plan[j])
-      if (rank <= cap && !this.laterCarries(rank)) {
-        upto = j + 1
-        break
-      }
-    }
-    const epic = cap >= EPIC_RANK
-    for (let i = 0; this.planGiven < upto && rankOf(plan[this.planGiven]) <= cap && (epic || this.clock >= this.holdUntil); i++) {
-      const item = plan[this.planGiven++]
+    const tier = tierOf(table)
+    const due = this.tierDue(tier)
+    const last = this.tierSeen[tier] >= this.tierCarriers[tier]
+    const free = last || tier >= EPIC_RANK
+    for (let i = 0; this.tierGiven[tier] < due && (free || this.clock >= this.holdUntil); i++) {
+      const item = this.takeTier(tier)
+      if (!item) break
+      this.tierGiven[tier]++
       this.queue.push({ item, at, body, delay: i * STAGGER, spread: 1 })
       if (!item.hold) continue
       this.holdUntil = this.clock + item.hold
-      if (!epic) break
+      if (!free) break
     }
   }
 
