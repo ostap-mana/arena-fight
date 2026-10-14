@@ -311,12 +311,13 @@ const BOSS_FINISH_PUSH = 4
 const BOSS_SKILL_STOP = 130
 const BOSS_STEP_SHAKE = 0.1
 const BOSS_STEP_REACH = 28
-const WEAK_HURT = 2
-const WEAK_DEAL = 0.55
+const WEAK_HURT = 1.6
+const WEAK_DEAL = 0.45
 const WEAK_WARN = 0.08
 const WEAK_WARN_GAP = 8
-const WEAK_EASE = 0.35
+const WEAK_EASE = 0.6
 const WEAK_GRACE = 5
+const WEAK_SPAN_MIN = 1500
 const IMMUNE_TEXT_GAP = 0.45
 const GATE_WARN_DELAY = 2.1
 const DEFEAT_REASON_DELAY = 2.4
@@ -1094,6 +1095,7 @@ export class Game {
 
   applyGear() {
     if (!this.gear) return
+    const wasWeak = this.weak >= WEAK_WARN
     this.gearMods = this.gear.modifiers()
     const h = this.titanMode ? this.heroBase : this.hero
     if (!h) return
@@ -1103,6 +1105,7 @@ export class Game {
     if (!this.titanMode) this.ui.setHp(h.hp, h.maxHp)
     this.showPower()
     if (this.shieldUp && !this.shieldFragile && !this.underpowered()) this.breakShield()
+    if (wasWeak && this.state === 'battle' && this.weakness() === 0) this.floatText(h.pos.x, h.height * STATUS_LIFT + h.pos.y, h.pos.z, 'POWER RESTORED', 'dmg status')
     const live = this.gear.stats().full
     if (live === this.setLive) return
     this.setLive = live
@@ -1131,12 +1134,9 @@ export class Game {
     while (this.givenSeen < dropped) at[this.givenSeen++] = this.t
     let given = 0
     while (given < dropped && this.t - at[given] >= WEAK_GRACE) given++
-    if (!this.expected || this.expected.given !== given) {
-      const top = this.expected ? this.expected.top : this.expectedPower(plan.length)
-      this.expected = { given, power: this.expectedPower(given), top }
-    }
+    if (!this.expected || this.expected.given !== given) this.expected = { given, power: this.expectedPower(given) }
     const base = this.gear.startPower()
-    return clamp((this.expected.power - this.gear.power()) / Math.max(1, this.expected.top - base), 0, 1)
+    return clamp((this.expected.power - this.gear.power()) / Math.max(WEAK_SPAN_MIN, this.expected.power - base), 0, 1)
   }
 
   painNow() {
@@ -1150,7 +1150,7 @@ export class Game {
   warnWeak() {
     if (this.t - this.weakWarnAt < WEAK_WARN_GAP || this.gearOpen || this.shieldUp) return
     this.weakWarnAt = this.t
-    this.ui.showBanner('TOO WEAK', this.gear.hasUpgrade() ? 'tap your hero to equip' : 'pick up gear', 2)
+    this.ui.showBanner('TOO WEAK', `enemies hit x${(1 + WEAK_HURT * this.weak).toFixed(1)} · ${this.gear.hasUpgrade() ? 'tap your hero' : 'pick up gear'}`, 2)
   }
 
   showPower() {
