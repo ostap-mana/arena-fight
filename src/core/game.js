@@ -305,8 +305,8 @@ const BOSS_HIT_CHROMA = 1.8
 const BOSS_STRIKE = [1, 1.15, 1.45]
 const BOSS_SWINGS = [
   { arc: 0.9, radius: 9.5, ahead: 0, dmg: 0.7 },
-  { arc: Math.PI, radius: 5.5, ahead: 4.5, dmg: 1.8 },
-  { arc: 1.3, radius: 9, ahead: 0, dmg: 1 },
+  { arc: Math.PI, radius: 5.5, ahead: 4.5, dmg: 2.4 },
+  { arc: 1.3, radius: 9, ahead: 0, dmg: 1.4 },
 ]
 const ELITE_SWING = { arc: 1, radius: 0, ahead: 0, dmg: 1 }
 const ELITE_SWING_SPEED = 0.7

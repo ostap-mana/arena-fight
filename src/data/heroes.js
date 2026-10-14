@@ -221,7 +221,7 @@ export const ENEMIES = {
       B_FX_DEM141_Skill2_Precast_1_1: ['PS_G_Sparks_3_2_2', 'PS_Glow_2_1', 'PS_Glow_2_1_1', 'PS_Glow_2_1_Flash', 'PS_Glow_Flash_3_1_1_2', 'PS_Glow_Flash_3_1_2'],
     },
     skills: [
-      { key: 'hellfire', name: 'HELLFIRE', fx: 1, cd: 11, first: 5, kind: 'nova', radius: 10.5, windup: 2.6, impact: 2.5, dmg: 70, reach: 14 },
+      { key: 'hellfire', name: 'HELLFIRE', fx: 1, cd: 11, first: 5, kind: 'nova', radius: 10.5, windup: 2.6, impact: 2.5, dmg: 90, reach: 14 },
       { key: 'infernalCharge', fx: 2, cd: 7.5, first: 5, kind: 'charge', width: 6.1, length: 29, windup: 1.2, dmg: 40, reach: 27, min: 7, dashSpeed: 31.3, dashBlock: '1527810951682459716' },
     ],
   },

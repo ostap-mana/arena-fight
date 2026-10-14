@@ -51,8 +51,8 @@ export const BUILDS = {
     set: 'lifesteal',
     start: 3000,
     scale: 1,
-    bonus: { hpPct: 30, defPct: 40, atkPct: 20 },
-    bonusText: '+30% HP · +40% DEF · +20% ATK',
+    bonus: { hpPct: 30, defPct: 40, atkPct: 25 },
+    bonusText: '+30% HP · +40% DEF · +25% ATK',
     leech: 0.006,
     plan: [
       { slot: 'weapon', rarity: 'common', set: 'attack' },
