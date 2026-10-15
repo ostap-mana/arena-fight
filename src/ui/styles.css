@@ -889,7 +889,8 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 
 @media (min-aspect-ratio: 5/4) {
   #select {
-    --cw: min(150px, calc((100vh - var(--safe-t) - var(--safe-b)) * .2), calc((50vw - var(--t) * 6.8 - 16px - var(--safe-r)) / 2.22));
+    --t: min(clamp(min(18px, 6.2vw), min(5vw, 5.4vh), max(32px, 4.45vh)), 3vw);
+    --cw: min(150px, calc((100vh - var(--safe-t) - var(--safe-b)) * .2), calc((50vw - var(--t) * 8.45 - 12px - var(--safe-r)) / 2.3));
     justify-content: center; align-items: flex-end;
     padding: var(--safe-t) calc(28 * var(--cu) + var(--safe-r)) var(--safe-b) 0;
   }
