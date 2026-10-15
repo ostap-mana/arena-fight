@@ -377,6 +377,8 @@ const WEAK_WARN_GAP = 8
 const WEAK_EASE = 0.6
 const WEAK_GRACE = 5
 const WEAK_SPAN_MIN = 1200
+const WEAK_GEAR_DELAY = 1.6
+const SECOND_WIND = 0.5
 const IMMUNE_TEXT_GAP = 0.45
 const GATE_WARN_DELAY = 2.1
 const DEFEAT_REASON_DELAY = 2.4
@@ -1256,6 +1258,28 @@ export class Game {
     if (this.t - this.weakWarnAt < WEAK_WARN_GAP || this.gearOpen || this.shieldUp || this.bossDown()) return
     this.weakWarnAt = this.t
     this.ui.showBanner('TOO WEAK', this.gear.hasUpgrade() ? 'equip your new gear' : 'pick up gear', 2)
+    if (!this.gear.hasUpgrade()) return
+    const epoch = this.epoch
+    setTimeout(() => { if (epoch === this.epoch) this.guideGear() }, WEAK_GEAR_DELAY * 1000)
+  }
+
+  guideGear() {
+    const h = this.hero
+    if (this.state !== 'battle' || !h || h.dead || this.gearOpen || this.titanMode || this.heroLocked() || !this.gear.hasUpgrade()) return
+    this.openGear()
+    this.ui.gearRing.cueAuto(true)
+  }
+
+  spareHero() {
+    return this.state === 'battle' && !this.titanMode && !this.bossWave()
+  }
+
+  secondWind() {
+    const h = this.hero
+    h.hp = Math.max(h.hp, h.maxHp * SECOND_WIND)
+    this.clearDots()
+    this.ui.setHp(h.hp, h.maxHp)
+    this.guideGear()
   }
 
   showPower() {
@@ -1265,7 +1289,7 @@ export class Game {
     const waiting = this.gearHinted && this.gear.hasUpgrade()
     const calling = this.bossWave() && this.boss && !this.boss.dead && !this.titanMode && !this.titanReady
     const gate = this.shieldUp && !this.shieldFragile
-    this.ui.setTip(gate ? 'Shield up · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : this.shieldUp ? 'Hit him · break his shield' : calling ? 'Hit the boss · call your titan' : '')
+    this.ui.setTip(gate ? 'Shield up · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : this.shieldUp ? 'Hit him · break his shield' : calling ? 'Hit the boss · charge your titan' : '')
   }
 
   raiseShield() {
@@ -1338,7 +1362,7 @@ export class Game {
     this.setSaidAt = this.t
     const b = this.gear.build
     const h = this.hero
-    this.bannerAfter(`${SET_NAME[b.set].toUpperCase()} SET`, b.bonusText, 2.2)
+    this.bannerAfter('SET COMPLETE', b.bonusText, 2.2)
     this.ui.flashGoal()
     audio.play('loot_drop_artifact')
     this.shake(0.45, 0.4)
@@ -1418,7 +1442,7 @@ export class Game {
     if (!this.gearHinted) {
       if (this.canIntroGear()) this.introGear(added)
     } else if (nowReady && !ready) {
-      this.ui.showBanner('SET 4/4 READY', 'tap your hero to equip', 2)
+      this.ui.showBanner('GEAR READY', 'tap your hero to equip', 2)
       audio.play('loot_drop_artifact')
       this.cueHero(true, GEAR_HINT_TIME)
     }
@@ -4168,12 +4192,15 @@ export class Game {
     const mult = (this.titanMode ? 0.25 : 1) * (this.gearMods ? this.gearMods.taken : 1) * pain
     let lost = hit && hit.boss && !tick && !this.titanMode ? Math.min(dmg * mult, this.hero.maxHp * BOSS_HIT_CAP) : dmg * mult
     if (lost >= this.hero.hp && this.canRescue()) lost = Math.max(0, this.hero.hp - 1)
+    const spared = lost >= this.hero.hp && this.spareHero()
+    if (spared) lost = Math.max(0, this.hero.hp - 1)
     this.hero.hp = Math.max(0, this.hero.hp - lost)
     this.takenSum += lost
     this.rescueTitan()
     this.hero.flashColor = kind.rim
     this.hero.flash = tick ? DOT_FLASH : 0.16
     this.ui.setHp(this.hero.hp, this.hero.maxHp)
+    if (spared) this.secondWind()
     if (!tick) {
       const boss = hit && hit.boss ? BOSS_HIT_CHROMA : 1
       this.shake(0.22 * kind.shake * (1 + weak), 0.2 + 0.06 * kind.shake + 0.15 * weak)
