@@ -36,6 +36,7 @@ import { ResolutionGovernor } from './governor.js'
 import { view, safeInsets } from './viewport.js'
 import { COARSE } from './tier.js'
 import { prewarmObject, texturesOf, uploadTexturesNow } from './prewarm.js'
+import { Lifecycle } from './lifecycle.js'
 
 const random = stream('sim')
 const rollRandom = stream('hit-roll')
@@ -596,6 +597,7 @@ export class Game {
   bench(on) {
     this.benched = on
     audio.silence('host', on)
+    if (!on) this.lifecycle.wake()
   }
 
   setupRenderer() {
@@ -607,8 +609,7 @@ export class Game {
     })
     r.debug.checkShaderErrors = !import.meta.env.PROD
     this.contextLost = false
-    this.canvas.addEventListener('webglcontextlost', () => { this.contextLost = true })
-    this.canvas.addEventListener('webglcontextrestored', () => { this.contextLost = false })
+    this.lifecycle = new Lifecycle(this)
     r.outputColorSpace = THREE.SRGBColorSpace
     r.toneMapping = THREE.ACESFilmicToneMapping
     r.toneMappingExposure = 1.05
@@ -4472,11 +4473,11 @@ export class Game {
     const frame = now => {
       const begin = performance.now()
       requestAnimationFrame(frame)
-      const elapsed = (now - last) / 1000
+      const elapsed = this.lifecycle.elapsed(now - last)
       let dt = stepDoor(Math.min(0.05, elapsed))
       last = now
       if (this.benched) return
-      if (dt == null || this.paused) { this.render(); return }
+      if (dt == null || this.paused || this.lifecycle.frozen) { this.render(); return }
       this.realDt = dt
       this.easeGear(dt)
       dt *= this.timeScale * THREE.MathUtils.lerp(1, this.gearSlow, this.gearK)

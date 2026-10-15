@@ -1,4 +1,5 @@
 export function primePrograms(renderer) {
+  if (renderer.getContext().isContextLost()) return
   for (const program of renderer.info.programs) {
     program.getUniforms()
     program.getAttributes()
@@ -6,6 +7,7 @@ export function primePrograms(renderer) {
 }
 
 export function compileFor(renderer, scene, camera, target = null, targetScene = null) {
+  if (renderer.getContext().isContextLost()) return Promise.resolve()
   const previous = renderer.getRenderTarget()
   renderer.setRenderTarget(target)
   try {

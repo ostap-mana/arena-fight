@@ -9,6 +9,7 @@ const RAISE_WAIT = 4
 const RAISE_WAIT_MAX = 60
 const MAX_SAMPLE = 0.1
 const SETTLE = 2.5
+const WAKE_SETTLE = 3
 
 let longTasks = 0
 
@@ -34,14 +35,19 @@ export class ResolutionGovernor {
     this.longTasks = longTasks
   }
 
-  hold() {
+  hold(settle = SETTLE) {
     this.reset()
-    this.settle = SETTLE
+    this.settle = Math.max(this.settle, settle)
+  }
+
+  wake() {
+    this.hold(WAKE_SETTLE)
+    this.calm = 0
   }
 
   sample(dt, workMs) {
     if (this.settle > 0) {
-      this.settle -= dt
+      this.settle -= Math.min(dt, MAX_SAMPLE)
       if (this.settle <= 0) this.reset()
       return null
     }

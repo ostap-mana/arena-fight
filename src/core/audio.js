@@ -31,6 +31,21 @@ const PAN_SPAN = 14
 const FAR_GAIN = 0.3
 const OMNI_DISTANCE = 100
 const STEAL_FADE = 90
+const CUE_FADE = 900
+const HIDE_FADE = 40
+const OPEN_FADE = 50
+const WAKE_FADE = 200
+const SLEEP_DELAY = 60
+const GESTURE_WINDOW = 150
+const PENDING_AGE = 500
+const PENDING_MAX = 6
+const END_SLACK = 0.05
+const WATCH_MS = 1000
+const STALL_SPAN = 450
+const STALL_RATIO = 0.2
+const REBUILD_GAP = 2000
+const REBUILD_BACKOFF = 3
+const RESUME_TIMEOUT = 1500
 
 export const STEPS = BANK.steps || {}
 
@@ -53,14 +68,14 @@ async function playableFormat() {
 
 const withFormat = (src, ext) => src.replace(/\.m4a$/, `.${ext}`)
 
-function wakeContext() {
-  const ctx = Howler.ctx
-  if (!ctx || ctx.state === 'running' || ctx.state === 'closed' || document.hidden) return
-  ctx.resume().then(() => {
-    if (Howler.state === 'running') return
-    Howler.state = 'running'
-    for (const h of Howler._howls) h._emit('resume')
-  }).catch(() => {})
+const ignore = () => {}
+
+function attempt(task, done = ignore) {
+  try {
+    Promise.resolve(task()).then(done, ignore)
+  } catch {
+    ignore()
+  }
 }
 
 class Audio {
@@ -78,25 +93,292 @@ class Audio {
     this.ready = false
     this.silencers = new Set()
     this.probing = null
+    this.ctx = null
+    this.up = false
+    this.dozing = false
+    this.zombie = false
+    this.kicked = false
+    this.askedAt = 0
+    this.held = []
+    this.layers = {}
+    this.waiting = {}
+    this.ducked = 1
+    this.pending = Array.from({ length: PENDING_MAX }, () => ({ name: '', opts: null, at: 0 }))
+    this.queued = 0
+    this.wakeAt = -Infinity
+    this.wallAt = 0
+    this.clockAt = 0
+    this.watcher = 0
+    this.sleeper = 0
+    this.rebuilds = 0
+    this.rebuiltAt = -Infinity
+    this.onState = () => this.sync()
+    this.onWatch = () => this.check()
+    this.onSettle = () => this.settle()
+    this.onLoad = () => this.reconcile()
     Howler.autoSuspend = false
-    if (typeof document !== 'undefined') {
-      const hide = () => {
-        this.silence('hidden', document.hidden)
-        wakeContext()
-      }
-      document.addEventListener('visibilitychange', hide)
-      addEventListener('pagehide', () => this.silence('hidden', true))
-      addEventListener('pageshow', hide)
-      addEventListener('focus', wakeContext)
-      for (const type of WAKE_EVENTS) document.addEventListener(type, wakeContext, { capture: true, passive: true })
-      hide()
-    }
+    if (typeof document !== 'undefined') this.hook()
+  }
+
+  hook() {
+    this.dozing = document.hidden
+    const seen = () => (document.hidden ? this.doze(false) : this.wake())
+    const gone = () => this.doze(true)
+    const back = () => this.wake()
+    const touch = e => this.wake(e.type)
+    document.addEventListener('visibilitychange', seen)
+    document.addEventListener('freeze', gone)
+    document.addEventListener('resume', back)
+    addEventListener('pagehide', gone)
+    addEventListener('pageshow', back)
+    addEventListener('focus', back)
+    for (const type of WAKE_EVENTS) document.addEventListener(type, touch, { capture: true, passive: true })
   }
 
   silence(reason, on) {
     if (on) this.silencers.add(reason)
     else this.silencers.delete(reason)
-    if (Howler.ctx) Howler.mute(this.silencers.size > 0)
+    if (!on && this.ctx) this.wake()
+    if (this.up) this.ramp(this.level(), OPEN_FADE)
+  }
+
+  level() {
+    return this.silencers.size ? 0 : 1
+  }
+
+  ramp(to, ms) {
+    const g = Howler.masterGain && Howler.masterGain.gain
+    if (!g) return
+    const t = Howler.ctx.currentTime
+    const from = g.value
+    g.cancelScheduledValues(t)
+    if (ms > 0) {
+      g.setValueAtTime(from, t)
+      g.linearRampToValueAtTime(to, t + ms / 1000)
+    } else {
+      g.setValueAtTime(to, t)
+    }
+  }
+
+  live() {
+    const c = Howler.ctx
+    return !this.dozing && !this.zombie && (c ? c.state === 'running' : !Howler.usingWebAudio)
+  }
+
+  awake() {
+    const c = Howler.ctx
+    return this.up && (!c || c.state === 'running')
+  }
+
+  bind() {
+    const c = Howler.ctx
+    if (!c || c === this.ctx) return
+    this.ctx = c
+    this.up = false
+    c.addEventListener('statechange', this.onState)
+    this.ramp(0, 0)
+    if (this.dozing) this.settle()
+  }
+
+  sync() {
+    this.bind()
+    const live = this.live()
+    if (live && !this.up) this.rise()
+    else if (!live && this.up) this.fall(0)
+  }
+
+  rise() {
+    this.up = true
+    this.askedAt = 0
+    Howler.state = 'running'
+    this.purge()
+    this.revive()
+    this.reconcile()
+    this.ramp(this.level(), this.queued ? 0 : OPEN_FADE)
+    this.flush()
+    this.watch()
+  }
+
+  fall(fade) {
+    this.up = false
+    Howler.state = 'suspended'
+    clearInterval(this.watcher)
+    this.ramp(0, fade)
+    if (!fade) this.sleep()
+  }
+
+  doze(now) {
+    const fade = !now && this.awake()
+    this.dozing = true
+    this.queued = 0
+    this.askedAt = 0
+    if (this.up) this.fall(fade ? HIDE_FADE : 0)
+    clearTimeout(this.sleeper)
+    if (fade) this.sleeper = setTimeout(this.onSettle, SLEEP_DELAY)
+    else this.settle()
+  }
+
+  settle() {
+    if (!this.dozing) return
+    this.sleep()
+    const c = Howler.ctx
+    if (c && c.state === 'running') attempt(() => c.suspend())
+  }
+
+  wake(gesture) {
+    if (document.hidden) return
+    if (this.dozing && Howler.ctx && Howler.ctx.state !== 'running') this.sleep()
+    this.dozing = false
+    clearTimeout(this.sleeper)
+    this.bind()
+    if (gesture && this.up) this.check()
+    if (gesture && gesture !== 'pointerdown') this.stuck()
+    if (this.zombie) this.rebuild()
+    const c = Howler.ctx
+    if (c && c.state !== 'running' && c.state !== 'closed') {
+      if (gesture) this.wakeAt = performance.now()
+      attempt(() => c.resume(), this.onState)
+    }
+    this.sync()
+  }
+
+  stuck() {
+    const c = Howler.ctx
+    if (!c || c.state === 'running') return
+    const now = performance.now()
+    if (!this.askedAt) this.askedAt = now
+    if (c.state === 'closed' || now - this.askedAt > RESUME_TIMEOUT) this.rebuild()
+  }
+
+  sleep() {
+    this.purge()
+    for (const k in this.music) this.hold(k)
+    for (const k in this.sfx) this.hush(this.sfx[k])
+    for (const k in this.groups) this.hush(this.groups[k])
+  }
+
+  hold(name) {
+    const h = this.music[name]
+    for (const s of h._sounds) {
+      if (s._paused) continue
+      h.pause(s._id)
+      if (this.rewind(h, s)) this.held.push(name, s._id)
+      else h.stop(s._id)
+    }
+  }
+
+  rewind(h, s) {
+    const len = h._sprite[s._sprite][1] / 1000
+    if (s._seek < len - END_SLACK) return true
+    s._seek = s._loop ? s._seek % len : 0
+    return s._loop && len > 0
+  }
+
+  hush(h) {
+    for (const s of h._sounds) if (!s._paused) h.stop(s._id)
+  }
+
+  revive() {
+    const held = this.held
+    for (let i = 0; i < held.length; i += 2) {
+      const name = held[i]
+      const h = this.music[name]
+      const s = h._soundById(held[i + 1])
+      if (!s || !s._paused || s._ended) continue
+      if (!this.wants(name)) {
+        h.stop(s._id)
+        continue
+      }
+      const vol = s._volume
+      h._volume = vol
+      h.volume(0, s._id)
+      h.play(s._id)
+      if (vol > 0) h.fade(0, vol, WAKE_FADE, s._id)
+    }
+    held.length = 0
+  }
+
+  purge() {
+    for (const h of Howler._howls) {
+      if (!h._playLock && !h._onresume.length) continue
+      h._onresume.length = 0
+      h._playLock = false
+      h._queue.length = 0
+      for (const s of h._sounds) if (s._paused && !s._ended && this.held.indexOf(s._id) < 0) s._ended = true
+    }
+  }
+
+  check() {
+    const c = Howler.ctx
+    if (!this.up || !c || c.state !== 'running') return this.rebase(0)
+    const wall = performance.now()
+    if (!this.wallAt) return this.rebase(wall)
+    const span = wall - this.wallAt
+    if (span < STALL_SPAN) return
+    if ((c.currentTime - this.clockAt) * 1000 < span * STALL_RATIO) return this.stall()
+    this.kicked = false
+    this.rebase(wall)
+  }
+
+  rebase(wall) {
+    this.wallAt = wall
+    this.clockAt = wall && Howler.ctx ? Howler.ctx.currentTime : 0
+  }
+
+  watch() {
+    clearInterval(this.watcher)
+    this.rebase(performance.now())
+    this.watcher = setInterval(this.onWatch, WATCH_MS)
+  }
+
+  stall() {
+    const c = Howler.ctx
+    this.fall(0)
+    this.zombie = true
+    if (this.kicked) return this.rebuild()
+    this.kicked = true
+    attempt(() => c.suspend(), () => this.kick(c))
+  }
+
+  kick(c) {
+    if (Howler.ctx !== c || !this.zombie) return
+    this.zombie = false
+    if (!document.hidden) attempt(() => c.resume(), this.onState)
+  }
+
+  rebuild() {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    const now = performance.now()
+    if (!Ctx || now - this.rebuiltAt < REBUILD_GAP * 2 ** Math.min(this.rebuilds, REBUILD_BACKOFF)) return
+    let ctx
+    try {
+      ctx = new Ctx()
+    } catch {
+      return
+    }
+    this.rebuiltAt = now
+    this.rebuilds++
+    this.askedAt = 0
+    this.fall(0)
+    const old = Howler.ctx
+    const master = ctx.createGain()
+    master.gain.value = 0
+    master.connect(ctx.destination)
+    Howler.ctx = ctx
+    Howler.masterGain = master
+    for (const h of Howler._howls) if (h._webAudio) for (const s of h._sounds) this.renode(s, ctx, master)
+    this.zombie = false
+    if (old) attempt(() => old.close())
+    this.sync()
+    if (ctx.state !== 'running') attempt(() => ctx.resume(), this.onState)
+  }
+
+  renode(s, ctx, master) {
+    const node = ctx.createGain()
+    node.gain.value = s._muted ? 0 : s._volume
+    node.connect(master)
+    s._node = node
+    s._panner = undefined
   }
 
   probe() {
@@ -106,11 +388,11 @@ class Audio {
 
   prime() {
     Howler.volume()
-    Howler.mute(this.silencers.size > 0)
+    this.sync()
   }
 
   unlocked() {
-    return !!Howler.ctx && Howler.ctx.state === 'running'
+    return this.awake()
   }
 
   init() {
@@ -131,8 +413,11 @@ class Audio {
         loop: MUSIC[k].loop,
         html5: false,
         preload: false,
+        onload: this.onLoad,
       })
     }
+    this.sync()
+    this.reconcile()
   }
 
   fetchBoot() {
@@ -180,14 +465,41 @@ class Audio {
       setTimeout(() => this.play(name, { ...opts, delay: 0 }), opts.delay * 1000)
       return
     }
+    if (!this.awake()) return this.defer(name, opts)
     if (BANK.sounds[name]) return this.playEvent(name, opts)
     const h = this.sfx[name]
     if (!h) return
-    if (h.state() === 'unloaded') h.load()
+    if (h.state() !== 'loaded') {
+      if (h.state() === 'unloaded') h.load()
+      return
+    }
     const id = h.play()
     if (opts.rate) h.rate(opts.rate, id)
     if (opts.volume != null) h.volume(SFX[name] * opts.volume, id)
     return id
+  }
+
+  defer(name, opts) {
+    const now = performance.now()
+    if (now - this.wakeAt > GESTURE_WINDOW) return
+    if (this.queued && now - this.pending[0].at > PENDING_AGE) this.queued = 0
+    if (this.queued >= PENDING_MAX) return
+    const p = this.pending[this.queued++]
+    p.name = name
+    p.opts = opts
+    p.at = now
+  }
+
+  flush() {
+    const count = this.queued
+    const now = performance.now()
+    this.queued = 0
+    this.wakeAt = -Infinity
+    for (let i = 0; i < count; i++) {
+      const p = this.pending[i]
+      if (now - p.at <= PENDING_AGE) this.play(p.name, p.opts)
+      p.opts = null
+    }
   }
 
   playAny(names, opts) {
@@ -264,45 +576,85 @@ class Audio {
     }
   }
 
-  track(name, fade = 900) {
-    if (!this.enabled) return
-    if (this.current === name) return
-    const prev = this.music[this.current]
-    if (prev) {
-      prev.fade(prev.volume(), 0, fade)
-      const p = prev
-      setTimeout(() => p.stop(), fade + 60)
-    }
-    this.current = name
+  wants(name) {
+    return name === this.current || !!this.layers[name]
+  }
+
+  target(name) {
+    return MUSIC[name].vol * (name === this.current ? this.ducked : 1)
+  }
+
+  cue(name, fade) {
     const h = this.music[name]
     if (!h) return
-    this.fetch([name])
-    h.volume(0)
-    h.play()
-    h.fade(0, MUSIC[name].vol, fade)
+    if (h.state() !== 'loaded' || !this.awake()) {
+      this.waiting[name] = fade
+      return this.fetch([name])
+    }
+    delete this.waiting[name]
+    if (!h.playing()) {
+      h.volume(0)
+      h.play()
+    }
+    h.fade(h.volume(), this.target(name), fade)
+  }
+
+  reconcile() {
+    if (!this.awake()) return
+    for (const k in this.waiting) {
+      if (this.wants(k)) this.cue(k, this.waiting[k])
+      else delete this.waiting[k]
+    }
+  }
+
+  retire(name, fade) {
+    const h = this.music[name]
+    delete this.waiting[name]
+    if (!h || h.state() !== 'loaded') return
+    if (!this.awake()) {
+      h.stop()
+      return
+    }
+    h.fade(h.volume(), 0, fade)
+    setTimeout(() => {
+      if (!this.wants(name)) h.stop()
+    }, fade + 60)
+  }
+
+  track(name, fade = CUE_FADE) {
+    if (!this.enabled) return
+    if (this.current === name) return
+    const prev = this.current
+    this.current = name
+    this.ducked = 1
+    if (prev) this.retire(prev, fade)
+    this.cue(name, fade)
   }
 
   layer(name, on, fade = 800) {
     const h = this.music[name]
     if (!h) return
-    if (on) {
-      this.fetch([name])
-      if (!h.playing()) { h.volume(0); h.play() }
-      h.fade(h.volume(), MUSIC[name].vol, fade)
-    } else {
-      h.fade(h.volume(), 0, fade)
-    }
+    this.layers[name] = on
+    if (on) return this.cue(name, fade)
+    delete this.waiting[name]
+    if (this.awake()) h.fade(h.volume(), 0, fade)
+    else h.volume(0)
   }
 
   duck(v, ms = 400) {
     const h = this.music[this.current]
     if (!h) return
-    h.fade(h.volume(), MUSIC[this.current].vol * v, ms)
+    this.ducked = v
+    if (this.awake()) h.fade(h.volume(), this.target(this.current), ms)
+    else h.volume(this.target(this.current))
   }
 
   stopAll() {
     Howler.stop()
     this.current = null
+    this.layers = {}
+    this.waiting = {}
+    this.held.length = 0
   }
 
   mute(v) {

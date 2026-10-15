@@ -4,7 +4,7 @@ import { compileFor } from './compile.js'
 const BUDGET_MS = 3
 const RETRY_FRAMES = 30
 const queue = []
-const seen = new WeakSet()
+let seen = new WeakSet()
 let pumping = false
 let renderer = null
 
@@ -42,6 +42,10 @@ function loaded(t) {
   return !!t.image && t.version > 0
 }
 
+export function forgetUploads() {
+  seen = new WeakSet()
+}
+
 export function uploadTextures(target, textures) {
   renderer = target
   for (const t of textures) {
@@ -70,6 +74,7 @@ async function pump() {
   pumping = true
   while (queue.length) {
     await frame()
+    if (renderer.getContext().isContextLost()) continue
     const start = performance.now()
     let spins = queue.length
     while (queue.length && spins-- > 0 && performance.now() - start < BUDGET_MS) {
