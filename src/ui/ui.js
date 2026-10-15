@@ -123,6 +123,7 @@ const GEAR_SETTLE_MS = 380
 const BANNER_GAP = 8
 const BANNER_MIN_FIT = 0.75
 const BANNER_MIN_SCALE = 0.55
+const BANNER_TITLE_ROOM = 0.92
 const BANNER_LEAN_ABOVE = 0.5
 const BANNER_LEAN_BELOW = 0.3
 const BANNER_CENTRE_BAND = 1 / 6
@@ -899,6 +900,13 @@ export class UI {
     this.wavePainted = k
   }
 
+  fitBannerTitle(t) {
+    t.style.fontSize = ''
+    const room = this.banner.clientWidth * BANNER_TITLE_ROOM
+    const wide = t.scrollWidth
+    if (room > 0 && wide > room) t.style.fontSize = `${(parseFloat(getComputedStyle(t).fontSize) * room / wide).toFixed(1)}px`
+  }
+
   showBanner(title, sub, dur = 1.6, icon = null) {
     const t = this.banner.querySelector('.t')
     const s = this.banner.querySelector('.s')
@@ -907,6 +915,7 @@ export class UI {
     for (const node of [t, s, bk, ic]) node.getAnimations().forEach(a => a.cancel())
     t.textContent = title
     s.textContent = sub || ''
+    this.fitBannerTitle(t)
     this.banner.classList.toggle('subbed', !!sub)
     this.banner.classList.toggle('iconed', !!icon)
     if (icon) ic.src = BANNER_ICONS[icon]
