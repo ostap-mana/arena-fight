@@ -188,6 +188,7 @@ class Audio {
 
   sync() {
     this.bind()
+    if (APPLE && this.up && Howler.ctx && Howler.ctx.state !== 'running') this.rebuild(true)
     const live = this.live()
     if (live && !this.up) this.rise()
     else if (!live && this.up) this.fall(0)
@@ -218,14 +219,16 @@ class Audio {
     this.dozing = true
     this.queued = 0
     this.askedAt = 0
-    if (APPLE && Howler.ctx) {
-      this.stale = true
-      this.ramp(0, 0)
-    }
+    const apple = APPLE && !!Howler.ctx
+    if (apple) this.ramp(0, 0)
     if (this.up) this.fall(fade ? HIDE_FADE : 0)
     clearTimeout(this.sleeper)
     if (fade) this.sleeper = setTimeout(this.onSettle, SLEEP_DELAY)
     else this.settle()
+    if (apple) {
+      this.stale = true
+      this.rebuild(true)
+    }
   }
 
   settle() {
@@ -384,7 +387,7 @@ class Audio {
     this.zombie = false
     if (old) attempt(() => old.close())
     this.sync()
-    if (ctx.state !== 'running') attempt(() => ctx.resume(), this.onState)
+    if (!this.dozing && ctx.state !== 'running') attempt(() => ctx.resume(), this.onState)
   }
 
   renode(s, ctx, master) {
