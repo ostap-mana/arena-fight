@@ -1161,6 +1161,15 @@ class Emitter {
     this.emitting = false
   }
 
+  vanish() {
+    this.emitting = false
+    this.count = 0
+    if (this.mesh) {
+      this.mesh.count = 0
+      this.mesh.visible = false
+    }
+  }
+
   nodeMatrix() {
     return this.node.matrixWorld
   }
@@ -2164,6 +2173,11 @@ class Instance {
     this.stopAge = 0
     for (const e of this.emitters) e.stop()
     for (const r of this.ribbons) r.stop()
+  }
+
+  land() {
+    this.stop()
+    for (const e of this.emitters) if (!e.def.world) e.vanish()
   }
 
   get done() {

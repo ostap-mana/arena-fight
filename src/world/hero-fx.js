@@ -304,7 +304,11 @@ export class HeroFx {
     socket.updateWorldMatrix(true, false)
     const from = socket.getWorldPosition(new THREE.Vector3())
     const end = fallback ? fallback.clone() : from.clone().add(_v.set(Math.sin(yawOf(caster)), 0, Math.cos(yawOf(caster))).multiplyScalar(8 * caster.scale))
-    const goal = out => (target && !target.dead ? this.point(id, target, e.target, out) : out.copy(end))
+    const aim = target && !target.dead ? this.point(id, target, e.target, new THREE.Vector3()) : end
+    const goal = out => {
+      if (target && !target.dead) this.point(id, target, e.target, aim)
+      return out.copy(aim)
+    }
     const dist = from.distanceTo(goal(_v2))
     const speed = (e.speed || PROJECTILE_SPEED) * caster.scale
     const dur = Math.max(0.05, e.mode === 'fixed_time' ? e.flight : dist / speed)
@@ -358,7 +362,7 @@ export class HeroFx {
       s.last.copy(pos)
       if (k < 1) continue
       this.shots.splice(i, 1)
-      if (s.inst) s.inst.stop()
+      if (s.inst) s.inst.land()
       if (s.onArrive) s.onArrive(pos)
     }
   }
@@ -986,7 +990,7 @@ export class HeroFx {
         f.pos.copy(goal)
         if (f.inst) {
           f.inst.moveTo(f.pos)
-          f.inst.stop()
+          f.inst.land()
         }
         this.flights.splice(i, 1)
         if (f.onArrive) f.onArrive()
