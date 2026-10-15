@@ -283,9 +283,9 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
 
 .finger {
   --fu: var(--tu);
-  position: absolute; left: calc(-65.2 * var(--fu)); top: calc(-42.3 * var(--fu));
-  width: calc(309 * var(--fu)); height: calc(600 * var(--fu));
-  transform: scale(.9); transform-origin: 21.09% 7.05%; pointer-events: none; z-index: 60;
+  position: absolute; left: calc(-35.26 * var(--fu)); top: calc(-2.64 * var(--fu));
+  width: calc(275 * var(--fu)); height: calc(600 * var(--fu));
+  transform: scale(.9); transform-origin: 12.82% 0.44%; pointer-events: none; z-index: 60;
   filter: drop-shadow(0 calc(5 * var(--tu)) calc(9 * var(--tu)) rgba(0, 0, 0, .6));
 }
 
