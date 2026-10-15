@@ -19,6 +19,8 @@ const MUSIC = {
   amb_battle: { vol: 0.25, loop: true },
 }
 
+const APPLE = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+
 const FORMATS = ['m4a', 'mp3']
 const PROBE_CLIP = 'assets/audio/outcome_cta'
 
@@ -100,6 +102,7 @@ class Audio {
     this.up = false
     this.dozing = false
     this.zombie = false
+    this.stale = false
     this.kicked = false
     this.askedAt = 0
     this.held = []
@@ -211,10 +214,14 @@ class Audio {
   }
 
   doze(now) {
-    const fade = !now && this.awake()
+    const fade = !now && !APPLE && this.awake()
     this.dozing = true
     this.queued = 0
     this.askedAt = 0
+    if (APPLE && Howler.ctx) {
+      this.stale = true
+      this.ramp(0, 0)
+    }
     if (this.up) this.fall(fade ? HIDE_FADE : 0)
     clearTimeout(this.sleeper)
     if (fade) this.sleeper = setTimeout(this.onSettle, SLEEP_DELAY)
@@ -225,7 +232,7 @@ class Audio {
     if (!this.dozing) return
     this.sleep()
     const c = Howler.ctx
-    if (c && c.state === 'running') attempt(() => c.suspend())
+    if (c && (c.state === 'running' || c.state === 'interrupted')) attempt(() => c.suspend())
   }
 
   wake(gesture) {
@@ -233,6 +240,10 @@ class Audio {
     if (this.dozing && Howler.ctx && Howler.ctx.state !== 'running') this.sleep()
     this.dozing = false
     clearTimeout(this.sleeper)
+    if (this.stale) {
+      this.stale = false
+      this.rebuild(true)
+    }
     this.bind()
     if (gesture && this.up) this.check()
     if (gesture && gesture !== 'pointerdown') this.stuck()
@@ -349,10 +360,10 @@ class Audio {
     if (!document.hidden) attempt(() => c.resume(), this.onState)
   }
 
-  rebuild() {
+  rebuild(fresh = false) {
     const Ctx = window.AudioContext || window.webkitAudioContext
     const now = performance.now()
-    if (!Ctx || now - this.rebuiltAt < REBUILD_GAP * 2 ** Math.min(this.rebuilds, REBUILD_BACKOFF)) return
+    if (!Ctx || (!fresh && now - this.rebuiltAt < REBUILD_GAP * 2 ** Math.min(this.rebuilds, REBUILD_BACKOFF))) return
     let ctx
     try {
       ctx = new Ctx()
@@ -360,7 +371,7 @@ class Audio {
       return
     }
     this.rebuiltAt = now
-    this.rebuilds++
+    if (!fresh) this.rebuilds++
     this.askedAt = 0
     this.fall(0)
     const old = Howler.ctx

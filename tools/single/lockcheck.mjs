@@ -7,7 +7,9 @@ const html = fs.readFileSync(file)
 const server = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.end(html) })
 await new Promise(r => server.listen(0, '127.0.0.1', r))
 const browser = await chromium.launch({ args: ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu'] })
-const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+const ios = process.argv.includes('--ios')
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, ...(ios ? { userAgent: IPHONE_UA } : {}) })
 const problems = []
 page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') problems.push(m.text()) })
 page.on('pageerror', e => problems.push('pageerror ' + e.message))
