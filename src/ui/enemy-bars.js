@@ -5,7 +5,8 @@ import { removeAt } from '../core/list.js'
 
 const BAR_W = 58
 const BAR_H = 6.4
-const INSET_X = 0.034
+const TIP_X = 0.032
+const EDGE_X = 0.089
 const INSET_Y = 0.125
 const PAD = 4
 const GHOST_COLOR = '#eb403b'
@@ -61,6 +62,20 @@ function retarget(tw, value) {
   tw.t = 0
 }
 
+function fillShape() {
+  const left = -BAR_W / 2
+  const top = -BAR_H / 2
+  const path = new Path2D()
+  path.moveTo(left + BAR_W * TIP_X, 0)
+  path.lineTo(left + BAR_W * EDGE_X, top + BAR_H * INSET_Y)
+  path.lineTo(left + BAR_W * (1 - EDGE_X), top + BAR_H * INSET_Y)
+  path.lineTo(left + BAR_W * (1 - TIP_X), 0)
+  path.lineTo(left + BAR_W * (1 - EDGE_X), top + BAR_H * (1 - INSET_Y))
+  path.lineTo(left + BAR_W * EDGE_X, top + BAR_H * (1 - INSET_Y))
+  path.closePath()
+  return path
+}
+
 function loadImage(url) {
   const img = new Image()
   img.decoding = 'async'
@@ -82,6 +97,7 @@ export class EnemyBars {
     this.painted = false
     this.last = 0
     this.dpr = 1
+    this.shape = fillShape()
   }
 
   add() {
@@ -169,9 +185,9 @@ export class EnemyBars {
     const unit = this.dpr * scale
     this.bakeSprite(unit)
     const noise = this.noise.complete && this.noise.naturalWidth ? this.noise : null
-    const ix = -BAR_W / 2 + BAR_W * INSET_X
+    const ix = -BAR_W / 2 + BAR_W * TIP_X
     const iy = -BAR_H / 2 + BAR_H * INSET_Y
-    const iw = BAR_W * (1 - INSET_X * 2)
+    const iw = BAR_W * (1 - TIP_X * 2)
     const ih = BAR_H * (1 - INSET_Y * 2)
     for (let i = 0; i < bars.length; i++) {
       const bar = bars[i]
@@ -181,6 +197,8 @@ export class EnemyBars {
       ctx.globalAlpha = alpha
       ctx.setTransform(unit, 0, 0, unit, bar.x * this.dpr, bar.y * this.dpr)
       if (this.spriteScale) ctx.drawImage(this.sprite, -BAR_W / 2 - PAD, -BAR_H / 2 - PAD, BAR_W + PAD * 2, BAR_H + PAD * 2)
+      ctx.save()
+      ctx.clip(this.shape)
       const g = tweenValue(bar.ghost)
       if (g > 0) {
         ctx.fillStyle = GHOST_COLOR
@@ -192,6 +210,7 @@ export class EnemyBars {
         ctx.fillRect(ix, iy, iw * f, ih)
         if (noise) ctx.drawImage(noise, ix, iy, iw * f, ih)
       }
+      ctx.restore()
     }
     ctx.globalAlpha = 1
   }
