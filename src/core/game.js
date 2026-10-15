@@ -1190,7 +1190,7 @@ export class Game {
       [gainPct(hitWorth(now), hitWorth(was)), 'DMG'],
       [gainPct(now.hp, was.hp), 'HP'],
       [gainPct(was.taken, now.taken), 'DEF'],
-    ].filter(p => p[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 2)
+    ].filter(p => p[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 1)
     return parts.map(([v, label]) => `+${v}% ${label}`).join(' · ')
   }
 
@@ -1255,7 +1255,7 @@ export class Game {
   warnWeak() {
     if (this.t - this.weakWarnAt < WEAK_WARN_GAP || this.gearOpen || this.shieldUp || this.bossDown()) return
     this.weakWarnAt = this.t
-    this.ui.showBanner('TOO WEAK', `enemies hit x${(1 + WEAK_HURT * this.weakness()).toFixed(1)} · ${this.gear.hasUpgrade() ? 'tap your hero' : 'pick up gear'}`, 2)
+    this.ui.showBanner('TOO WEAK', this.gear.hasUpgrade() ? 'equip your new gear' : 'pick up gear', 2)
   }
 
   showPower() {
@@ -1265,7 +1265,7 @@ export class Game {
     const waiting = this.gearHinted && this.gear.hasUpgrade()
     const calling = this.bossWave() && this.boss && !this.boss.dead && !this.titanMode && !this.titanReady
     const gate = this.shieldUp && !this.shieldFragile
-    this.ui.setTip(gate ? 'Boss immune · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : this.shieldUp ? 'Strike · break his shield' : calling ? 'Hit the boss · call your titan' : '')
+    this.ui.setTip(gate ? 'Shield up · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : this.shieldUp ? 'Hit him · break his shield' : calling ? 'Hit the boss · call your titan' : '')
   }
 
   raiseShield() {
@@ -1279,7 +1279,7 @@ export class Game {
     setTimeout(() => {
       if (epoch !== this.epoch || !this.shieldUp || this.state !== 'battle') return
       const owned = this.gear.buildCount(this.gear.bestBuild())
-      this.ui.showBanner('TOO WEAK', owned < BUILD_PIECES ? `complete your ${SET_NAME[this.gear.build.set]} set · ${owned}/${BUILD_PIECES}` : `equip gear · reach ${POWER_GOAL.toLocaleString('en-US')} power`, 2.6)
+      this.ui.showBanner('TOO WEAK', owned < BUILD_PIECES ? `complete your set · ${owned}/${BUILD_PIECES}` : 'equip your best gear', 2.6)
       audio.play('boss_laugh')
       setTimeout(() => {
         if (epoch !== this.epoch || !this.shieldUp || this.state !== 'battle' || this.hero.dead) return
@@ -1311,7 +1311,7 @@ export class Game {
     this.shake(0.6, 0.45)
     if (this.boss && !this.boss.dead) this.lights.flash(this.boss.pos, 0xffd070, 3.2, 6, 0.6, this.boss.height * 0.5)
     this.ui.flashGoal()
-    this.bannerAfter('SHIELD BROKEN', `${this.gear.power().toLocaleString('en-US')} power · strike now`, 2.2)
+    this.bannerAfter('SHIELD BROKEN', 'strike now', 2.2)
   }
 
   bannerAfter(title, sub, dur) {
@@ -1373,7 +1373,7 @@ export class Game {
 
   setLost() {
     if (this.state !== 'battle' || this.titanMode || this.setLive || this.bossDown()) return
-    this.ui.showBanner('SET BROKEN', `${SET_NAME[this.gear.build.set]} bonus lost · tap your hero`, 2)
+    this.ui.showBanner('SET BROKEN', 'bonus lost · tap your hero', 2)
     audio.play('ui_button_locked')
   }
 
@@ -2158,15 +2158,14 @@ export class Game {
     const n = this.waveIndex + 1
     const total = WAVES.length
     if (boss) {
-      this.ui.showBanner('FINAL BOSS', `wave ${n}/${total} · ${boss.name}, ${boss.title}`, 2, 'boss')
+      this.ui.showBanner('FINAL BOSS', boss.name, 2, 'boss')
       return
     }
     const bossWave = WAVES.findIndex(w => w.boss) + 1
-    const ahead = bossWave === n + 1 ? 'boss next wave' : bossWave ? `final boss on wave ${bossWave}` : 'incoming'
-    const goal = POWER_GOAL.toLocaleString('en-US')
+    const ahead = bossWave === n + 1 ? 'the boss is next' : 'more monsters'
     const dur = this.waveIndex === 0 ? FIRST_WAVE_BANNER : this.underpowered() ? 2.4 : 1.8
-    const sub = this.waveIndex === 0 ? `${ahead} · reach ${goal} power`
-      : this.underpowered() ? `${ahead} · power ${this.gear.power().toLocaleString('en-US')} / ${goal}`
+    const sub = this.waveIndex === 0 ? 'beat the monsters · grab their gear'
+      : this.underpowered() ? `${ahead} · equip your gear`
       : ahead
     this.ui.showBanner(`WAVE ${n}/${total}`, sub, dur)
     this.ui.callBossStop(dur)
@@ -3580,8 +3579,7 @@ export class Game {
     const epoch = this.epoch
     this.ui.show('hud', false)
     const short = this.underpowered()
-    const score = short ? `${this.gear.power().toLocaleString('en-US')} / ${POWER_GOAL.toLocaleString('en-US')} power` : ''
-    if (short) this.ui.showBanner('TOO WEAK', score, DEFEAT_REASON_DELAY)
+    if (short) this.ui.showBanner('TOO WEAK', 'equip gear to beat him', DEFEAT_REASON_DELAY)
     setTimeout(() => { if (epoch === this.epoch) this.showOutcome('defeat') }, short ? DEFEAT_REASON_DELAY * 1000 : 1200)
   }
 

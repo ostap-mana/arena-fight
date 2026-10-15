@@ -756,14 +756,14 @@ export class GearRing {
   paintBuild() {
     const g = this.gear
     const build = g.build
-    this.buildChip.style.display = build ? '' : 'none'
-    this.buildBonus.style.display = build ? '' : 'none'
-    if (!build) return
-    const count = g.buildCount()
+    const count = build ? g.buildCount() : 0
     const full = count >= BUILD_PIECES
+    this.buildChip.style.display = build ? '' : 'none'
+    this.buildBonus.style.display = build && full ? '' : 'none'
+    if (!build) return
     this.buildChip.querySelector('.bset').src = art(`set-${build.set}`)
-    this.buildChip.querySelector('.bname').textContent = full ? `${SET_NAME[build.set]} set active` : `${SET_NAME[build.set]} set`
-    this.buildBonus.textContent = full ? build.bonusText : `${BUILD_PIECES} set pieces: ${build.bonusText}`
+    this.buildChip.querySelector('.bname').textContent = full ? `${SET_NAME[build.set]} set active` : `${SET_NAME[build.set]} set ${count}/${BUILD_PIECES}`
+    this.buildBonus.textContent = build.bonusText
     this.buildBonus.classList.toggle('on', full)
     this.buildChip.classList.toggle('on', full)
     this.buildChip.classList.toggle('picked', this.filter === 'build')

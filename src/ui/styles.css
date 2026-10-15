@@ -1139,6 +1139,7 @@ img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 3px #000;
 }
 #gearring .bbonus.on { opacity: 1; }
+#gearring.intro .buildchip, #gearring.intro .bbonus { display: none; }
 #gearring .x {
   position: absolute; right: -4%; top: 0; width: calc(var(--s) * .52); height: calc(var(--s) * .52); border-radius: 50%; padding: 0; cursor: pointer;
   border: 1px solid rgba(231, 196, 120, .7); background: rgba(8, 12, 26, .8);
