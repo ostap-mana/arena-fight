@@ -30,7 +30,12 @@ const statics = [
   ['window.open', (text.match(/window\.open\s*\(/g) || []).length],
   ['mraid', (text.match(/mraid/gi) || []).length],
 ]
-for (const [k, v] of statics) console.log(`static  ${k}: ${v}`)
+const banned = [
+  ['XMLHttpRequest', (text.match(/XMLHttpRequest/g) || []).length],
+  ['window.top', (text.match(/window\.top\b/g) || []).length],
+]
+for (const [k, v] of [...statics, ...banned]) console.log(`static  ${k}: ${v}`)
+for (const [k, v] of banned) if (v) problems.push(`[static] ${k} named ${v}x, the ad network refuses the file`)
 
 const server = createServer((req, res) => {
   if (req.url !== '/' && !req.url.startsWith('/?')) {
@@ -66,6 +71,10 @@ async function run(index) {
   const t0 = Date.now()
   await page.goto(url)
   const loaded = Date.now() - t0
+  await page.evaluate(() => {
+    window.__funnel = []
+    window.__PLAYABLE.on((name, data) => window.__funnel.push(data && data.value != null ? `${name}:${data.value}` : name))
+  })
   await page.waitForFunction(() => window.__game && window.__game.state === 'select', null, { timeout: 120000 })
   notes.push(`[hero ${index}] load event ${loaded} ms, select screen ${Date.now() - t0} ms`)
   await page.waitForTimeout(1200)
@@ -115,11 +124,17 @@ async function run(index) {
   await page.keyboard.press('KeyV')
   await page.waitForTimeout(3500)
   await shot(page, `h${index}-8-victory`)
+  await page.evaluate(() => { const b = document.querySelector('#outcome .control'); if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); if (b) b.click() })
+  await page.waitForTimeout(500)
   await page.keyboard.press('KeyR')
   await page.waitForTimeout(5000)
   await page.keyboard.press('KeyD')
   await page.waitForTimeout(4000)
   await shot(page, `h${index}-9-defeat`)
+  const funnel = await page.evaluate(() => window.__funnel)
+  notes.push(`[hero ${index}] funnel ${funnel.join(' > ')}`)
+  const lacking = ['progress:0.25', 'progress:0.5', 'progress:0.75', 'solved', 'endcard', 'cta', 'failed'].filter(e => !funnel.includes(e))
+  if (lacking.length) problems.push(`[hero ${index}] funnel never sent ${lacking.join(', ')}`)
   await page.close()
 }
 

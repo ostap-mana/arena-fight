@@ -68,6 +68,8 @@ async function playableFormat() {
 
 const withFormat = (src, ext) => src.replace(/\.m4a$/, `.${ext}`)
 
+const extOf = src => src.slice(src.lastIndexOf('.') + 1)
+
 const ignore = () => {}
 
 function attempt(task, done = ignore) {
@@ -83,6 +85,7 @@ class Audio {
     this.sfx = {}
     this.music = {}
     this.groups = {}
+    this.resolving = new Set()
     this.voices = {}
     this.lastAt = {}
     this.listener = null
@@ -431,10 +434,24 @@ class Audio {
     return this.groups[name]
   }
 
+  load(h) {
+    if (h.state() !== 'unloaded' || this.resolving.has(h)) return
+    const ready = window.__ASSET_READY
+    const src = [].concat(h._src)[0]
+    if (!ready || src.startsWith('blob:')) return h.load()
+    this.resolving.add(h)
+    ready(src).then(url => {
+      this.resolving.delete(h)
+      h._format = [extOf(src)]
+      h._src = [url]
+      if (h.state() === 'unloaded') h.load()
+    })
+  }
+
   fetch(names) {
     for (const name of names) {
       const h = this.music[name] || this.sfx[name] || this.group(name)
-      if (h && h.state() === 'unloaded') h.load()
+      if (h) this.load(h)
     }
   }
 
@@ -470,7 +487,7 @@ class Audio {
     const h = this.sfx[name]
     if (!h) return
     if (h.state() !== 'loaded') {
-      if (h.state() === 'unloaded') h.load()
+      this.load(h)
       return
     }
     const id = h.play()
@@ -511,7 +528,7 @@ class Audio {
     const h = this.group(s.g)
     if (!h) return
     if (h.state() !== 'loaded') {
-      if (h.state() === 'unloaded') h.load()
+      this.load(h)
       return
     }
     const slot = opts.slot || key

@@ -176,31 +176,10 @@ function install() {
     })
   }
 
-  const held = new WeakMap()
-  const open = XMLHttpRequest.prototype.open
-  const send = XMLHttpRequest.prototype.send
-  XMLHttpRequest.prototype.open = function (method, url) {
-    const args = Array.prototype.slice.call(arguments)
+  window.__ASSET_READY = url => {
     const key = keyOf(url)
-    if (key && waiting(key)) {
-      held.set(this, { args, key })
-      return
-    }
-    held.delete(this)
-    args[1] = swap(url)
-    return open.apply(this, args)
-  }
-  XMLHttpRequest.prototype.send = function () {
-    const hold = held.get(this)
-    if (!hold) return send.apply(this, arguments)
-    const body = arguments
-    later(hold.key).then(() => {
-      if (held.get(this) !== hold) return
-      held.delete(this)
-      hold.args[1] = swap(hold.args[1])
-      open.apply(this, hold.args)
-      send.apply(this, body)
-    })
+    if (!key) return Promise.resolve(url)
+    return later(key).then(file => (file ? urlOf(file) : missing(key)))
   }
 
   const image = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')
