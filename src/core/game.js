@@ -1289,7 +1289,7 @@ export class Game {
     const waiting = this.gearHinted && this.gear.hasUpgrade()
     const calling = this.bossWave() && this.boss && !this.boss.dead && !this.titanMode && !this.titanReady
     const gate = this.shieldUp && !this.shieldFragile
-    this.ui.setTip(gate ? 'Shield up · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : this.shieldUp ? 'Hit him · break his shield' : calling ? 'Hit the boss · charge your titan' : '')
+    this.ui.setTip(this.titanMode ? '' : gate ? 'Shield up · tap your hero' : canWin || waiting ? 'Tap your hero to equip' : this.shieldUp ? 'Hit him · break his shield' : calling ? 'Hit the boss · charge your titan' : '')
   }
 
   raiseShield() {
@@ -3497,6 +3497,7 @@ export class Game {
     this.heroBase = h
     this.hero = titan
     this.titanMode = true
+    this.showPower()
     this.titanT = def.duration
     this.state = 'battle'
     this.input.enabled = true
